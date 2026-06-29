@@ -316,7 +316,7 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
   } else {
     // resource.type === "claude-code"
     const ccPort = getCcAgentApiPort()
-    if (!ccPort) return { ok: false, error: "Claude Code 引擎未启动" }
+    if (!ccPort) return { ok: false, error: "Claude Agent 引擎未启动" }
     try {
       const res = await httpPost(`http://127.0.0.1:${ccPort}/api/cc/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
       return { ok: !!res?.ok, error: res?.error }

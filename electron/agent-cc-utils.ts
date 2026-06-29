@@ -1,14 +1,6 @@
 /**
- * Claude Code SDK 会话辅助工具
- *
- * 包含：
- * - claude CLI 二进制路径解析
- * - session 辅助函数（extractChatId / f41Eligible / ccResidentModeEnabled）
- * - 通道类型解析
- * - session 状态重置（resetCcRunPresentationState）
- * - watchdog 状态切换（setWatchdogState / markSessionActivity）
- *
- * 依赖方向：agent-cc-types → agent-cc-utils（仅 import 外部包 + agent-cc-types）
+ * Claude Agent SDK 会话辅助工具
+ * 二进制路径解析、session 辅助、Presentation 时序编排（对称 agent-sdk）。
  */
 import { resolve, join, dirname } from "node:path"
 import { existsSync } from "node:fs"
@@ -20,45 +12,63 @@ import { ZERO_CONTEXT_USAGE } from "./context-usage"
 import type { ChatType } from "./agent-launcher"
 import type { CcSessionAgent } from "./agent-cc-types"
 
-// ── 二进制路径解析 ────────────────────────────────────────────────────────────
+/** 平台 optional 包内 Claude Code 可执行文件名 */
+const CC_BINARY_NAME = process.platform === "win32" ? "claude.exe" : "claude"
+const CC_PLATFORM_PKG = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`
 
-/** 解析 claude CLI 二进制路径，优先 node_modules，fallback PATH */
-export function resolveCcBinaryPath(): string {
-  // 1. 优先通过 createRequire 定位 node_modules/.bin/claude
+let _ccAgentBinaryPath: string | null = null
+
+/** 将 asar 虚拟路径替换为解包目录（spawn 需要真实文件） */
+function resolveAsarUnpackedPath(p: string): string {
+  if (p.includes("app.asar") && !p.includes("app.asar.unpacked")) {
+    return p.replace("app.asar", "app.asar.unpacked")
+  }
+  return p
+}
+
+/** 解析 Claude Agent SDK 平台二进制路径；dev/打包均适用 */
+export function resolveCcAgentBinaryPath(): string {
+  if (_ccAgentBinaryPath) return _ccAgentBinaryPath
+
+  const candidates: string[] = []
   try {
     const req = createRequire(import.meta.url)
-    const pkgDir = dirname(req.resolve("@anthropic-ai/claude-code/package.json"))
-    const binaryInBin = join(pkgDir, "bin", process.platform === "win32" ? "claude.exe" : "claude")
-    const binPath = join(pkgDir, "bin", "claude.exe")
-    if (existsSync(binPath)) return binPath
-    if (existsSync(binaryInBin)) return binaryInBin
-  } catch { /* fallthrough */ }
+    const pkgDir = dirname(req.resolve(`${CC_PLATFORM_PKG}/package.json`))
+    candidates.push(join(pkgDir, CC_BINARY_NAME))
+  } catch { /* optional 包未安装 */ }
 
-  // 2. node_modules/.bin/claude（npm link 或全局安装）
-  const dotBin = join(resolve("."), "node_modules", ".bin", "claude")
-  if (existsSync(dotBin)) return dotBin
+  const appDir = process.env.PORTABLE_EXECUTABLE_DIR || dirname(process.execPath)
+  for (const base of [appDir, resolve(".")]) {
+    candidates.push(join(base, "node_modules", CC_PLATFORM_PKG, CC_BINARY_NAME))
+    candidates.push(join(base, "resources", "node_modules", CC_PLATFORM_PKG, CC_BINARY_NAME))
+  }
 
-  // 3. 直接使用 PATH 中的 claude
-  return "claude"
+  for (const p of candidates) {
+    const real = resolveAsarUnpackedPath(p)
+    if (existsSync(real)) {
+      _ccAgentBinaryPath = real
+      return real
+    }
+  }
+
+  pushUiLog("CC", "WARN", `未找到 Claude Agent 二进制 (searched: ${candidates.join(", ")})`)
+  _ccAgentBinaryPath = CC_BINARY_NAME
+  return CC_BINARY_NAME
 }
 
-let _ccBinaryPath: string | null = null
-
-/** 获取 claude CLI 二进制路径（惰性缓存） */
-export function getCcBinaryPath(): string {
-  if (_ccBinaryPath === null) _ccBinaryPath = resolveCcBinaryPath()
-  return _ccBinaryPath
+/** 每次 query 前调用，确保二进制路径已解析并写入日志 */
+export function ensureCcAgentBinaryPaths(): void {
+  const p = resolveCcAgentBinaryPath()
+  if (p !== CC_BINARY_NAME) pushUiLog("CC", "INFO", `Claude Agent 二进制: ${p}`)
 }
 
-// ── Session 辅助 ──────────────────────────────────────────────────────────────
-
-/** 从 sessionKey 提取 chatId 部分（"::" 前） */
+/** 从 sessionKey 提取 chatId */
 export function extractChatId(sessionKey: string): string {
   const idx = sessionKey.indexOf("::")
   return idx > 0 ? sessionKey.slice(0, idx) : sessionKey
 }
 
-/** 获取 session 对应的通道类型（用于飞书表达抑制） */
+/** 获取 session 对应通道类型（飞书表达抑制） */
 export function resolveSessionChannelType(sessionKey: string): string | undefined {
   const chatId = extractChatId(sessionKey)
   const { channelId } = parseChatKey(chatId)
@@ -66,7 +76,7 @@ export function resolveSessionChannelType(sessionKey: string): string | undefine
   return channel?.type
 }
 
-/** 判断 session 是否满足 f41 流式条件（主用户私聊 / 飞书群聊 allowOthers） */
+/** f41 流式条件：主用户私聊 / 飞书群聊 allowOthers */
 export function f41Eligible(sessionKey: string, chatType: ChatType): boolean {
   const chatId = extractChatId(sessionKey)
   const { channelId, chatId: raw } = parseChatKey(chatId)
@@ -75,21 +85,35 @@ export function f41Eligible(sessionKey: string, chatType: ChatType): boolean {
     if (!channel?.mainUserEnabled || !channel.mainUserChatId?.trim()) return false
     return raw === channel.mainUserChatId.trim()
   }
-  if (chatType === "group") {
-    return channel?.type === "feishu" && !!channel.allowOthers
-  }
+  if (chatType === "group") return channel?.type === "feishu" && !!channel.allowOthers
   return false
 }
 
-/** 读取环境变量判断是否启用 resident 模式（进程结束后保留 session 以复用 ccSessionId） */
+/** resident 模式：Run 结束后保留 Map 条目以复用 ccSessionId */
 export function ccResidentModeEnabled(): boolean {
   const v = (process.env.CC_RESIDENT_AGENT ?? process.env.SDK_RESIDENT_AGENT ?? "").trim().toLowerCase()
   return v !== "0" && v !== "false"
 }
 
-// ── Session 状态管理 ──────────────────────────────────────────────────────────
+/** PRESENTATION_ORDERING 环境开关 */
+export function presentationOrderingEnvEnabled(): boolean {
+  const v = (process.env.PRESENTATION_ORDERING ?? "").trim().toLowerCase()
+  return v !== "0" && v !== "false"
+}
 
-/** 重置单次 run 的 presentation 状态（不清除 ccSessionId，保留 resident 上下文） */
+/** Presentation 时序：开关开启且主用户私聊 f41 流式 */
+export function presentationOrderingEligible(session: CcSessionAgent): boolean {
+  return presentationOrderingEnvEnabled() && session.f41Stream && session.chatType === "p2p"
+}
+
+/** 是否应延迟 assistant stream-text 首包 */
+export function shouldDeferCcAssistantPost(session: CcSessionAgent): boolean {
+  if (!presentationOrderingEligible(session)) return false
+  if (session.outboundMessageId) return false
+  return !!(session.presentationDeferStream || session.seenProcessEvent)
+}
+
+/** 重置单次 run 的 presentation 状态（保留 ccSessionId） */
 export function resetCcRunPresentationState(session: CcSessionAgent): void {
   session.errorNotified = false
   session.lastStatus = undefined
@@ -102,6 +126,7 @@ export function resetCcRunPresentationState(session: CcSessionAgent): void {
   session.streamLastPostAt = undefined
   session.logAgg = { kind: null, buf: "" }
   session.seenProcessEvent = false
+  session.presentationDeferStream = false
   session.thinkingOpen = false
   session.contextUsage = { ...ZERO_CONTEXT_USAGE }
   session.contextUsageFromRunTotal = undefined
@@ -114,7 +139,7 @@ export function resetCcRunPresentationState(session: CcSessionAgent): void {
   session.abortController = new AbortController()
 }
 
-/** 切换 watchdog 状态并写入 UI 日志 */
+/** 切换 watchdog 状态 */
 export function setWatchdogState(
   session: CcSessionAgent,
   next: "running" | "draining" | "cancelling",
@@ -126,7 +151,7 @@ export function setWatchdogState(
   pushUiLog("CC", "INFO", `[${session.sessionKey}] watchdog 状态切换 -> ${next} (${reason})`)
 }
 
-/** 更新 session 最后活跃时间，watchdog 非 running 时自动恢复 */
+/** 更新活跃时间；watchdog 非 running 时恢复 */
 export function markSessionActivity(session: CcSessionAgent, source: string): void {
   session.lastActivityAt = Date.now()
   if (session.watchdogState !== "running") {

@@ -1,71 +1,27 @@
 /**
- * Claude Code SDK 事件解析与子进程流监听
- *
- * 包含：
- * - stream-json 事件接口定义（CcSystemEvent / CcAssistantEvent 等）
- * - parseCcEvent：JSONL 行解析
- * - handleCcEvent：单事件分派处理（更新 session 状态 & 推送 presentation）
- * - armCcWatchdog：空闲超时看门狗
- * - streamCcEvents：子进程 stdout/stderr/close/error 流监听
+ * Claude Agent SDK 事件映射
+ * 遍历 query() 返回的 SDKMessage 流，映射至 Presentation / stream-text 出站。
  */
-import type { ChildProcess } from "node:child_process"
+import type { SDKMessage, Query } from "@anthropic-ai/claude-agent-sdk"
 import { pushUiLog } from "./ui-logger"
 import { updateContextUsageDisplay, type TurnUsageSlice } from "./context-usage"
 import { watchRunGuard } from "./agent-run-guard"
 import type { CcSessionAgent } from "./agent-cc-types"
+import { presentationOrderingEligible } from "./agent-cc-utils"
 import {
-  flushCcLog, appendCcLog, appendStreamDelta,
-  closeThinkingIfOpen, markProcessEventSeen, postPresentationEvent,
+  flushCcLog, appendCcLog, closeThinkingIfOpen, markProcessEventSeen, postPresentationEvent,
 } from "./agent-cc-stream"
+import {
+  appendCcAssistantStreamDelta, flushDeferredStreamPost, maybeReleaseDeferredAssistant,
+} from "./agent-cc-presentation"
 
-// ── stream-json 事件结构（JSONL 每行一条） ────────────────────────────────────
-
-export interface CcSystemEvent {
-  type: "system"; subtype: "init"; session_id: string; model?: string
-}
-
-export interface CcMessageContentBlock {
-  type: "text" | "tool_use" | "thinking" | "tool_result" | string
-  text?: string; name?: string; id?: string; input?: unknown
-  tool_use_id?: string; content?: string; is_error?: boolean
-}
-
-export interface CcAssistantEvent {
-  type: "assistant"
-  message: {
-    content: CcMessageContentBlock[]
-    usage?: { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
-  }
-  session_id?: string
-}
-
-export interface CcUserEvent {
-  type: "user"
-  message: { content: CcMessageContentBlock[] }
-  tool_use_result?: { stdout?: string; stderr?: string; interrupted?: boolean }
-}
-
-export interface CcResultEvent {
-  type: "result"; subtype: "success" | "error"; is_error: boolean
-  result?: string; duration_ms?: number
-  usage?: { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
-  session_id?: string; error?: string
-}
-
-/** 所有可能的 stream-json 事件联合类型 */
-export type CcStreamEvent = CcSystemEvent | CcAssistantEvent | CcUserEvent | CcResultEvent | { type: string }
-
-// ── 事件解析 ──────────────────────────────────────────────────────────────────
-
-/** 解析 JSONL 单行为事件对象；非 JSON 或空行返回 null */
-export function parseCcEvent(line: string): CcStreamEvent | null {
-  const trimmed = line.trim()
-  if (!trimmed) return null
-  try { return JSON.parse(trimmed) as CcStreamEvent } catch { return null }
-}
-
-/** 将 assistant usage 字段映射为 TurnUsageSlice */
-export function mapContentBlockToUsage(usage?: CcAssistantEvent["message"]["usage"]): TurnUsageSlice | null {
+/** Anthropic usage → TurnUsageSlice */
+function mapUsageToSlice(usage?: {
+  input_tokens?: number
+  output_tokens?: number
+  cache_creation_input_tokens?: number
+  cache_read_input_tokens?: number
+}): TurnUsageSlice | null {
   if (!usage) return null
   return {
     inputTokens: usage.input_tokens ?? 0,
@@ -75,102 +31,132 @@ export function mapContentBlockToUsage(usage?: CcAssistantEvent["message"]["usag
   }
 }
 
-// ── 事件分派处理 ──────────────────────────────────────────────────────────────
-
-/**
- * 处理单条 CC 事件，更新 session 状态并推送 presentation / stream 通知。
- * @param resolveChannelType 由主模块注入，用于飞书抑制判断
- * @param markActivity 由主模块注入，更新 session 活跃时间
- */
-export function handleCcEvent(
+/** 处理 content block 数组（assistant / user） */
+function handleContentBlocks(
   session: CcSessionAgent,
-  event: CcStreamEvent,
+  blocks: Array<{ type: string; text?: string; thinking?: string; name?: string; id?: string; tool_use_id?: string; is_error?: boolean }>,
   resolveChannelType: (sessionKey: string) => string | undefined,
-  markActivity: (session: CcSessionAgent, source: string) => void,
+  isUserMessage: boolean,
 ): void {
-  markActivity(session, `event:${event.type}`)
-
-  if (event.type === "system" && (event as CcSystemEvent).subtype === "init") {
-    const sysEvt = event as CcSystemEvent
-    if (sysEvt.session_id) {
-      pushUiLog("CC", "INFO", `[${session.sessionKey}] cc_session_id=${sysEvt.session_id}`)
-      session.ccSessionId = sysEvt.session_id
+  for (const block of blocks) {
+    if (!isUserMessage && block.type === "text" && block.text) {
+      if (session.f41Stream) appendCcAssistantStreamDelta(session, block.text)
+      else appendCcLog(session, "text", block.text)
+    } else if (!isUserMessage && block.type === "thinking" && (block.thinking || block.text)) {
+      const delta = block.thinking ?? block.text ?? ""
+      appendCcLog(session, "thinking", delta)
+      markProcessEventSeen(session)
+      session.thinkingOpen = true
+      void postPresentationEvent(session, { kind: "thinking", delta }, resolveChannelType)
+    } else if (!isUserMessage && block.type === "tool_use" && block.name) {
+      flushCcLog(session)
+      closeThinkingIfOpen(session, resolveChannelType)
+      session.lastTool = { name: block.name, status: "running" }
+      markProcessEventSeen(session)
+      session.toolPresentationOutboundIds?.delete(block.name)
+      void postPresentationEvent(session, { kind: "tool", tool_name: block.name, tool_status: "started", final: false }, resolveChannelType)
+    } else if (isUserMessage && block.type === "tool_result" && block.tool_use_id) {
+      const toolName = session.lastTool?.name ?? "unknown_tool"
+      const isError = block.is_error === true
+      session.lastTool = { name: toolName, status: isError ? "error" : "completed" }
+      void postPresentationEvent(session, { kind: "tool", tool_name: toolName, tool_status: isError ? "failed" : "completed", final: true }, resolveChannelType)
+      maybeReleaseDeferredAssistant(session)
     }
-    if (sysEvt.model) session.modelId = sysEvt.model
-    return
-  }
-
-  if (event.type === "assistant") {
-    const assistEvt = event as CcAssistantEvent
-    closeThinkingIfOpen(session, resolveChannelType)
-    for (const block of assistEvt.message.content) {
-      if (block.type === "text" && block.text) {
-        if (session.f41Stream) appendStreamDelta(session, block.text)
-        else appendCcLog(session, "text", block.text)
-      } else if (block.type === "thinking" && block.text) {
-        appendCcLog(session, "thinking", block.text)
-        markProcessEventSeen(session)
-        session.thinkingOpen = true
-        void postPresentationEvent(session, { kind: "thinking", delta: block.text }, resolveChannelType)
-      } else if (block.type === "tool_use" && block.name) {
-        flushCcLog(session)
-        closeThinkingIfOpen(session, resolveChannelType)
-        const toolName = block.name
-        session.lastTool = { name: toolName, status: "running" }
-        markProcessEventSeen(session)
-        if (session.toolPresentationOutboundIds) session.toolPresentationOutboundIds.delete(toolName)
-        void postPresentationEvent(session, { kind: "tool", tool_name: toolName, tool_status: "started", final: false }, resolveChannelType)
-      }
-    }
-    const usageSlice = mapContentBlockToUsage(assistEvt.message.usage)
-    if (usageSlice) updateContextUsageDisplay(session, usageSlice)
-    return
-  }
-
-  if (event.type === "user") {
-    const userEvt = event as CcUserEvent
-    for (const block of userEvt.message.content) {
-      if (block.type === "tool_result" && block.tool_use_id) {
-        const toolName = session.lastTool?.name ?? "unknown_tool"
-        const isError = block.is_error === true
-        session.lastTool = { name: toolName, status: isError ? "error" : "completed" }
-        void postPresentationEvent(session, { kind: "tool", tool_name: toolName, tool_status: isError ? "failed" : "completed", final: true }, resolveChannelType)
-      }
-    }
-    return
-  }
-
-  if (event.type === "result") {
-    const resultEvt = event as CcResultEvent
-    if (resultEvt.session_id) session.ccSessionId = resultEvt.session_id
-    if (resultEvt.usage) {
-      const usageSlice = mapContentBlockToUsage(resultEvt.usage)
-      if (usageSlice) updateContextUsageDisplay(session, usageSlice)
-    }
-    if (resultEvt.duration_ms) {
-      pushUiLog("CC", "INFO", `[${session.sessionKey}] result: subtype=${resultEvt.subtype} duration=${resultEvt.duration_ms}ms`)
-    }
-    if (resultEvt.is_error || resultEvt.subtype === "error") {
-      session.lastStatus = { status: "ERROR", message: resultEvt.error ?? resultEvt.result ?? "unknown error" }
-    }
-    return
   }
 }
 
-// ── watchdog ──────────────────────────────────────────────────────────────────
+/** 处理 stream_event 增量（includePartialMessages） */
+function handleStreamEvent(
+  session: CcSessionAgent,
+  event: { type?: string; delta?: { type?: string; text?: string; thinking?: string } },
+  resolveChannelType: (sessionKey: string) => string | undefined,
+): void {
+  if (event.type !== "content_block_delta" || !event.delta) return
+  const d = event.delta
+  if (d.type === "text_delta" && d.text) {
+    if (session.f41Stream) appendCcAssistantStreamDelta(session, d.text)
+    else appendCcLog(session, "text", d.text)
+  } else if (d.type === "thinking_delta" && d.thinking) {
+    appendCcLog(session, "thinking", d.thinking)
+    markProcessEventSeen(session)
+    session.thinkingOpen = true
+    void postPresentationEvent(session, { kind: "thinking", delta: d.thinking }, resolveChannelType)
+  }
+}
 
-/** armCcWatchdog 配置参数 */
+/** 单条 SDKMessage 分派 */
+export function handleSdkMessage(
+  session: CcSessionAgent,
+  msg: SDKMessage,
+  resolveChannelType: (sessionKey: string) => string | undefined,
+  markActivity: (session: CcSessionAgent, source: string) => void,
+): void {
+  markActivity(session, `sdk:${msg.type}`)
+
+  if (msg.type === "system" && msg.subtype === "init") {
+    if (msg.session_id) {
+      pushUiLog("CC", "INFO", `[${session.sessionKey}] cc_session_id=${msg.session_id}`)
+      session.ccSessionId = msg.session_id
+    }
+    if (msg.model) session.modelId = msg.model
+    return
+  }
+
+  if (msg.type === "assistant") {
+    closeThinkingIfOpen(session, resolveChannelType)
+    maybeReleaseDeferredAssistant(session)
+    const content = msg.message.content as Array<{ type: string; text?: string; thinking?: string; name?: string; id?: string }>
+    handleContentBlocks(session, content, resolveChannelType, false)
+    const usageSlice = mapUsageToSlice(msg.message.usage as Parameters<typeof mapUsageToSlice>[0])
+    if (usageSlice) updateContextUsageDisplay(session, usageSlice)
+    if (msg.session_id) session.ccSessionId = msg.session_id
+    return
+  }
+
+  if (msg.type === "stream_event") {
+    handleStreamEvent(session, msg.event as { type?: string; delta?: { type?: string; text?: string; thinking?: string } }, resolveChannelType)
+    if (msg.session_id) session.ccSessionId = msg.session_id
+    return
+  }
+
+  if (msg.type === "user") {
+    const content = msg.message.content as Array<{ type: string; tool_use_id?: string; is_error?: boolean }>
+    handleContentBlocks(session, content, resolveChannelType, true)
+    return
+  }
+
+  if (msg.type === "result") {
+    if (msg.session_id) session.ccSessionId = msg.session_id
+    const usageSlice = mapUsageToSlice(msg.usage)
+    if (usageSlice) updateContextUsageDisplay(session, usageSlice)
+    if (msg.duration_ms) {
+      pushUiLog("CC", "INFO", `[${session.sessionKey}] result: subtype=${msg.subtype} duration=${msg.duration_ms}ms`)
+    }
+    if (msg.is_error || msg.subtype === "error") {
+      const errMsg = "errors" in msg && Array.isArray(msg.errors) ? msg.errors.join("; ") : msg.result
+      session.lastStatus = { status: "ERROR", message: errMsg ?? "unknown error" }
+    }
+    return
+  }
+
+  if (msg.type === "tool_progress") {
+    session.lastTool = { name: msg.tool_name, status: "running" }
+    markProcessEventSeen(session)
+    session.toolPresentationOutboundIds?.delete(msg.tool_name)
+    void postPresentationEvent(session, { kind: "tool", tool_name: msg.tool_name, tool_status: "started", final: false }, resolveChannelType)
+  }
+}
+
+/** armCcWatchdog 配置 */
 export interface ArmWatchdogOptions {
   idleTimeoutMs: number
   tickMs: number
   absoluteTimeoutMs: number
-  /** 从 CC_SESSIONS 查找 session（依赖注入避免循环） */
   getSession: (sessionKey: string) => CcSessionAgent | undefined
-  /** 切换 watchdogState（依赖注入） */
   setWatchdogState: (session: CcSessionAgent, next: "running" | "draining" | "cancelling", reason: string) => void
 }
 
-/** 启动 CC 进程的空闲超时看门狗 */
+/** 空闲超时看门狗；超时中止 activeQuery */
 export function armCcWatchdog(session: CcSessionAgent, token: string, opts: ArmWatchdogOptions): void {
   const { idleTimeoutMs, tickMs, absoluteTimeoutMs, getSession, setWatchdogState } = opts
   void watchRunGuard({
@@ -178,7 +164,7 @@ export function armCcWatchdog(session: CcSessionAgent, token: string, opts: ArmW
     onTick: () => {
       const s = getSession(session.sessionKey)
       if (!s || s.runGuardToken !== token) return "cancelled"
-      if (!s.child) return "completed"
+      if (!s.activeQuery) return "completed"
       if (s.watchdogState === "running") {
         const idleMs = Date.now() - s.lastActivityAt
         if (idleMs >= idleTimeoutMs) { setWatchdogState(s, "draining", `idle ${idleMs}ms`); return undefined }
@@ -191,67 +177,55 @@ export function armCcWatchdog(session: CcSessionAgent, token: string, opts: ArmW
     },
     onTimeout: async () => {
       const s = getSession(session.sessionKey)
-      if (!s || s.child === null) return
-      pushUiLog("CC", "WARN", `[${session.sessionKey}] watchdog 超时，终止子进程`)
-      try { s.child.kill("SIGTERM") } catch { /* best-effort */ }
-      await new Promise((r) => setTimeout(r, 3000))
-      try { s.child?.kill("SIGKILL") } catch { /* best-effort */ }
+      if (!s?.activeQuery) return
+      pushUiLog("CC", "WARN", `[${session.sessionKey}] watchdog 超时，中止 Query`)
+      try { s.activeQuery.close() } catch { /* best-effort */ }
     },
   }).then((result) => {
     pushUiLog("CC", "INFO", `[${session.sessionKey}] watchdog 结束: ${result}`)
   })
 }
 
-// ── 子进程事件流监听 ───────────────────────────────────────────────────────────
-
-/** streamCcEvents 依赖注入配置 */
-export interface StreamCcEventsOptions {
-  /** 用于飞书抑制判断 */
+/** streamCcSdkMessages 依赖注入 */
+export interface StreamCcSdkMessagesOptions {
   resolveChannelType: (sessionKey: string) => string | undefined
-  /** 更新 session 活跃时间 */
   markActivity: (session: CcSessionAgent, source: string) => void
-  /** 进程结束回调 */
   completeCcRun: (session: CcSessionAgent, exitCode: number | null) => void
 }
 
-/** 监听子进程 stdout/stderr/close/error，解析并分派 CC stream-json 事件 */
-export function streamCcEvents(session: CcSessionAgent, child: ChildProcess, opts: StreamCcEventsOptions): void {
+/** 异步遍历 SDKMessage 流；正常/异常结束均调用 completeCcRun 一次 */
+export function streamCcSdkMessages(
+  session: CcSessionAgent,
+  queryIterator: Query,
+  opts: StreamCcSdkMessagesOptions,
+): void {
   const { resolveChannelType, markActivity, completeCcRun } = opts
   const sessionKey = session.sessionKey
-  let lineBuffer = ""
 
-  child.stdout?.on("data", (chunk: Buffer) => {
-    lineBuffer += chunk.toString("utf-8")
-    const lines = lineBuffer.split("\n")
-    lineBuffer = lines.pop() ?? ""
-    for (const line of lines) {
-      const event = parseCcEvent(line)
-      if (event) {
-        try { handleCcEvent(session, event, resolveChannelType, markActivity) } catch (e: unknown) {
+  void (async () => {
+    let exitCode: number | null = 0
+    try {
+      for await (const msg of queryIterator) {
+        if (session.abortController.signal.aborted) break
+        try {
+          handleSdkMessage(session, msg, resolveChannelType, markActivity)
+        } catch (e: unknown) {
           pushUiLog("CC", "WARN", `[${sessionKey}] 事件处理异常: ${e instanceof Error ? e.message : String(e)}`)
         }
       }
+      flushCcLog(session)
+      closeThinkingIfOpen(session, resolveChannelType)
+      if (presentationOrderingEligible(session) && session.seenProcessEvent) {
+        await flushDeferredStreamPost(session)
+      }
+    } catch (e: unknown) {
+      exitCode = -1
+      pushUiLog("CC", "ERROR", `[${sessionKey}] SDK 流异常: ${e instanceof Error ? e.message : String(e)}`)
+      session.lastStatus = { status: "ERROR", message: e instanceof Error ? e.message : String(e) }
+    } finally {
+      session.activeQuery = null
+      session.pendingDispatch = false
+      completeCcRun(session, exitCode)
     }
-  })
-
-  child.stderr?.on("data", (chunk: Buffer) => {
-    const text = chunk.toString("utf-8").trim()
-    if (text) pushUiLog("CC", "WARN", `[${sessionKey}] stderr: ${text}`)
-  })
-
-  child.on("close", (code) => {
-    if (lineBuffer.trim()) {
-      const event = parseCcEvent(lineBuffer)
-      if (event) { try { handleCcEvent(session, event, resolveChannelType, markActivity) } catch { /* best-effort */ } }
-      lineBuffer = ""
-    }
-    pushUiLog("CC", code === 0 ? "INFO" : "WARN", `[${sessionKey}] 子进程退出 (code=${code})`)
-    completeCcRun(session, code)
-  })
-
-  child.on("error", (err) => {
-    pushUiLog("CC", "ERROR", `[${sessionKey}] 子进程错误: ${err.message}`)
-    session.lastStatus = { status: "ERROR", message: err.message }
-    completeCcRun(session, -1)
-  })
+  })()
 }

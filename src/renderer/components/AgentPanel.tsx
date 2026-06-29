@@ -179,12 +179,12 @@ export default function AgentPanel() {
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium text-gray-300">Claude Code SDK</h3>
+          <h3 className="text-sm font-medium text-gray-300">Claude Agent</h3>
           <div className="flex-1" />
           <button onClick={openCcAdd} className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-blue-500"><Plus size={12} />添加 CC Profile</button>
         </div>
         <p className="text-xs text-gray-600">
-          可添加多个 Claude Code API Key（不同账号），消息通道可分别绑定。从{" "}
+          可添加多个 Claude Agent API Key（不同账号），消息通道可分别绑定。从{" "}
           <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">Anthropic Console</a>
           {" "}获取 API Key。
         </p>

@@ -15,6 +15,7 @@ import {
 import { resolveSessionChatName } from "./agent-launcher"
 import { completeRunGuard, releaseRunGuard } from "./agent-run-guard"
 import type { CcSessionAgent } from "./agent-cc-types"
+import { presentationOrderingEligible } from "./agent-cc-utils"
 
 // ── 日志聚合 ──────────────────────────────────────────────────────────────────
 
@@ -120,7 +121,10 @@ export async function postStreamText(session: CcSessionAgent, payload: StreamTex
       error?: string
     }
     if (res?.stream_id) session.streamId = res.stream_id
-    if (res?.deferred) return
+    if (res?.deferred) {
+      session.presentationDeferStream = true
+      return
+    }
     if (res?.outbound_message_id) session.outboundMessageId = res.outbound_message_id
   } catch (e: unknown) {
     pushUiLog("CC", "WARN", `[${session.sessionKey}] stream-text 推送失败: ${e instanceof Error ? e.message : String(e)}`)
@@ -209,10 +213,11 @@ export function closeThinkingIfOpen(
   void postPresentationEvent(session, { kind: "thinking", final: true }, resolveChannelType)
 }
 
-/** 标记已处理 process 事件（清除定时器） */
+/** 标记已处理 process 事件（清除定时器，开启 defer 闩） */
 export function markProcessEventSeen(session: CcSessionAgent): void {
   clearStreamPostTimer(session)
   session.seenProcessEvent = true
+  if (presentationOrderingEligible(session)) session.presentationDeferStream = true
 }
 
 // ── 会话状态广播 ──────────────────────────────────────────────────────────────
@@ -224,7 +229,7 @@ export function markProcessEventSeen(session: CcSessionAgent): void {
 export function broadcastCcSessionStatus(sessions: CcSessionAgent[]): void {
   const list = sessions.map((s) => ({
     sessionKey: s.sessionKey,
-    pid: s.child?.pid ?? 0,
+    pid: 0,
     startedAt: s.startedAt,
     lastActivityAt: s.lastActivityAt,
     chatType: s.chatType as string,
@@ -268,9 +273,9 @@ export async function completeCcRun(
   const isError = session.lastStatus?.status === "ERROR" || (exitCode !== null && exitCode !== 0)
   if (isError && !session.errorNotified) {
     session.errorNotified = true
-    const msg = session.lastStatus?.message ?? `子进程退出码 ${exitCode}`
+    const msg = session.lastStatus?.message ?? `Agent Run 失败（退出码 ${exitCode ?? "unknown"}）`
     const footer = formatContextFooter(session.contextUsage, session.contextLimitTokens ?? null, session.contextUsagePeakTokens)
-    await notifySessionChat(sessionKey, appendContextFooter(`⚠️ Claude Code 执行失败: ${msg}`, footer), true)
+    await notifySessionChat(sessionKey, appendContextFooter(`⚠️ Claude Agent 执行失败: ${msg}`, footer), true)
     setFailedCooldown(sessionKey, Date.now() + failCooldownMs)
   }
 
@@ -279,7 +284,7 @@ export async function completeCcRun(
     releaseRunGuard(sessionKey, session.runGuardToken)
     session.runGuardToken = undefined
   }
-  session.child = null
+  session.activeQuery = null
   session.pendingDispatch = false
   await reportSessionAgentPhase(sessionKey, "idle")
 

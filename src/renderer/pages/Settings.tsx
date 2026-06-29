@@ -430,7 +430,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
         const models = await window.electronAPI.listCcModels()
         if (models.length > 0) setTaskModelOptions(models.map((m) => ({ ...m, params: "" })))
       } else {
-        void showAlert("提示", "请先添加 SDK Key 或 Claude Code Profile 后再选择模型")
+        void showAlert("提示", "请先添加 SDK Key 或 Claude Agent Profile 后再选择模型")
       }
     } finally {
       setLoadingTaskModels(false)
@@ -989,7 +989,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                   <p className="text-sm text-gray-400">按以下顺序完成配置：</p>
                   <ol className="list-decimal space-y-1 pl-5 text-xs text-gray-500">
                     <li><button onClick={() => setTab("general")} className="text-blue-400 hover:underline">通用</button> — 选择主工作目录</li>
-                    <li><button onClick={() => setTab("agent")} className="text-blue-400 hover:underline">Agent</button> — 添加 Cursor SDK Key 或 Claude Code Profile</li>
+                    <li><button onClick={() => setTab("agent")} className="text-blue-400 hover:underline">Agent</button> — 添加 Cursor SDK Key 或 Claude Agent Profile</li>
                     <li><button onClick={() => setTab("channel")} className="text-blue-400 hover:underline">消息通道</button> — 接入飞书 / 微信，绑定 Agent 资源与模型</li>
                   </ol>
                   <p className="text-xs text-gray-600">完成后回到主页启动 Daemon 即可使用。以下为飞书手动建应用时需要的权限与事件配置参考。</p>

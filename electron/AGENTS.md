@@ -20,9 +20,14 @@
 - **快照**：归档前 `pushUiLog` 写入 `[crash-archive-trigger] failureType=… sessionKey=…`；从 `getLogBuffer()` 定位**最后一条**含该 marker 的行为锚点，取锚点及前最多 30、后最多 30 行（不足取全部）；`meta.json.buffer` 含 `totalInSnapshot`、`anchorIndex`、`linesBefore`/`linesAfter`、`truncatedBefore`/`truncatedAfter`
 - **边界**：**不改** IM 文案；**不**读/复制 `daemon.log`（本阶段）；**不**覆盖 CLI 路径；`dispatchToSdkAgent` 早退 `no resident agent`（仅 pushUiLog）**不**触发归档；未配置时 WARN「未配置崩溃分析目录，跳过归档」（同进程节流）
 
-## Claude Code spawn 参数
+## Claude Agent SDK 模块边界
 
-- `buildSpawnArgs`（`agent-claude-sdk.ts`）：`--print` 与 `--output-format stream-json` 须同时携带 `--verbose`（Claude Code CLI 契约）。
+- **执行引擎**：`agent-claude-sdk.ts` 使用 `@anthropic-ai/claude-agent-sdk` 的 `query()` API（非 spawn CLI）；HTTP 契约由 `agent-cc-http.ts` 暴露，handler 经依赖注入注册。
+- **MCP 内联**：`cc-mcp-loader.ts` 读取 global/project `.cursor/mcp.json` 合并 OAuth（对称 `mcp-sdk-loader.ts`）；每次 `query()` 经 `appendInlineCcMcpToCcOptions` 重传 `mcpServers`（SDK 不持久化 inline 配置）。
+- **事件映射**：`agent-cc-events.ts` 遍历 `SDKMessage` async iterator（含 `includePartialMessages` stream_event）；Presentation 出站复用 `agent-cc-stream.ts`。
+- **二进制打包**：`ensureCcAgentBinaryPaths()` / `resolveCcAgentBinaryPath()` 解析 `@anthropic-ai/claude-agent-sdk-${platform}-${arch}` 内 `claude` 可执行文件；`electron-builder.yml` asarUnpack 解包平台包。
+- **resident 与 resume**：`CC_RESIDENT_AGENT`（默认开，`0` 关闭）Run 结束保留 Map 条目；`ccSessionId` 来自 SDK `system/init` / `result`，传入 `options.resume` 续跑上下文。
+- **Presentation 时序**：CC 路径对称 SDK 的 `PRESENTATION_ORDERING`（`presentationOrderingEligible` = 开关 + f41Stream + p2p）；tool/thinking 不抢 stream-text 首包。
 
 ## 模块边界
 

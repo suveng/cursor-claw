@@ -175,11 +175,11 @@ export async function launchCcAgentFromHttp(body: Record<string, unknown>): Prom
   const channel = getChannel(channelId) ?? resolveChannelForSession(sessionKey)
   const resource = getAgentResource(channel?.agentResourceId)
   if (resource.type !== "claude-code") {
-    return { ok: false, error: "请配置 Claude Code 资源（设置 → Agent）" }
+    return { ok: false, error: "请配置 Claude Agent 资源（设置 → Agent）" }
   }
 
   const apiKey = resource.apiKey?.trim() ?? ""
-  if (!apiKey) return { ok: false, error: "API Key 未配置，请在 Claude Code Profile 中填写" }
+  if (!apiKey) return { ok: false, error: "API Key 未配置，请在 Claude Agent Profile 中填写" }
 
   const baseUrl = resource.baseUrl?.trim() || undefined
 
@@ -280,7 +280,7 @@ export function ensureClaudeCodeHttpServer(): void {
     const addr = ccApiServer!.address()
     ccApiPort = typeof addr === "object" && addr ? addr.port : 0
     writeCcApiPortFile(ccApiPort)
-    pushUiLog("CC", "INFO", `Claude Code Agent API 监听 127.0.0.1:${ccApiPort}`)
+    pushUiLog("CC", "INFO", `Claude Agent API 监听 127.0.0.1:${ccApiPort}`)
   })
 }
 
