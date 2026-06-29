@@ -53,6 +53,7 @@ export { applyProxyEnv, checkCliInstalled, installCli, execAgentSync, execAgentA
 export { checkAgentLoggedIn, loginCli } from "./agent-launcher"
 export { getLogBuffer } from "./ui-logger"
 export { checkSdkApiKey, listSdkModels } from "./agent-sdk"
+export { checkClaudeCodeApiKey, CLAUDE_CODE_MODEL_LIST } from "./agent-claude-sdk"
 export { injectWorkspaceMcpAndRules, injectWorkspaceToDir, clearInjectionCache } from "./workspace-injector"
 export { getQueueMessages, clearMessageQueue, deleteQueueMessage } from "./session-dispatcher"
 

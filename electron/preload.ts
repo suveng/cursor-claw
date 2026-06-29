@@ -3,10 +3,14 @@ import type { WorkflowDefinition, WorkflowInstance } from "../src/shared/workflo
 
 export interface AgentResource {
   id: string
-  type: "cli" | "sdk"
+  type: "cli" | "sdk" | "claude-code"
   name: string
   apiKey?: string
   email?: string
+  /** 自定义 Anthropic 端点（仅 claude-code）；空值 = 使用 Anthropic 默认端点 */
+  baseUrl?: string
+  /** 默认模型（仅 claude-code）；空值 = 使用 SDK 默认 */
+  model?: string
 }
 
 export interface MessageChannel {
@@ -245,6 +249,8 @@ const api = {
   listModels: (): Promise<{ ok: boolean; models: { id: string; label: string; current: boolean }[]; error?: string }> => ipcRenderer.invoke("models:list"),
   checkSdkApiKey: (apiKey: string): Promise<{ ok: boolean; email?: string; error?: string }> => ipcRenderer.invoke("sdk:check-api-key", apiKey),
   listSdkModels: (apiKey: string, currentModel?: string, currentParams?: string): Promise<{ ok: boolean; models: { id: string; label: string; params: string; current: boolean }[]; error?: string }> => ipcRenderer.invoke("sdk:list-models", apiKey, currentModel, currentParams),
+  checkCcApiKey: (apiKey: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("cc:check-api-key", apiKey),
+  listCcModels: (): Promise<Array<{ id: string; label: string }>> => ipcRenderer.invoke("cc:list-models"),
   getScheduledTasks: (): Promise<ScheduledTask[]> => ipcRenderer.invoke("scheduled-tasks:get"),
   saveScheduledTasks: (tasks: ScheduledTask[]): Promise<{ ok: boolean }> => ipcRenderer.invoke("scheduled-tasks:save", tasks),
   validateCron: (expression: string): Promise<boolean> => ipcRenderer.invoke("scheduled-tasks:validate-cron", expression),

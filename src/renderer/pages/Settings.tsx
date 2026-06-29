@@ -417,6 +417,9 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
         const r = await window.electronAPI.listSdkModels(resource.apiKey ?? "")
         if (r.ok && r.models.length > 0) setTaskModelOptions(r.models)
         else if (!r.ok) void showAlert("错误", r.error || "获取模型列表失败")
+      } else if (resource?.type === "claude-code") {
+        const models = await window.electronAPI.listCcModels()
+        if (models.length > 0) setTaskModelOptions(models.map((m) => ({ ...m, params: "" })))
       } else {
         const r = await window.electronAPI.listModels()
         if (r.ok && r.models.length > 0) setTaskModelOptions(r.models.map((m) => ({ ...m, params: "" })))

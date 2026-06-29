@@ -21,6 +21,8 @@ import {
   saveAppConfigFromRenderer,
   checkSdkApiKey,
   listSdkModels,
+  checkClaudeCodeApiKey,
+  CLAUDE_CODE_MODEL_LIST,
 } from "./daemon-manager"
 import { parseListModelsStdout } from "./command-handler"
 import {
@@ -368,6 +370,8 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("sdk:check-api-key", (_, apiKey: string) => checkSdkApiKey(apiKey))
   ipcMain.handle("sdk:list-models", (_, apiKey: string, currentModel?: string, currentParams?: string) => listSdkModels(apiKey, currentModel, currentParams))
+  ipcMain.handle("cc:check-api-key", (_, apiKey: string) => checkClaudeCodeApiKey(apiKey))
+  ipcMain.handle("cc:list-models", () => CLAUDE_CODE_MODEL_LIST)
 }
 
 let isQuitting = false

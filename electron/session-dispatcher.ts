@@ -18,6 +18,10 @@ import {
   stopSdkSession, stopAllSdkSessions,
   isSdkSessionRunning, getSdkSessionList,
 } from "./agent-sdk"
+import {
+  isClaudeCodeSessionRunning, stopClaudeCodeSession, stopAllClaudeCodeSessions,
+  getClaudeCodeSessionList, ensureClaudeCodeHttpServer, getCcAgentApiPort,
+} from "./agent-claude-sdk"
 
 // ── readLockFile 短 TTL 缓存 ─────────────────────────────
 let _lockCache: { value: ReturnType<typeof readLockFile>; ts: number } | null = null
@@ -52,15 +56,17 @@ async function notifyChat(sessionKey: string, text: string, stopProgress = false
 // ── SDK-only 运行时 ───────────────────────────────────────
 
 export function isSessionAgentRunning(key: string): boolean {
-  return isSdkSessionRunning(key)
+  return isSdkSessionRunning(key) || isClaudeCodeSessionRunning(key)
 }
 
 export function stopSessionAgent(key: string): void {
   if (isSdkSessionRunning(key)) stopSdkSession(key)
+  else if (isClaudeCodeSessionRunning(key)) stopClaudeCodeSession(key)
 }
 
 export function stopAllSessionAgents(): void {
   stopAllSdkSessions()
+  stopAllClaudeCodeSessions()
 }
 
 // ── Session 状态 ──────────────────────────────────────────
@@ -246,11 +252,11 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
 
   const channel: MessageChannel | undefined = getChannel(p.channelId) ?? resolveChannelForSession(sessionKey)
   const resource = getAgentResource(channel?.agentResourceId)
-  if (resource.type !== "sdk") {
+  if (resource.type !== "sdk" && resource.type !== "claude-code") {
     return { ok: false, error: "请配置 SDK 资源（设置 → Agent）" }
   }
   if (!resource.apiKey?.trim()) {
-    return { ok: false, error: "通道绑定的 SDK 资源未配置 API Key（设置 → Agent）" }
+    return { ok: false, error: "通道绑定的资源未配置 API Key（设置 → Agent）" }
   }
 
   const isOwnTask = chatType === "task" || chatType === "temp" || chatType === "workflow"
@@ -283,27 +289,40 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
     modelParams = resolved.modelParams
   }
 
-  const lock = cachedLock()
-  if (!lock?.port) return { ok: false, error: "Daemon 未运行" }
+  const launchBody = {
+    session_key: sessionKey,
+    task_text: taskMessage,
+    chat_type: chatType,
+    chat_id: extractChatId(sessionKey),
+    sender_open_id: senderOpenId,
+    use_main_workspace: useMain,
+    channel_id: p.channelId ?? channel?.id,
+    model,
+    model_params: modelParams,
+    working_directory: workDir,
+    chat_name: chatName,
+    ...(p.meta?.messageIds?.length && { message_ids: p.meta.messageIds }),
+  }
 
-  try {
-    const res = await httpPost(`http://127.0.0.1:${lock.port}/api/agent/launch`, {
-      session_key: sessionKey,
-      task_text: taskMessage,
-      chat_type: chatType,
-      chat_id: extractChatId(sessionKey),
-      sender_open_id: senderOpenId,
-      use_main_workspace: useMain,
-      channel_id: p.channelId ?? channel?.id,
-      model,
-      model_params: modelParams,
-      working_directory: workDir,
-      chat_name: chatName,
-      ...(p.meta?.messageIds?.length && { message_ids: p.meta.messageIds }),
-    }, 120_000) as { ok?: boolean; error?: string }
-    return { ok: !!res?.ok, error: res?.error }
-  } catch (e: unknown) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  if (resource.type === "sdk") {
+    const lock = cachedLock()
+    if (!lock?.port) return { ok: false, error: "Daemon 未运行" }
+    try {
+      const res = await httpPost(`http://127.0.0.1:${lock.port}/api/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
+      return { ok: !!res?.ok, error: res?.error }
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  } else {
+    // resource.type === "claude-code"
+    const ccPort = getCcAgentApiPort()
+    if (!ccPort) return { ok: false, error: "Claude Code 引擎未启动" }
+    try {
+      const res = await httpPost(`http://127.0.0.1:${ccPort}/api/cc/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
+      return { ok: !!res?.ok, error: res?.error }
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
   }
 }
 
@@ -358,11 +377,17 @@ export async function notifyWorkflowChat(chatId: string, text: string): Promise<
 // ── Session 列表 ──────────────────────────────────────────
 
 export function getSessionAgentList() {
-  return getSdkSessionList().map((s) => {
+  const sdkList = getSdkSessionList().map((s) => {
     const chatId = s.sessionKey.includes("::") ? s.sessionKey.split("::")[0] : s.sessionKey
     const chatName = s.chatName || chatNameCache.get(chatId) || (s.senderOpenId ? chatNameCache.get(s.senderOpenId) : undefined)
     return { ...s, chatName, pid: 0 }
   })
+  const ccList = getClaudeCodeSessionList().map((s) => {
+    const chatId = s.sessionKey.includes("::") ? s.sessionKey.split("::")[0] : s.sessionKey
+    const chatName = s.chatName || chatNameCache.get(chatId)
+    return { ...s, chatName }
+  })
+  return [...sdkList, ...ccList]
 }
 
 // ponytail: T7 调度迁入 Daemon；保留空实现供旧调用方兼容
@@ -554,4 +579,5 @@ export async function handleChatCommand(tokens: string[], port: number, messageI
 
 export function initSessionDispatcher(): void {
   setChatNameResolver((chatId) => chatNameCache.get(chatId))
+  ensureClaudeCodeHttpServer()
 }

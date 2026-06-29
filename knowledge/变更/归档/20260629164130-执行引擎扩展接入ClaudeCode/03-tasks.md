@@ -293,3 +293,195 @@ Renderer 前端通过 IPC 验证 Claude Code API Key（`cc:check-api-key`）和�
 ### 依赖
 - 前置任务: T1（AgentResource 类型），T5（IPC handlers）
 - 后续任务: 无
+
+---
+
+## T-FIX-01: 补全 env.d.ts 渲染层类型声明（修复评审 R-S1、R-S2）
+
+### 背景
+`src/renderer/env.d.ts` 是渲染进程的全局类型声明文件。T1 已更新 `src/shared/channel-types.ts` 和 `electron/preload.ts`，但 `env.d.ts` 未同步，导致 TypeScript 编译失败：`AgentResource.type` 缺少 `"claude-code"` union 值，`AgentResource` 缺少 `baseUrl`/`model` 字段；`ElectronAPI` 缺少 `checkCcApiKey` 和 `listCcModels` 方法声明。
+
+### 上下文文件
+- 必读: `src/renderer/env.d.ts` — 完整文件，定位 AgentResource 接口（第 8-14 行）和 ElectronAPI 接口（约第 164 行起）
+- 必读: `electron/preload.ts` — 查看 checkCcApiKey 和 listCcModels 的已声明类型，与 env.d.ts 保持一致
+- 必读: `src/shared/channel-types.ts` — AgentResource 权威定义（T1 已更新）
+
+### 实现范围
+- 修改: `src/renderer/env.d.ts`：
+  1. 第 8-14 行 AgentResource 接口：`type` 改为 `"cli" | "sdk" | "claude-code"`；新增 `baseUrl?: string`、`model?: string` 可选字段
+  2. ElectronAPI 接口（紧接 `listSdkModels` 声明之后）新增两行：
+     ```ts
+     checkCcApiKey(apiKey: string): Promise<{ ok: boolean; error?: string }>
+     listCcModels(): Promise<Array<{ id: string; label: string }>>
+     ```
+
+### 接口契约
+- `AgentResource.type: "cli" | "sdk" | "claude-code"`（与 channel-types.ts 保持一致）
+- `ElectronAPI.checkCcApiKey`/`listCcModels` 签名与 preload.ts 一致
+
+### 验收标准
+- [ ] `env.d.ts` AgentResource.type 包含 `"claude-code"`
+- [ ] `env.d.ts` AgentResource 含 `baseUrl?: string` 和 `model?: string`
+- [ ] `env.d.ts` ElectronAPI 含 `checkCcApiKey` 和 `listCcModels` 声明
+- [ ] TypeScript 编译无报错（`tsc --noEmit` 或检查 channel-types 一致性）
+- [ ] 不修改 env.d.ts 以外的任何文件
+
+### 依赖
+- 前置任务: T1（已完成）
+- 后续任务: 无（独立修复）
+
+---
+
+## T-FIX-02: 修复 broadcastCcSessionStatus 分区键冲突（修复评审 R-S3）
+
+### 背景
+`electron/agent-claude-sdk.ts:418` 调用 `broadcastSessionStatus(list, "sdk")`，与 `agent-sdk.ts` 中 `broadcastSdkSessionStatus` 使用相同的 `"sdk"` 分区键。`ui-logger.ts` 内部以 `sessionPartitions.set(source, list)` 覆盖式存储，导致两者后触发的广播会完全覆盖前者——多引擎并发时 UI 会话列表数据丢失。`SessionSource` 类型当前无 `"claude-code"` 值。
+
+### 上下文文件
+- 必读: `electron/ui-logger.ts` — 第 103 行 `SessionSource` 类型定义、第 107 行 `sessionPartitions` Map、第 109 行 `broadcastSessionStatus` 函数
+- 必读: `electron/agent-claude-sdk.ts` — 第 408-422 行 `broadcastCcSessionStatus` 函数
+
+### 实现范围
+- 修改: `electron/ui-logger.ts` — 第 103 行：将 `export type SessionSource = "cli" | "sdk"` 改为 `export type SessionSource = "cli" | "sdk" | "claude-code"`
+- 修改: `electron/agent-claude-sdk.ts` — 第 418 行：将 `broadcastSessionStatus(list, "sdk")` 改为 `broadcastSessionStatus(list, "claude-code")`
+
+### 接口契约
+- `SessionSource` union 扩展，向后兼容（现有 "cli"/"sdk" 分区不受影响）
+- `broadcastCcSessionStatus()` 对外行为不变，仅分区键更正
+
+### 验收标准
+- [ ] `ui-logger.ts` SessionSource 包含 `"claude-code"`
+- [ ] `agent-claude-sdk.ts:418` 传递 `"claude-code"` 而非 `"sdk"`
+- [ ] `agent-sdk.ts` 的 broadcastSdkSessionStatus 仍传递 `"sdk"`，不受影响
+- [ ] TypeScript 编译无报错
+- [ ] 仅修改上述两处，不扩散
+
+### 依赖
+- 前置任务: 无（独立修复）
+- 后续任务: T-FIX-03（split 前需先修正，避免 split 后重复操作）
+
+---
+
+## T-FIX-04: 修复 guard 泄漏、pendingDispatch 永久锁死及 ANTHROPIC_BASE_URL 继承（修复评审 R-S5、R-W1、R-W2）
+
+### 背景
+三处并行修复，均在 `electron/agent-claude-sdk.ts`：
+1. **R-S5**：`dispatchToClaudeCodeAgent`（约第 907-918 行）在 `acquireRunGuard` 返回 `acquired=false` 时直接 return，未清零 `session.pendingDispatch`，session 永久锁死
+2. **R-W1**：`launchClaudeCodeAgent`（第 774-889 行）`acquireRunGuard` 成功后若后续抛出异常，finally 块不调用 `releaseRunGuard`，guard 泄漏
+3. **R-W2**：spawn env 构造（第 863-864 行、第 939-940 行）用 `if (session.baseUrl)` 才设置 `ANTHROPIC_BASE_URL`，但父进程 env 中可能已有该变量，baseUrl 为空时应显式 delete
+
+### 上下文文件
+- 必读: `electron/agent-claude-sdk.ts` — 第 774-889 行（launchClaudeCodeAgent）、第 895-965 行（dispatchToClaudeCodeAgent）、第 855-870 行（launch 的 env 构造）、第 930-945 行（dispatch 的 env 构造）
+- 必读: `electron/agent-run-guard.ts` — `acquireRunGuard`、`releaseRunGuard` 签名，了解 token 字段
+
+### 实现范围
+- 修改: `electron/agent-claude-sdk.ts`：
+  1. **R-S5 修复**（约第 916-918 行）：在 `acquireRunGuard` 返回 `acquired=false` 时的 return 语句之前，加一行 `session.pendingDispatch = false`
+  2. **R-W1 修复**（第 886-889 行 finally 块）：在 `CC_PENDING_LAUNCHES.delete(sessionKey)` 后，追加：
+     ```ts
+     if (guard?.acquired && session && !session.child) {
+       releaseRunGuard(sessionKey, guard.token)
+     }
+     ```
+  3. **R-W2 修复**（第 863-864 行 launch env 构造、第 939-940 行 dispatch env 构造）：将两处 `if (session.baseUrl) { env.ANTHROPIC_BASE_URL = session.baseUrl }` 改为：
+     ```ts
+     if (session.baseUrl) {
+       env.ANTHROPIC_BASE_URL = session.baseUrl
+     } else {
+       delete env.ANTHROPIC_BASE_URL
+     }
+     ```
+
+### 接口契约
+- `launchClaudeCodeAgent` / `dispatchToClaudeCodeAgent` 对外签名不变
+- 行为修正：异常路径不再泄漏 guard 和 pendingDispatch 状态
+
+### 验收标准
+- [ ] dispatch 函数 guard 失败路径中 `pendingDispatch` 被清零再 return
+- [ ] launch 函数 finally 块在 guard 已获取但子进程未启动时调用 `releaseRunGuard`
+- [ ] spawn env 构造：baseUrl 为空时显式 `delete env.ANTHROPIC_BASE_URL`（两处）
+- [ ] TypeScript 编译无报错
+- [ ] 仅修改上述三处逻辑，不扩散
+
+### 依赖
+- 前置任务: T-FIX-02（T-FIX-02 也修改同文件，须先完成）
+- 后续任务: T-FIX-03（split 前先完成 bug 修复）
+
+---
+
+## T-FIX-03: 拆分 agent-claude-sdk.ts 满足 300 行规范（修复评审 R-S4）
+
+### 背景
+`electron/agent-claude-sdk.ts` 共 1244 行，混合了六类职责（类型定义、流式文本辅助、事件处理、核心执行、HTTP Server、API Key 校验），违反 AGENTS.md "代码文件不得超过300行"规范。在 T-FIX-02 和 T-FIX-04 完成后，本任务将文件拆分为 5 个职责明确的文件，每个文件 ≤300 行。
+
+### 上下文文件
+- 必读: `electron/agent-claude-sdk.ts` — 完整文件（T-FIX-02 和 T-FIX-04 已修复后的版本）
+- 参考: `electron/agent-sdk.ts` — 类似模块的文件组织方式
+- 参考: `electron/session-dispatcher.ts` — 查看对 agent-claude-sdk.ts 的 import，拆分后需更新
+- 参考: `electron/daemon-manager.ts` — 查看 re-export，拆分后需更新
+
+### 拆分方案
+
+| 文件 | 内容 | 目标行数 |
+|------|------|---------|
+| `electron/agent-cc-types.ts` | `ClaudeCodeLaunchOptions`、`CLAUDE_CODE_MODEL_LIST`、`CcSessionAgent` 内部接口、`StreamTextPayload` | ~90 行 |
+| `electron/agent-cc-stream.ts` | 流式文本辅助函数：`flushCcLog`/`appendCcLog`/`postPresentationEvent`/`postStreamText`/`doFlushStreamPost`/`flushStreamPost`/`scheduleStreamPost`/`appendStreamDelta`/`closeThinkingIfOpen`/`markProcessEventSeen`/`notifySessionChat`；`broadcastCcSessionStatus` | ~200 行 |
+| `electron/agent-cc-events.ts` | 事件类型接口（`CcSystemEvent`/`CcAssistantEvent`/`CcUserEvent`/`CcResultEvent`/`CcStreamEvent`）、`parseCcEvent`/`mapContentBlockToUsage`/`handleCcEvent`/`armCcWatchdog`/`completeCcRun`/`streamCcEvents` | ~270 行 |
+| `electron/agent-cc-http.ts` | `checkClaudeCodeApiKey`/`CLAUDE_CODE_MODEL_LIST`（re-export）/`writeCcApiPortFile`/`readCcApiBody`/`jsonCcApi`/`parseInboundMessageIds`/`launchCcAgentFromHttp`/`ensureClaudeCodeHttpServer`/`getCcAgentApiPort` | ~230 行 |
+| `electron/agent-claude-sdk.ts` | 顶部 imports、常量（WATCHDOG_*、CC_SESSIONS、CC_PENDING_LAUNCHES 等）、二进制路径函数、会话辅助工具（extractChatId/resolveSessionChannelType/f41Eligible/ccResidentModeEnabled/resetCcRunPresentationState/setWatchdogState/markSessionActivity）、`launchClaudeCodeAgent`/`dispatchToClaudeCodeAgent`、停止函数、`getClaudeCodeSessionList`、全部 re-export | ~300 行 |
+
+**导入依赖方向（无环）**：
+`agent-cc-types.ts` ← `agent-cc-stream.ts` ← `agent-cc-events.ts` ← `agent-claude-sdk.ts` → `agent-cc-http.ts`
+
+### 实现范围
+- 新建: `electron/agent-cc-types.ts`
+- 新建: `electron/agent-cc-stream.ts`
+- 新建: `electron/agent-cc-events.ts`
+- 新建: `electron/agent-cc-http.ts`
+- 修改: `electron/agent-claude-sdk.ts`（保留但大幅缩减，改为核心逻辑 + re-export 入口）
+- 修改: `electron/daemon-manager.ts` — 若 re-export 路径无变化则无需改动；若 `checkClaudeCodeApiKey`/`CLAUDE_CODE_MODEL_LIST` 移到 `agent-cc-http.ts`，需更新 re-export 源路径
+- 不修改: `electron/session-dispatcher.ts`、`electron/main.ts`（这些文件 import 自 `agent-claude-sdk.ts`，而 `agent-claude-sdk.ts` 仍作为对外 re-export 入口，调用方无感知）
+
+### 接口契约
+- 所有现有 export（`launchClaudeCodeAgent`、`dispatchToClaudeCodeAgent`、`isClaudeCodeSessionRunning`、`stopClaudeCodeSession`、`stopAllClaudeCodeSessions`、`getClaudeCodeSessionList`、`checkClaudeCodeApiKey`、`ensureClaudeCodeHttpServer`、`getCcAgentApiPort`、`CLAUDE_CODE_MODEL_LIST`、`ClaudeCodeLaunchOptions`、`PresentationEvent`/`PresentationKind`）必须仍可从 `electron/agent-claude-sdk.ts` import，外部调用方无需修改
+
+### 验收标准
+- [ ] 拆分后所有文件（含新建文件）行数 ≤300 行
+- [ ] `electron/agent-claude-sdk.ts` 仍导出所有原始 public symbol，外部调用方（session-dispatcher、daemon-manager、main.ts）无需修改
+- [ ] 无循环导入（agent-cc-types ← agent-cc-stream ← agent-cc-events ← agent-claude-sdk → agent-cc-http）
+- [ ] TypeScript 编译无报错
+- [ ] T-FIX-02 的 `broadcastSessionStatus(list, "claude-code")` 在新文件中正确保留
+- [ ] T-FIX-04 的三处 bug 修复（pendingDispatch、releaseRunGuard、ANTHROPIC_BASE_URL）在新文件中正确保留
+- [ ] 无 `02`/`03` 未要求的新抽象或新依赖
+
+### 依赖
+- 前置任务: T-FIX-02（先修正 broadcastSessionStatus），T-FIX-04（先修复 bug，再 split）
+- 后续任务: 无
+
+---
+
+## T-FIX-05: 消除 CC_MODELS 与 CLAUDE_CODE_MODEL_LIST 重复维护（R-N3）
+
+### 背景
+`command-handler.ts` 内联硬编码的 `CC_MODELS` 常量（3 项）与 `agent-cc-types.ts` 导出的 `CLAUDE_CODE_MODEL_LIST`（5 项）不同步，导致聊天命令模型列表与设置面板不一致。
+
+### 上下文文件
+- 必读: `electron/command-handler.ts` — CC_MODELS 常量与 claude-code 分支（约第 31-72 行）
+- 必读: `electron/agent-cc-types.ts` — CLAUDE_CODE_MODEL_LIST 导出（第 29-37 行）
+
+### 实现范围
+- 修改: `electron/command-handler.ts` — 删除 `CC_MODELS` 内联常量；在 imports 中增加 `import { CLAUDE_CODE_MODEL_LIST } from "./agent-cc-types"`；在 `claude-code` 分支将 `CC_MODELS.map` 替换为 `CLAUDE_CODE_MODEL_LIST.map`
+
+### 接口契约
+- `CLAUDE_CODE_MODEL_LIST` 格式为 `Array<{id: string; label: string}>`，与 `CC_MODELS` 原格式兼容，`ListedModel` 映射逻辑无需改动
+
+### 验收标准
+- [ ] `CC_MODELS` 常量已从 `command-handler.ts` 删除
+- [ ] `CLAUDE_CODE_MODEL_LIST` 已从 `./agent-cc-types` import
+- [ ] `/model ls` 分支使用 `CLAUDE_CODE_MODEL_LIST.map`，展示 5 个模型
+- [ ] TypeScript 类型兼容（`{id, label}` 格式不变）
+- [ ] 无 `02`/`03` 未要求的新抽象或新依赖
+
+### 依赖
+- 前置任务: 无（T-FIX-03 已确保 agent-cc-types.ts 导出 CLAUDE_CODE_MODEL_LIST）
+- 后续任务: 无

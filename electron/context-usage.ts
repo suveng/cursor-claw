@@ -144,6 +144,16 @@ export async function resolveModelContextLimit(modelId: string, apiKey: string):
   const cached = modelLimitCache.get(cacheKey)
   if (cached != null) return cached
 
+  // Claude 模型短路：Anthropic API Key 不兼容 Cursor.models.list，直接走启发式推断
+  if (id.startsWith("claude-")) {
+    const heuristic = inferContextLimitFromModelId(id)
+    if (heuristic != null) {
+      modelLimitCache.set(cacheKey, heuristic)
+      return heuristic
+    }
+    return null
+  }
+
   try {
     const { Cursor } = await import("@cursor/sdk")
     const models = await Cursor.models.list({ apiKey: key })

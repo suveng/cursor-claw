@@ -139,6 +139,10 @@ export function newSdkResourceId(): string {
   return `sdk_${randomBytes(4).toString("hex")}`
 }
 
+export function newClaudeCodeResourceId(): string {
+  return `cc_${randomBytes(4).toString("hex")}`
+}
+
 export function getChannels(): MessageChannel[] {
   const cfg = getConfig()
   // 旧版本迁移出的通道可能缺少通道级字段，用旧全局值兜底

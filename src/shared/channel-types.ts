@@ -1,14 +1,18 @@
 // ── 多消息通道共享类型与工具 ─────────────────────────────
 // Electron 主进程与 Daemon 子进程共用。
 
-/** Agent 资源：1 个本机 CLI（id 固定 "cli"）+ N 个 SDK Key */
+/** Agent 资源：1 个本机 CLI（id 固定 "cli"）+ N 个 SDK Key + N 个 Claude Code Profile */
 export interface AgentResource {
-  id: string;            // "cli" | "sdk_<uuid>"
-  type: "cli" | "sdk";
+  id: string;            // "cli" | "sdk_<hex>" | "cc_<hex>"
+  type: "cli" | "sdk" | "claude-code";
   name: string;
   apiKey?: string;       // 仅 SDK
   /** 校验成功后缓存的账号邮箱（仅展示用） */
   email?: string;
+  /** 自定义 Anthropic 端点（仅 claude-code）；空值 = 使用 Anthropic 默认端点 */
+  baseUrl?: string;
+  /** 默认模型（仅 claude-code）；空值 = 使用 SDK 默认 */
+  model?: string;
 }
 
 /** 消息通道：一个飞书自建应用 或 一个微信账号 */

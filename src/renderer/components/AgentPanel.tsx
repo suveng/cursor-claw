@@ -11,6 +11,11 @@ function newSdkId(): string {
   return `sdk_${hex}`
 }
 
+function newCcResourceId(): string {
+  const hex = Array.from(crypto.getRandomValues(new Uint8Array(4))).map((b) => b.toString(16).padStart(2, "0")).join("")
+  return `cc_${hex}`
+}
+
 function CliStatusPanel() {
   const [status, setStatus] = useState<{ checking: boolean; cliFound?: boolean; loggedIn?: boolean; identity?: string; error?: string }>({ checking: true })
   const [loggingIn, setLoggingIn] = useState(false)
@@ -78,19 +83,31 @@ export default function AgentPanel() {
   const [showKey, setShowKey] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [verifyResult, setVerifyResult] = useState<{ ok: boolean; email?: string; error?: string } | null>(null)
+
+  // Claude Code SDK 独立状态
+  const [ccResources, setCcResources] = useState<AgentResource[]>([])
+  const [editingCc, setEditingCc] = useState<AgentResource | null>(null)
+  const [isNewCc, setIsNewCc] = useState(false)
+  const [showCcKey, setShowCcKey] = useState(false)
+  const [verifyingCc, setVerifyingCc] = useState(false)
+  const [verifyResultCc, setVerifyResultCc] = useState<{ ok: boolean; error?: string } | null>(null)
+
   const { showAlert, showConfirm, ModalPortal } = useInlineModal()
 
   const reload = useCallback(async () => {
     const cfg = await window.electronAPI.getConfig()
     setResources((cfg.agentResources ?? []).filter((r) => r.type === "sdk"))
+    setCcResources((cfg.agentResources ?? []).filter((r) => r.type === "claude-code"))
     setChannels(cfg.channels ?? [])
   }, [])
 
   useEffect(() => { void reload() }, [reload])
 
-  const persist = async (sdkList: AgentResource[]) => {
+  const persist = async (sdkList: AgentResource[], ccList?: AgentResource[]) => {
     setResources(sdkList)
-    const all: AgentResource[] = [{ id: "cli", type: "cli", name: "Cursor CLI" }, ...sdkList]
+    const resolvedCcList = ccList ?? ccResources
+    setCcResources(resolvedCcList)
+    const all: AgentResource[] = [{ id: "cli", type: "cli", name: "Cursor CLI" }, ...sdkList, ...resolvedCcList]
     await window.electronAPI.saveConfig({ agentResources: all })
   }
 
@@ -131,6 +148,54 @@ export default function AgentPanel() {
     const exists = resources.some((r) => r.id === next.id)
     await persist(exists ? resources.map((r) => r.id === next.id ? next : r) : [...resources, next])
     setEditing(null)
+  }
+
+  // ── Claude Code SDK 操作 ──
+
+  const openCcAdd = () => {
+    setEditingCc({ id: newCcResourceId(), type: "claude-code", name: `CC Profile ${ccResources.length + 1}`, apiKey: "" })
+    setIsNewCc(true)
+    setShowCcKey(false)
+    setVerifyResultCc(null)
+  }
+
+  const openCcEdit = (r: AgentResource) => {
+    setEditingCc({ ...r })
+    setIsNewCc(false)
+    setShowCcKey(false)
+    setVerifyResultCc(null)
+  }
+
+  const handleCcDelete = async (r: AgentResource) => {
+    const usedBy = channels.filter((c) => c.agentResourceId === r.id)
+    if (usedBy.length > 0) {
+      void showAlert("无法删除", `该资源正在被通道使用：${usedBy.map((c) => c.name).join("、")}。请先调整通道的 Agent 资源绑定。`)
+      return
+    }
+    if (!await showConfirm("删除确认", `确定删除「${r.name}」吗？`)) return
+    const nextCc = ccResources.filter((x) => x.id !== r.id)
+    await persist(resources, nextCc)
+  }
+
+  const handleCcVerify = async () => {
+    if (!editingCc?.apiKey?.trim()) return
+    setVerifyingCc(true)
+    setVerifyResultCc(null)
+    try {
+      const r = await window.electronAPI.checkCcApiKey(editingCc.apiKey.trim())
+      setVerifyResultCc(r)
+    } finally {
+      setVerifyingCc(false)
+    }
+  }
+
+  const handleCcSave = async () => {
+    if (!editingCc || !editingCc.name.trim() || !editingCc.apiKey?.trim()) return
+    const next = { ...editingCc, name: editingCc.name.trim(), apiKey: editingCc.apiKey.trim(), baseUrl: editingCc.baseUrl?.trim() || undefined, model: editingCc.model?.trim() || undefined }
+    const exists = ccResources.some((r) => r.id === next.id)
+    const nextCc = exists ? ccResources.map((r) => r.id === next.id ? next : r) : [...ccResources, next]
+    await persist(resources, nextCc)
+    setEditingCc(null)
   }
 
   return (
@@ -178,6 +243,93 @@ export default function AgentPanel() {
           {resources.length === 0 && <p className="py-4 text-center text-xs text-gray-600">暂无 SDK Key</p>}
         </div>
       </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-medium text-gray-300">Claude Code SDK</h3>
+          <div className="flex-1" />
+          <button onClick={openCcAdd} className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-blue-500"><Plus size={12} />添加 CC Profile</button>
+        </div>
+        <p className="text-xs text-gray-600">
+          可添加多个 Claude Code API Key（不同账号），消息通道可分别绑定。从{" "}
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">Anthropic Console</a>
+          {" "}获取 API Key。
+        </p>
+        <div className="space-y-2">
+          {ccResources.map((r) => {
+            const usedBy = channels.filter((c) => c.agentResourceId === r.id)
+            return (
+              <div key={r.id} className="flex items-center justify-between rounded-lg border border-gray-700 px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <KeyRound size={15} className="shrink-0 text-orange-400" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium">{r.name}</p>
+                      {usedBy.length > 0 && <span className="shrink-0 rounded bg-blue-900/40 px-1.5 py-0.5 text-[10px] text-blue-400">{usedBy.length} 个通道使用中</span>}
+                    </div>
+                    <p className="truncate font-mono text-xs text-gray-600">{r.apiKey ? `${r.apiKey.slice(0, 10)}...${r.apiKey.slice(-4)}` : "(未配置)"}</p>
+                    {(r.baseUrl || r.model) && (
+                      <p className="truncate text-xs text-gray-600">
+                        {r.baseUrl && <span className="mr-2">{r.baseUrl}</span>}
+                        {r.model && <span className="rounded bg-gray-800 px-1 py-0.5 text-[10px]">{r.model}</span>}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="ml-3 flex shrink-0 items-center gap-2">
+                  <button onClick={() => openCcEdit(r)} className="rounded p-1 text-gray-500 transition hover:bg-gray-800 hover:text-white"><Pencil size={13} /></button>
+                  <button onClick={() => void handleCcDelete(r)} className="rounded p-1 text-gray-500 transition hover:bg-gray-800 hover:text-red-400"><Trash2 size={13} /></button>
+                </div>
+              </div>
+            )
+          })}
+          {ccResources.length === 0 && <p className="py-4 text-center text-xs text-gray-600">暂无 CC Profile</p>}
+        </div>
+      </section>
+
+      {editingCc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
+              <h3 className="text-sm font-semibold text-gray-200">{isNewCc ? "添加 CC Profile" : "编辑 CC Profile"}</h3>
+              <button onClick={() => setEditingCc(null)} className="text-gray-500 hover:text-white"><X size={16} /></button>
+            </div>
+            <div className="space-y-3 px-6 py-4">
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">名称</label>
+                <input type="text" value={editingCc.name} onChange={(e) => setEditingCc({ ...editingCc, name: e.target.value })} className={inputCls} placeholder="如：个人号 / 工作号" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">API Key</label>
+                <div className="relative">
+                  <input type={showCcKey ? "text" : "password"} value={editingCc.apiKey ?? ""} onChange={(e) => { setEditingCc({ ...editingCc, apiKey: e.target.value }); setVerifyResultCc(null) }} placeholder="sk-ant-..." className={inputCls + " pr-9"} />
+                  <button type="button" onClick={() => setShowCcKey(!showCcKey)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">{showCcKey ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => void handleCcVerify()} disabled={verifyingCc || !editingCc.apiKey?.trim()} className="flex items-center gap-1 rounded-md border border-gray-600 px-3 py-1.5 text-xs text-gray-300 transition hover:border-blue-500 hover:text-blue-400 disabled:opacity-50">
+                  {verifyingCc ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
+                  {verifyingCc ? "验证中..." : "验证"}
+                </button>
+                {verifyResultCc?.ok && <span className="flex items-center gap-1 text-xs text-green-400"><ShieldCheck size={13} />有效</span>}
+                {verifyResultCc && !verifyResultCc.ok && <span className="flex items-center gap-1 text-xs text-red-400"><ShieldAlert size={13} />{verifyResultCc.error}</span>}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">API Base URL（选填）</label>
+                <input type="text" value={editingCc.baseUrl ?? ""} onChange={(e) => setEditingCc({ ...editingCc, baseUrl: e.target.value })} className={inputCls} placeholder="https://api.anthropic.com" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">默认模型（选填）</label>
+                <input type="text" value={editingCc.model ?? ""} onChange={(e) => setEditingCc({ ...editingCc, model: e.target.value })} className={inputCls} placeholder="claude-opus-4-5" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
+              <button onClick={() => setEditingCc(null)} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>
+              <button onClick={() => void handleCcSave()} disabled={!editingCc.name.trim() || !editingCc.apiKey?.trim()} className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-40">保存</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">

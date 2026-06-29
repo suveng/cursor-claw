@@ -37,6 +37,7 @@
     "pack:linux": "npm run build && electron-builder --linux --dir"
   },
   "dependencies": {
+    "@anthropic-ai/claude-code": "^2.1.195",
     "@cursor/sdk": "^1.0.22",
     "@larksuiteoapi/node-sdk": "^1.66.1",
     "@modelcontextprotocol/sdk": "^1.27.1",

@@ -7,10 +7,15 @@ import type { WorkflowDefinition, WorkflowInstance } from "../shared/workflow-ty
 
 interface AgentResource {
   id: string
-  type: "cli" | "sdk"
+  /** cli=本机 Cursor CLI；sdk=Anthropic SDK Key；claude-code=Claude Code SDK */
+  type: "cli" | "sdk" | "claude-code"
   name: string
   apiKey?: string
   email?: string
+  /** 自定义 Anthropic 端点（仅 claude-code）；空值 = 使用 Anthropic 默认端点 */
+  baseUrl?: string
+  /** 默认模型（仅 claude-code）；空值 = 使用 SDK 默认 */
+  model?: string
 }
 
 /** 注意：避免与 DOM 内置 MessageChannel 类型冲突，这里命名为 ChannelConfig */
@@ -214,6 +219,10 @@ interface ElectronAPI {
   listModels(): Promise<{ ok: boolean; models: { id: string; label: string; current: boolean }[]; error?: string }>
   checkSdkApiKey(apiKey: string): Promise<{ ok: boolean; email?: string; error?: string }>
   listSdkModels(apiKey: string, currentModel?: string, currentParams?: string): Promise<{ ok: boolean; models: { id: string; label: string; params: string; current: boolean }[]; error?: string }>
+  /** 校验 Claude Code API Key 有效性 */
+  checkCcApiKey(apiKey: string): Promise<{ ok: boolean; error?: string }>
+  /** 列出 Claude Code 可用模型（静态列表，无需 apiKey） */
+  listCcModels(): Promise<Array<{ id: string; label: string }>>
   getScheduledTasks(): Promise<ScheduledTask[]>
   saveScheduledTasks(tasks: ScheduledTask[]): Promise<{ ok: boolean }>
   validateCron(expression: string): Promise<boolean>

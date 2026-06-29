@@ -12,6 +12,7 @@ import { httpPost } from "./daemon-client"
 import { deleteDefinition, getDefinition, listDefinitions, listInstances } from "./workflow-file"
 import { runWorkflowDefinition } from "./workflow-runner"
 import type { WorkflowDefinition } from "../src/shared/workflow-types"
+import { CLAUDE_CODE_MODEL_LIST } from "./agent-cc-types"
 
 // ── 共享类型与工具 ─────────────────────────────────────────
 
@@ -56,6 +57,14 @@ async function listCursorModelsForCommands(channel?: MessageChannel): Promise<{ 
     const r = await listSdkModels(resource.apiKey ?? "", channel?.model, channel?.modelParams)
     if (!r.ok) return { ok: false, error: r.error || "SDK 获取模型列表失败" }
     return { ok: true, models: r.models }
+  } else if (resource.type === "claude-code") {
+    const currentModel = channel?.model?.trim() || ""
+    const models: ListedModel[] = CLAUDE_CODE_MODEL_LIST.map((m) => ({
+      id: m.id,
+      label: m.label,
+      current: m.id === currentModel,
+    }))
+    return { ok: true, models }
   }
   const config = getConfig()
   const env: Record<string, string> = { ...process.env as Record<string, string>, NODE_USE_ENV_PROXY: "1" }

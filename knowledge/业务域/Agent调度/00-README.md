@@ -4,7 +4,7 @@
 
 ## 职责边界
 
-**负责**：会话模型（私聊/群聊/临时/定时/工作流）、SDK IM 路径与任务 CLI/SDK 启动、`--resume` 上下文、Daemon 转发调度、远程 `/` 指令、Cron 定时触发。
+**负责**：会话模型（私聊/群聊/临时/定时/工作流）、Cursor SDK 与 Claude Code SDK 两条 IM 执行路径、CLI/SDK 启动、`--resume` 上下文、Daemon 转发调度、远程 `/` 指令、Cron 定时触发。
 
 **不负责**：消息通道连接（飞书/微信 WebSocket）、MCP 工具实现、工作流 YAML 编排细节（见工作流域）。
 
@@ -30,15 +30,17 @@
 |------|------|
 | 会话调度 | `electron/session-dispatcher.ts` |
 | CLI 启动 | `electron/agent-launcher.ts`、`electron/agent-cli.ts` |
-| SDK 启动 | `electron/agent-sdk.ts` |
+| Cursor SDK 启动 | `electron/agent-sdk.ts` |
+| CC SDK 启动 | `electron/agent-claude-sdk.ts`（入口）、`electron/agent-cc-types.ts`、`electron/agent-cc-utils.ts`、`electron/agent-cc-stream.ts`、`electron/agent-cc-events.ts`、`electron/agent-cc-http.ts` |
 | Daemon 编排 | `electron/daemon-manager.ts` |
 | 指令处理 | `electron/command-handler.ts` |
 | Cron（UI） | `electron/cron-scheduler.ts` |
 | Cron（Daemon） | `src/daemon-scheduled-tasks.ts` |
 | 配置 | `electron/config-store.ts` |
-| agent-api | `electron/agent-sdk.ts`（端口 agent-api-port.json） |
+| CC agent-api | `electron/agent-cc-http.ts`（端口 cc-agent-api-port.json） |
 
 ## 变更记录
 
 2026-06-27：Daemon IM 编排、SDK-only、inject 废弃（archive 20260627162620）。
 2026-06-27：kb-sync 初始建立。
+2026-06-29：扩展 Claude Code SDK 执行引擎（archive 20260629164130）。

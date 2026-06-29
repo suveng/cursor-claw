@@ -1,0 +1,77 @@
+{
+  "change_id": "20260629164130-执行引擎扩展接入ClaudeCode",
+  "name": "执行引擎扩展接入ClaudeCode",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "0.3.3",
+  "created_at": "2026-06-29T16:41:36+0800",
+  "updated_at": "2026-06-29T23:59:30+0800",
+  "archived_at": "2026-06-29T23:59:30+0800",
+  "external": {},
+  "tasks": [
+    {"id": "T1", "title": "扩展 AgentResource 共享类型与 config-store", "status": "done", "files": ["src/shared/channel-types.ts", "electron/config-store.ts"], "depends_on": []},
+    {"id": "T2", "title": "扩展 context-usage 模型上限 fallback", "status": "done", "files": ["electron/context-usage.ts"], "depends_on": []},
+    {"id": "T3", "title": "新建 Claude Code SDK 执行引擎 agent-claude-sdk.ts", "status": "done", "files": ["electron/agent-claude-sdk.ts"], "depends_on": ["T1", "T2"]},
+    {"id": "T4", "title": "更新 command-handler.ts 模型列表分支", "status": "done", "files": ["electron/command-handler.ts"], "depends_on": ["T1"]},
+    {"id": "T5", "title": "更新 main.ts IPC handlers 和 daemon-manager.ts re-export", "status": "done", "files": ["electron/main.ts", "electron/daemon-manager.ts"], "depends_on": ["T3"]},
+    {"id": "T6", "title": "更新 session-dispatcher.ts 路由逻辑", "status": "done", "files": ["electron/session-dispatcher.ts"], "depends_on": ["T3"]},
+    {"id": "T7", "title": "前端 AgentPanel.tsx + Settings.tsx 新增 Claude Code Profile 管理", "status": "done", "files": ["src/renderer/components/AgentPanel.tsx", "src/renderer/pages/Settings.tsx", "electron/preload.ts"], "depends_on": ["T1", "T5"]},
+    {"id": "T-FIX-01", "title": "补全 env.d.ts 渲染层类型声明（R-S1、R-S2）", "status": "done", "files": ["src/renderer/env.d.ts"], "depends_on": []},
+    {"id": "T-FIX-02", "title": "修复 broadcastCcSessionStatus 分区键冲突（R-S3）", "status": "done", "files": ["electron/ui-logger.ts", "electron/agent-claude-sdk.ts"], "depends_on": []},
+    {"id": "T-FIX-04", "title": "修复 guard 泄漏、pendingDispatch 永久锁死及 ANTHROPIC_BASE_URL 继承（R-S5、R-W1、R-W2）", "status": "done", "files": ["electron/agent-claude-sdk.ts"], "depends_on": ["T-FIX-02"]},
+    {"id": "T-FIX-03", "title": "拆分 agent-claude-sdk.ts 满足 300 行规范（R-S4）", "status": "done", "files": ["electron/agent-claude-sdk.ts", "electron/agent-cc-types.ts", "electron/agent-cc-utils.ts", "electron/agent-cc-stream.ts", "electron/agent-cc-events.ts", "electron/agent-cc-http.ts"], "depends_on": ["T-FIX-02", "T-FIX-04"]},
+    {"id": "T-FIX-05", "title": "消除 CC_MODELS 与 CLAUDE_CODE_MODEL_LIST 重复维护（R-N3）", "status": "done", "files": ["electron/command-handler.ts"], "depends_on": []}
+  ],
+  "reviews": [
+    {"id": "R-S1", "severity": "critical", "status": "fixed", "file": "src/renderer/env.d.ts", "summary": "AgentResource 接口缺 claude-code union 及 baseUrl/model 字段", "task_id": "T-FIX-01"},
+    {"id": "R-S2", "severity": "critical", "status": "fixed", "file": "src/renderer/env.d.ts", "summary": "ElectronAPI 接口缺 checkCcApiKey / listCcModels 声明", "task_id": "T-FIX-01"},
+    {"id": "R-S3", "severity": "critical", "status": "fixed", "file": "electron/agent-claude-sdk.ts", "summary": "broadcastCcSessionStatus 复用 sdk 分区键导致并发覆盖", "task_id": "T-FIX-02"},
+    {"id": "R-S4", "severity": "critical", "status": "fixed", "file": "electron/agent-claude-sdk.ts", "summary": "新增文件 1244 行违反 300 行规范，拆分为 6 个文件", "task_id": "T-FIX-03"},
+    {"id": "R-S5", "severity": "critical", "status": "fixed", "file": "electron/agent-claude-sdk.ts", "summary": "guard 失败时 pendingDispatch 未清零导致 session 永久锁死", "task_id": "T-FIX-04"},
+    {"id": "R-W1", "severity": "warning", "status": "fixed", "file": "electron/agent-claude-sdk.ts", "summary": "launchClaudeCodeAgent 异常路径 runGuard 泄漏", "task_id": "T-FIX-04"},
+    {"id": "R-W2", "severity": "warning", "status": "fixed", "file": "electron/agent-claude-sdk.ts", "summary": "baseUrl 为空时未显式清除父进程 ANTHROPIC_BASE_URL", "task_id": "T-FIX-04"},
+    {"id": "R-W3", "severity": "warning", "status": "open", "file": "electron/agent-cc-types.ts", "summary": "Ponytail: abortController 字段是死代码，.signal 从未传给 spawn/fetch", "task_id": null},
+    {"id": "R-W4", "severity": "warning", "status": "open", "file": "electron/agent-cc-http.ts", "summary": "Ponytail: checkClaudeCodeApiKey 手写 65 行 https.request，可改用 global fetch()", "task_id": null},
+    {"id": "R-W5", "severity": "warning", "status": "open", "file": "electron/agent-claude-sdk.ts", "summary": "Ponytail: launch/dispatch 重复 spawn 逻辑约 70 行，可提取 spawnCcChild", "task_id": null},
+    {"id": "R-N3", "severity": "warning", "status": "fixed", "file": "electron/command-handler.ts", "summary": "CC_MODELS 与 CLAUDE_CODE_MODEL_LIST 不同步，已改为 import", "task_id": "T-FIX-05"}
+  ],
+  "files": {
+    "code": [
+      "src/shared/channel-types.ts",
+      "electron/config-store.ts",
+      "electron/context-usage.ts",
+      "electron/agent-claude-sdk.ts",
+      "electron/agent-cc-types.ts",
+      "electron/agent-cc-utils.ts",
+      "electron/agent-cc-stream.ts",
+      "electron/agent-cc-events.ts",
+      "electron/agent-cc-http.ts",
+      "electron/command-handler.ts",
+      "electron/main.ts",
+      "electron/daemon-manager.ts",
+      "electron/session-dispatcher.ts",
+      "electron/ui-logger.ts",
+      "src/renderer/components/AgentPanel.tsx",
+      "src/renderer/pages/Settings.tsx",
+      "electron/preload.ts",
+      "src/renderer/env.d.ts",
+      "package.json",
+      "package-lock.json"
+    ],
+    "knowledge": [
+      "knowledge/业务域/Agent调度/00-README.md",
+      "knowledge/业务域/Agent调度/01-概览.md",
+      "knowledge/业务域/Agent调度/03-启动与自动重连.md"
+    ],
+    "index": [],
+    "change_dir": [
+      "knowledge/变更/归档/20260629164130-执行引擎扩展接入ClaudeCode/00-manifest.json",
+      "knowledge/变更/归档/20260629164130-执行引擎扩展接入ClaudeCode/01-proposal.md",
+      "knowledge/变更/归档/20260629164130-执行引擎扩展接入ClaudeCode/02-design.md",
+      "knowledge/变更/归档/20260629164130-执行引擎扩展接入ClaudeCode/03-tasks.md",
+      "knowledge/变更/归档/20260629164130-执行引擎扩展接入ClaudeCode/04-review.md",
+      "knowledge/变更/归档/20260629164130-执行引擎扩展接入ClaudeCode/05-summary.md"
+    ]
+  }
+}
