@@ -2,11 +2,11 @@
   "change_id": "20260629232914-完全移除Cursor CLI依赖",
   "name": "完全移除Cursor CLI依赖",
   "flow": "standard",
-  "stage": "proposed",
+  "stage": "designed",
   "source": "kb-propose",
   "workflow_version": "v2.6",
   "created_at": "2026-06-29T23:29:14+0800",
-  "updated_at": "2026-06-29T23:31:56+0800",
+  "updated_at": "2026-06-29T23:33:16+0800",
   "external": {
     "figma_confirmed": true,
     "figma_decision": "auto-none",
@@ -28,6 +28,12 @@
       "kind": "change_doc",
       "source": "kb-propose",
       "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260629232914-完全移除Cursor CLI依赖/02-design.md",
+      "kind": "change_doc",
+      "source": "kb-design",
+      "status": "added"
     }
   ]
 }
