@@ -32,7 +32,7 @@
 ## 模块边界
 
 - `proxy-env`：子进程/Daemon 启动时的 HTTP(S) 代理 env 注入；**不** spawn Cursor CLI。
-- `agent-launcher`：仅 `ChatType` / `buildPrompt` / `resolveSessionChatName` 等 SDK·CC 共享符号；**无** CLI spawn。
+- `agent-launcher`：仅 `ChatType` / `buildPrompt` / `resolveSessionChatName` 等 SDK·CC 共享符号；`buildPrompt` 只拼接任务内容与 session 元数据，**不含**工作流前缀；**无** CLI spawn。
 - `session-dispatcher`：任务/工作流/`/chat` 经 Daemon `POST /api/agent/launch` 启动；**不**扫描 IM 队列（T7 迁入 Daemon）；**launch 前不得**调用 `workspace-injector` 写盘。
 - `workspace-injector`：自动注入（rules/mcp/skills）已废弃为 no-op；`cleanupLegacyInjection` 仅作可选手动清理，**禁止**在 launch 或 Daemon 启动路径自动调用。
 - `agent-sdk`：SDK 生命周期与事件流；通知 daemon 时用 `daemon-client.httpPost`，避免与 `session-dispatcher` 循环 import。

@@ -28,19 +28,15 @@ export interface LaunchMeta {
   chatType?: string
 }
 
-/** 统一构建 Agent 启动 Prompt（SDK / Claude Code 共用） */
+/** 统一构建 Agent 启动 Prompt（SDK / Claude Code 共用；仅任务内容与会话元数据，不含工作流前缀） */
 export function buildPrompt(
   meta?: LaunchMeta,
   taskMessage?: string,
   sessionKey?: string,
-  useMainWorkspace?: boolean,
+  // 保留参数以兼容既有调用方；workspace 路由仍由 session-dispatcher / SDK 负责
+  _useMainWorkspace?: boolean,
 ): string {
   const prompts: string[] = []
-  if (useMainWorkspace || meta?.chatType === "workflow") {
-    prompts.push("请绝对严格遵守工作流规则cursor-claw开始工作")
-  } else {
-    prompts.push("请按照digital-identity数字身份定义并绝对严格遵守工作流规则cursor-claw开始工作")
-  }
 
   if (taskMessage) {
     prompts.push("---")
@@ -48,7 +44,10 @@ export function buildPrompt(
     prompts.push(taskMessage)
   }
 
-  prompts.push("---")
+  // 仅有元数据时不加 leading ---；有任务内容时在元数据前插入分隔线
+  if (prompts.length > 0) {
+    prompts.push("---")
+  }
   prompts.push("会话元数据:")
   if (sessionKey) {
     prompts.push(`[session_key=${sessionKey}]`)
