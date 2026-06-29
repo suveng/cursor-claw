@@ -3,8 +3,8 @@ import {
   Plus, Pencil, Trash2, X, Loader2, CheckCircle2, ShieldAlert, Eye, EyeOff,
   LogIn, MessageSquare, Bird, FolderOpen, RefreshCw, ChevronDown, ChevronRight, ExternalLink,
 } from "lucide-react"
-import SearchableSelect from "./SearchableSelect"
 import useInlineModal from "./useInlineModal"
+import ChannelModelSection from "./ChannelModelSection"
 
 const inputCls = "w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
 
@@ -34,8 +34,6 @@ function emptyChannel(type: "feishu" | "wechat", defaultName: string): ChannelCo
     workspaceDir: "",
   }
 }
-
-interface ModelOption { id: string; label: string; params: string }
 
 export default function ChannelPanel() {
   const [channels, setChannels] = useState<ChannelConfig[]>([])
@@ -246,8 +244,6 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
   const [showSecret, setShowSecret] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [appInfoState, setAppInfoState] = useState<{ checking: boolean; error?: string }>({ checking: false })
-  const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
-  const [loadingModels, setLoadingModels] = useState(false)
   const [binding, setBinding] = useState(false)
   const [testing, setTesting] = useState(false)
   // 飞书一键创建
@@ -262,29 +258,6 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
   const wechatQrBusy = useRef(false)
 
   const set = (p: Partial<ChannelConfig>) => setDraft((d) => ({ ...d, ...p }))
-
-  const resource = resources.find((r) => r.id === draft.agentResourceId) ?? resources[0]
-
-  const fetchModels = useCallback(async () => {
-    setLoadingModels(true)
-    try {
-      if (resource?.type === "sdk") {
-        const r = await window.electronAPI.listSdkModels(resource.apiKey ?? "", draft.model, draft.modelParams)
-        if (r.ok && r.models.length > 0) setModelOptions(r.models)
-        else if (!r.ok) void showAlert("错误", r.error || "获取模型列表失败")
-      } else {
-        const r = await window.electronAPI.listModels()
-        if (r.ok && r.models.length > 0) setModelOptions(r.models.map((m) => ({ ...m, params: "" })))
-        else if (!r.ok) void showAlert("错误", r.error || "获取模型列表失败")
-      }
-    } finally {
-      setLoadingModels(false)
-    }
-  }, [resource, draft.model, draft.modelParams, showAlert])
-
-  useEffect(() => {
-    setModelOptions([])
-  }, [draft.agentResourceId])
 
   // 飞书一键创建应用
   useEffect(() => {
@@ -421,12 +394,6 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
 
   const credOk = draft.type === "feishu" ? !!(draft.larkAppId?.trim() && draft.larkAppSecret?.trim()) : !!draft.wechatToken?.trim()
 
-  const modelKey = (id: string, params: string) => id + (params ? "\0" + params : "")
-  const parseModelKey = (key: string): { id: string; params: string } => {
-    const sep = key.indexOf("\0")
-    return sep >= 0 ? { id: key.slice(0, sep), params: key.slice(sep + 1) } : { id: key, params: "" }
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="flex w-full max-w-lg flex-col rounded-xl border border-gray-700 bg-gray-900 shadow-2xl" style={{ maxHeight: "85vh" }}>
@@ -538,45 +505,8 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
             </div>
           )}
 
-          {/* ── Agent 资源与模型 ── */}
-          <div className="space-y-3 rounded-lg border border-gray-800 p-3">
-            <div className="flex items-center gap-2">
-              <h4 className="text-xs font-medium text-gray-400">Agent 资源与模型</h4>
-              <button onClick={() => void fetchModels()} disabled={loadingModels} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white disabled:opacity-50">
-                {loadingModels ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-                获取模型列表
-              </button>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">Agent 资源</label>
-              <select value={draft.agentResourceId} onChange={(e) => set({ agentResourceId: e.target.value })} className={inputCls}>
-                {resources.map((r) => <option key={r.id} value={r.id}>{r.name}{r.type === "sdk" && r.email ? ` (${r.email})` : ""}</option>)}
-              </select>
-              {resource?.type === "sdk" && <p className="mt-1 text-xs text-amber-500/80">⚠ SDK 不支持单独设置代理，请根据网络环境选择模型或使用 TUN 模式。</p>}
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">主模型 <span className="text-gray-600">— 主用户私聊 / 定时任务默认</span></label>
-              {modelOptions.length > 0
-                ? <SearchableSelect
-                    value={modelKey(draft.model, draft.modelParams)}
-                    onChange={(key) => { const { id, params } = parseModelKey(key); set({ model: id, modelParams: params }) }}
-                    options={modelOptions.map((o) => ({ id: modelKey(o.id, o.params), label: o.label }))}
-                    placeholder="选择模型..."
-                  />
-                : <input type="text" value={draft.model} onChange={(e) => set({ model: e.target.value, modelParams: "" })} placeholder="auto" className={inputCls} />}
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">其他人模型 <span className="text-gray-600">— 其他用户私聊 & 群聊</span></label>
-              {modelOptions.length > 0
-                ? <SearchableSelect
-                    value={draft.othersModel ? modelKey(draft.othersModel, draft.othersModelParams) : ""}
-                    onChange={(key) => { if (!key) { set({ othersModel: "", othersModelParams: "" }); return } const { id, params } = parseModelKey(key); set({ othersModel: id, othersModelParams: params }) }}
-                    options={[{ id: "", label: "跟随主模型" }, ...modelOptions.map((o) => ({ id: modelKey(o.id, o.params), label: o.label }))]}
-                    placeholder="跟随主模型"
-                  />
-                : <input type="text" value={draft.othersModel} onChange={(e) => set({ othersModel: e.target.value, othersModelParams: "" })} placeholder="留空则跟随主模型" className={inputCls} />}
-            </div>
-          </div>
+          {/* ── Agent 资源与模型（按资源类型联动，见 ChannelModelSection） ── */}
+          <ChannelModelSection channel={channel} draft={draft} set={set} resources={resources} showAlert={showAlert} />
 
           {/* ── 主用户绑定 ── */}
           <div className="space-y-3 rounded-lg border border-gray-800 p-3">
