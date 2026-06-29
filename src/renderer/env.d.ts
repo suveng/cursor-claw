@@ -220,7 +220,7 @@ interface ElectronAPI {
   checkSdkApiKey(apiKey: string): Promise<{ ok: boolean; email?: string; error?: string }>
   listSdkModels(apiKey: string, currentModel?: string, currentParams?: string): Promise<{ ok: boolean; models: { id: string; label: string; params: string; current: boolean }[]; error?: string }>
   /** 校验 Claude Code API Key 有效性 */
-  checkCcApiKey(apiKey: string): Promise<{ ok: boolean; error?: string }>
+  checkCcApiKey(apiKey: string, baseUrl?: string): Promise<{ ok: boolean; error?: string }>
   /** 列出 Claude Code 可用模型（静态列表，无需 apiKey） */
   listCcModels(): Promise<Array<{ id: string; label: string }>>
   getScheduledTasks(): Promise<ScheduledTask[]>

@@ -46,13 +46,13 @@ export function registerCcDispatchHandler(
 /**
  * 通过 Anthropic Messages API 发送最小请求，验证 API Key 有效性。
  */
-export async function checkClaudeCodeApiKey(apiKey: string): Promise<{ ok: boolean; error?: string }> {
+export async function checkClaudeCodeApiKey(apiKey: string, baseUrl?: string): Promise<{ ok: boolean; error?: string }> {
   const key = apiKey?.trim()
   if (!key) return { ok: false, error: "API Key 未配置" }
 
   try {
-    const baseUrl = "https://api.anthropic.com"
-    const url = `${baseUrl}/v1/messages`
+    const effectiveBaseUrl = baseUrl?.trim() || "https://api.anthropic.com"
+    const url = `${effectiveBaseUrl}/v1/messages`
     const body = JSON.stringify({
       model: "claude-haiku-4-5",
       max_tokens: 1,
@@ -64,7 +64,7 @@ export async function checkClaudeCodeApiKey(apiKey: string): Promise<{ ok: boole
       const req = https.request(
         {
           hostname: urlObj.hostname,
-          port: 443,
+          port: urlObj.port ? parseInt(urlObj.port) : 443,
           path: urlObj.pathname,
           method: "POST",
           headers: {

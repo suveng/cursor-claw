@@ -182,7 +182,7 @@ export default function AgentPanel() {
     setVerifyingCc(true)
     setVerifyResultCc(null)
     try {
-      const r = await window.electronAPI.checkCcApiKey(editingCc.apiKey.trim())
+      const r = await window.electronAPI.checkCcApiKey(editingCc.apiKey.trim(), editingCc.baseUrl?.trim() || undefined)
       setVerifyResultCc(r)
     } finally {
       setVerifyingCc(false)

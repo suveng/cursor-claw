@@ -370,7 +370,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("sdk:check-api-key", (_, apiKey: string) => checkSdkApiKey(apiKey))
   ipcMain.handle("sdk:list-models", (_, apiKey: string, currentModel?: string, currentParams?: string) => listSdkModels(apiKey, currentModel, currentParams))
-  ipcMain.handle("cc:check-api-key", (_, apiKey: string) => checkClaudeCodeApiKey(apiKey))
+  ipcMain.handle("cc:check-api-key", (_, apiKey: string, baseUrl?: string) => checkClaudeCodeApiKey(apiKey, baseUrl))
   ipcMain.handle("cc:list-models", () => CLAUDE_CODE_MODEL_LIST)
 }
 
