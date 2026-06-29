@@ -2,18 +2,104 @@
   "change_id": "20260629232914-完全移除Cursor CLI依赖",
   "name": "完全移除Cursor CLI依赖",
   "flow": "standard",
-  "stage": "designed",
+  "stage": "planned",
   "source": "kb-propose",
   "workflow_version": "v2.6",
   "created_at": "2026-06-29T23:29:14+0800",
-  "updated_at": "2026-06-29T23:33:16+0800",
+  "updated_at": "2026-06-29T23:45:00+0800",
   "external": {
     "figma_confirmed": true,
     "figma_decision": "auto-none",
     "task_type": "重构",
     "priority": "P2"
   },
-  "tasks": [],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "MCP 管理器去 CLI 化",
+      "status": "pending",
+      "files": ["electron/mcp-manager.ts"],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "Settings MCP Tab 与飞书 MCP/Model 指令",
+      "status": "pending",
+      "files": [
+        "electron/command-handler.ts",
+        "src/renderer/pages/Settings.tsx"
+      ],
+      "depends_on": ["T1", "T3"]
+    },
+    {
+      "id": "T3",
+      "title": "移除 CLI Agent 资源类型与默认绑定",
+      "status": "pending",
+      "files": [
+        "electron/config-store.ts",
+        "src/shared/channel-types.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T4",
+      "title": "删除 CLI 相关 IPC 与 models:list",
+      "status": "pending",
+      "files": [
+        "electron/main.ts",
+        "electron/preload.ts",
+        "src/env.d.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T5",
+      "title": "Renderer 移除 CLI UI 与统一 SDK/CC 模型路径",
+      "status": "pending",
+      "files": [
+        "src/renderer/components/AgentPanel.tsx",
+        "src/renderer/components/ChannelPanel.tsx",
+        "src/renderer/pages/Dashboard.tsx",
+        "src/renderer/pages/Settings.tsx",
+        "src/renderer/components/WorkflowPanel.tsx"
+      ],
+      "depends_on": ["T3", "T4"]
+    },
+    {
+      "id": "T6",
+      "title": "历史 CLI 绑定迁移与 Dashboard 提示 Banner",
+      "status": "pending",
+      "files": [
+        "electron/config-store.ts",
+        "src/renderer/pages/Dashboard.tsx"
+      ],
+      "depends_on": ["T3", "T5"]
+    },
+    {
+      "id": "T7",
+      "title": "删除 agent-cli spawn 与 agent-launcher CLI 路径",
+      "status": "pending",
+      "files": [
+        "electron/proxy-env.ts",
+        "electron/agent-cli.ts",
+        "electron/agent-launcher.ts",
+        "electron/agent-sdk.ts",
+        "electron/agent-claude-sdk.ts",
+        "electron/daemon-manager.ts"
+      ],
+      "depends_on": ["T2", "T4", "T5", "T6"]
+    },
+    {
+      "id": "T8",
+      "title": "帮助与 Setup 文案扫尾",
+      "status": "pending",
+      "files": [
+        "src/renderer/pages/Settings.tsx",
+        "README.md"
+      ],
+      "depends_on": ["T7"]
+    }
+  ],
   "reviews": [],
   "revisions": [],
   "files": [
@@ -33,6 +119,12 @@
       "path": "knowledge/变更/进行中/20260629232914-完全移除Cursor CLI依赖/02-design.md",
       "kind": "change_doc",
       "source": "kb-design",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260629232914-完全移除Cursor CLI依赖/03-tasks.md",
+      "kind": "change_doc",
+      "source": "kb-plan",
       "status": "added"
     }
   ]
