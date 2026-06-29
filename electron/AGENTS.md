@@ -22,6 +22,8 @@
 
 ## 模块边界
 
+- `proxy-env`：子进程/Daemon 启动时的 HTTP(S) 代理 env 注入；**不** spawn Cursor CLI。
+- `agent-launcher`：仅 `ChatType` / `buildPrompt` / `resolveSessionChatName` 等 SDK·CC 共享符号；**无** CLI spawn。
 - `session-dispatcher`：任务/工作流/`/chat` 经 Daemon `POST /api/agent/launch` 启动；**不**扫描 IM 队列（T7 迁入 Daemon）；**launch 前不得**调用 `workspace-injector` 写盘。
 - `workspace-injector`：自动注入（rules/mcp/skills）已废弃为 no-op；`cleanupLegacyInjection` 仅作可选手动清理，**禁止**在 launch 或 Daemon 启动路径自动调用。
 - `agent-sdk`：SDK 生命周期与事件流；通知 daemon 时用 `daemon-client.httpPost`，避免与 `session-dispatcher` 循环 import。
@@ -33,9 +35,9 @@
 - **SDK 自动压缩**：`Agent.create` / `agent.send` 无显式 `autoCompress` 配置项；接近上下文上限时由 harness **默认** summarization/compression。`agent.send` 挂载 `onDelta`，`summary-started` / `summary-completed`（及 `summary`）写入 SDK UI 日志，前缀 `[compression]`。**pre-send 可观测**：`launchSdkAgent` / `dispatchToSdkAgent` 在 `resolveContextLimitForSession` 之后、`agent.send` 之前调用 `evaluatePreSendContextPressure` → UI 日志 `[compression] pre-send usage {pct}%`（≥85% limit，不阻断 send）。**turn-ended 高水位**：占用 ≥85% limit 时 `[compression] high-watermark {pct}%`（`context-usage-pressure` + `handleAgentSendDelta`）。
 - **SDK 上下文 footer（IM 回复）**：**单一落点** `agent-sdk` — Run 流结束后 `finalizeRunContextUsage` 读 `run.usage`（必要时 `run.wait()`），与 `onDelta` turn-ended 快照 **并排打 `[context-usage]` 日志**；`doFlushStreamPost(..., final=true)` 前 `applyContextFooterToBuffer` 写入 `streamBuffer`；中间 chunk 不含 footer。footer **优先** `run.usage.totalTokens`，不可得时回退 turn-ended/peak；格式 `\n\n---\n上下文：{p}% ({usedK}k/{limitK}k)`（有上限）或 `\n\n---\n上下文：已用 {usedK}`；上限来自 `Cursor.models.list` 或 modelId 启发式（session 级缓存）。`appendContextFooter` 对已含「上下文：」的正文幂等。CLI 路径不在 IM scope。
 - **SDK 自动压缩飞书通知**：`summary-started` 经 `notifySessionChat` 下发「正在压缩上下文…」（与「Agent 处理中…」同语义，不传 `stop_progress`）；每 Run 至多一次（`compressionNotified`）；`summary-completed` 仅写 UI 日志。
-- **SDK 长驻 Agent（`SDK_RESIDENT_AGENT`）**：默认开启；`SDK_RESIDENT_AGENT=0` 回退 Run 结束 `close()`。**非超时 error**：`completeSdkRun` 在 `residentMode` **保留**实例、`reportSessionAgentPhase(idle)` 触发 Daemon flush。**超时类**：`finalizeSdkRunOnTimeout` 后 `agent.close()` + 删 session（长驻与非长驻均清理），下条 launch 重建；**不写 `failedCooldowns`**。`isSdkSessionRunning` 仅 processing（`run`/`pendingDispatch`），idle 用 `hasSdkSession`。二次任务 `dispatchToSdkAgent`；`launchSdkAgent` 遇 processing 会话 WARN 早退 `{ ok: true }`。失败日志 `dispatch_failed` / `agent_failed`。`ensureAgentSdkHttpServer` 应用 init 启动，端口 `userData/agent-api-port.json`；Daemon 转发 `POST /api/agent/launch|dispatch`。
+- **SDK 长驻 Agent（`SDK_RESIDENT_AGENT`）**：默认开启；`SDK_RESIDENT_AGENT=0` 回退 Run 结束 `close()`。**非超时 error**：`completeSdkRun` 在 `residentMode` **保留**实例、`reportSessionAgentPhase(idle)` 触发 Daemon flush。**超时类**：`finalizeSdkRunOnTimeout` 后 `agent.close()` + 删 session（长驻与非长驻均清理），下条 launch 重建；**不写 `failedCooldowns`**。`isSdkSessionRunning` 仅 processing（`run`/`pendingDispatch`），idle 用 `hasSdkSession`。二次任务 `dispatchToSdkAgent`；`launchSdkAgent` 遇 processing 会话 WARN 早退 `{ ok: true }`。失败日志 `dispatch_failed` / `agent_failed`。`ensureAgentSdkHttpServer` 应用 init 启动，端口 `userData/agent-api-port.json`；Daemon 转发 `POST /api/agent/launch|dispatch`。**Daemon 统一入口路由**：`launchSdkAgentFromHttp` / `dispatchAgentFromHttp` 按 `resolveBoundAgentResourceType` 委托 — `claude-code` → `launchCcAgentFromHttp` / `dispatchToClaudeCodeAgent`，`sdk` → 现有 SDK 逻辑，legacy `cli` 绑定返回明确错误；与 `session-dispatcher.launchAgent` 双引擎口径一致。
 - **ContextRotation 切换顺序**：轮转必须“先 `Agent.create` 成功，再替换 `session.agent`，最后 best-effort 关闭旧实例”；创建失败时保留旧实例继续 send，禁止先 `close` 再创建导致会话假存活。
-- **IM 调度 SDK-only**：无 CLI spawn、无 `poll-message`。
+- **IM 调度双引擎**：Daemon `POST /api/agent/launch|dispatch` 经 `agent-sdk` 按通道资源类型路由（SDK / Claude Code）；无 CLI spawn、无 `poll-message`。
 
 ## 通道配置字段
 
@@ -43,3 +45,10 @@
 - 旧通道读时兜底写在 `config-store.getChannels`，与 `ChannelPanel` reload / `emptyChannel` 保持一致。
 - **SDK error 可观测性**：`handleSdkEvent` 在 `tool_call` 时写入 `session.lastTool`；`run.status === "error"` 时 UI 日志单行 `运行错误详情:` 含 `sessionKey`、`agentId`、`durationMs`、`lastTool`、`run.result`、`errorCode`、`waitResult` 等结构化字段。
 - **保活失败文案（F3.2）**：超时类由 `isRunTimeoutFailure` 判定后 `formatUserSdkFailureMessage` 输出「会话因等待超时已退出…」（含 F3.2 shell:running + duration≥20min、平台长时 ≥7min）；`isTimeoutFailure` 分支**优先于** CANCELLED 固定「任务已取消」句。`notifySdkFailure` 用 `run`/`runStartedAt` 解析 duration。平台长时 `CANCELLED/ERROR/EXPIRED` 经 finalizer 即时 notify；短 ERROR 走 `completeSdkRun`。非超时 tool/上下文失败走 `sdk-failure-messages` 归因。
+
+## MCP 文件拆分
+
+- `mcp-types.ts`：共享类型（`McpServerEntry`、`McpToolInfo`）。
+- `mcp-tools-probe.ts`：`queryToolsViaProtocol` / `queryToolsViaHttp` 直连探测。
+- `mcp-status-map.ts`：状态 map 30s 缓存与单条探测编排。
+- `mcp-manager.ts`：CRUD、toggle、login 说明、对外导出；**不** spawn `agent mcp`。

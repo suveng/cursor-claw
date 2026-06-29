@@ -1,78 +1,18 @@
-import { spawn } from "node:child_process"
 import * as path from "node:path"
 import * as fs from "node:fs"
 import * as os from "node:os"
-import { BrowserWindow } from "electron"
+import { shell } from "electron"
 import { getConfig } from "./config-store"
-import { broadcastLog, logCursorAgentInvocation, logCursorAgentResponse } from "./ui-logger"
-import { resolveAgentBinary, applyProxyEnv, quoteArg, getAgentPaths } from "./agent-cli"
 import { findCursorProjectDir } from "./mcp-project-dir"
+import { fetchMcpStatusMap, invalidateMcpStatusCache } from "./mcp-status-map"
+import { queryToolsViaHttp, queryToolsViaProtocol } from "./mcp-tools-probe"
+import type { McpServerEntry, McpToolInfo } from "./mcp-types"
 
-// ── Types ────────────────────────────────────────────────
+export type { McpServerEntry, McpToolInfo } from "./mcp-types"
 
-export interface McpServerEntry {
-  name: string
-  type: "command" | "url"
-  command?: string
-  args?: string[]
-  url?: string
-  env?: Record<string, string>
-  source: "global" | "project"
-  authenticated?: boolean
-  rawConfig?: Record<string, unknown>
-  enabled?: boolean
-}
+// ── OAuth 审批辅助 ────────────────────────────────────────
 
-export interface McpToolInfo {
-  name: string
-  description?: string
-  params?: { name: string; type?: string; description?: string; required?: boolean }[]
-}
-
-// ── Internal helpers ─────────────────────────────────────
-
-const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g
-
-function isEnabledStatus(status: string): boolean {
-  return status.toLowerCase() !== "disabled"
-}
-
-function spawnAsync(args: string[], cwd: string, env: Record<string, string>): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }> {
-  return new Promise((resolve) => {
-    const mcpLabel = args.length >= 2 && args[0] === "mcp" ? `mcp-${args[1]}` : `mcp-${args[0] ?? "spawn"}`
-    logCursorAgentInvocation(mcpLabel, args, cwd)
-    let stdout = "", stderr = "", settled = false, didTimeout = false
-    let spawnErr: string | undefined
-    const done = (code: number) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      const ok = code === 0 && !didTimeout && !spawnErr
-      logCursorAgentResponse(mcpLabel, {
-        ok,
-        stdout,
-        stderr,
-        error: didTimeout ? "timeout (30s)" : spawnErr,
-      })
-      resolve({ code, stdout, stderr, timedOut: didTimeout || undefined })
-    }
-    const { agentNodePath: np, agentIndexPath: ip } = getAgentPaths()
-    const child = np && ip
-      ? spawn(np, [ip, ...args], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"], cwd, env })
-      : spawn("agent", args.map(quoteArg), { shell: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], cwd, env })
-    child.stdout?.on("data", (d: Buffer) => { stdout += d.toString() })
-    child.stderr?.on("data", (d: Buffer) => { stderr += d.toString() })
-    child.on("error", (e) => {
-      spawnErr = e instanceof Error ? e.message : String(e)
-      done(1)
-    })
-    child.on("exit", (code) => done(code ?? 1))
-    const timer = setTimeout(() => { didTimeout = true; try { child.kill() } catch { /* */ }; done(1) }, 30_000)
-  })
-}
-
-// ── OAuth & Project helpers ──────────────────────────────
-
+/** 读取 mcp-approvals.json 中已批准的 OAuth 服务器名 */
 function readApprovedServers(workspaceDir: string): Set<string> {
   const dir = findCursorProjectDir(workspaceDir)
   if (!dir) return new Set()
@@ -90,86 +30,56 @@ function readApprovedServers(workspaceDir: string): Set<string> {
   return new Set()
 }
 
-
-// ── MCP Enabled Cache ────────────────────────────────────
-
-interface McpListCache { enabled: Record<string, boolean>; status: Record<string, string>; ts: number; ws: string }
-const MCP_ENABLED_CACHE_TTL_MS = 30_000
-let mcpListCache: McpListCache | null = null
-let mcpListInflight: Promise<McpListCache> | null = null
-
-async function fetchMcpList(force = false): Promise<McpListCache> {
-  const config = getConfig()
-  const ws = (config.workspaceDir || "").trim()
-  const empty: McpListCache = { enabled: {}, status: {}, ts: 0, ws }
-  if (!ws) return empty
-  if (!force && mcpListCache && mcpListCache.ws === ws && Date.now() - mcpListCache.ts < MCP_ENABLED_CACHE_TTL_MS) return mcpListCache
-
-  if (!resolveAgentBinary()) return empty
-  if (mcpListInflight) return mcpListInflight
-
-  const p = (async (): Promise<McpListCache> => {
-    const env: Record<string, string> = { ...process.env as Record<string, string> }
-    applyProxyEnv(env, config)
-    try {
-      const r = await spawnAsync(["mcp", "list"], ws, env)
-      const clean = r.stdout.replace(ANSI_RE, "").replace(/\r/g, "")
-      const enabled: Record<string, boolean> = {}
-      const status: Record<string, string> = {}
-      for (const line of clean.split("\n")) {
-        const m = line.match(/^(.+?):\s+(.+)$/)
-        if (m) {
-          const name = m[1].trim(), raw = m[2].trim()
-          enabled[name] = isEnabledStatus(raw)
-          status[name] = raw.toLowerCase()
-        }
-      }
-      const result: McpListCache = { enabled, status, ts: Date.now(), ws }
-      mcpListCache = result
-      return result
-    } catch {
-      return empty
-    } finally {
-      mcpListInflight = null
-    }
-  })()
-  mcpListInflight = p
-  return p
+/** 按名称查找 MCP 条目；同名时 project 优先于 global */
+function findMcpEntry(serverName: string): McpServerEntry | undefined {
+  const list = getMcpServerList()
+  return list.find((s) => s.name === serverName && s.source === "project")
+    ?? list.find((s) => s.name === serverName)
 }
 
-// ── Public API: Cache ────────────────────────────────────
+// ── Public API: Enabled / Status ─────────────────────────
 
-export async function getMcpEnabledMap(force = false): Promise<Record<string, boolean>> {
-  return (await fetchMcpList(force)).enabled
+/** 从 mcp.json 读取各服务器 enabled 状态（disabled !== true），不依赖 CLI */
+export async function getMcpEnabledMap(_force = false): Promise<Record<string, boolean>> {
+  const map: Record<string, boolean> = {}
+  for (const entry of getMcpServerList()) {
+    map[entry.name] = entry.enabled !== false
+  }
+  return map
 }
 
+/** 通过 HTTP/stdio 探测各服务器健康状态，保留 30s 缓存 */
 export async function getMcpStatusMap(force = false): Promise<Record<string, string>> {
-  return (await fetchMcpList(force)).status
+  return fetchMcpStatusMap(force, getMcpServerList())
 }
 
 export function invalidateMcpEnabledCache(): void {
-  mcpListCache = null
+  invalidateMcpStatusCache()
 }
 
-// ── Public API: Toggle ───────────────────────────────────
+// ── Public API: Toggle ─────────────────────────────────────
 
-export async function toggleMcpServer(serverName: string, enabled: boolean, workspaceDirOverride?: string): Promise<{ ok: boolean; output: string }> {
-  const config = getConfig()
-  const ws = (workspaceDirOverride ?? config.workspaceDir ?? "").trim()
-  if (!ws) return { ok: false, output: "工作目录未配置" }
-  if (!resolveAgentBinary()) return { ok: false, output: "Cursor CLI 未安装" }
+/** 写入 mcp.json 的 disabled 字段以启用/禁用 MCP 服务器 */
+export async function toggleMcpServer(
+  serverName: string,
+  enabled: boolean,
+  _workspaceDirOverride?: string,
+): Promise<{ ok: boolean; output: string }> {
+  const target = findMcpEntry(serverName)
+  if (!target) return { ok: false, output: `找不到 MCP 服务器: ${serverName}` }
 
-  const env: Record<string, string> = { ...process.env as Record<string, string> }
-  applyProxyEnv(env, config)
-
-  const action = enabled ? "enable" : "disable"
-  const r = await spawnAsync(["mcp", action, serverName], ws, env)
-  const out = (r.stdout + r.stderr).replace(ANSI_RE, "").replace(/\r/g, "").trim()
-
-  if (r.code === 0) {
-    invalidateMcpEnabledCache()
+  const raw = { ...(target.rawConfig ?? {}) }
+  if (enabled) {
+    delete raw.disabled
+  } else {
+    raw.disabled = true
   }
-  return { ok: r.code === 0, output: out || (r.code === 0 ? `${serverName} ${action}d` : `操作失败`) }
+
+  const result = saveMcpServer(serverName, raw, target.source)
+  if (result.ok) invalidateMcpStatusCache()
+  return result.ok
+    ? { ok: true, output: `${serverName} 已${enabled ? "启用" : "禁用"}` }
+    : { ok: false, output: result.error ?? "操作失败" }
 }
 
 // ── Public API: CRUD ─────────────────────────────────────
@@ -257,7 +167,7 @@ export function saveMcpServer(name: string, config: Record<string, unknown>, sco
   existing.mcpServers = servers
   if (existing.servers) delete existing.servers
   const success = writeMcpJson(scope, existing)
-  if (success) invalidateMcpEnabledCache()
+  if (success) invalidateMcpStatusCache()
   return success ? { ok: true } : { ok: false, error: "写入失败" }
 }
 
@@ -270,255 +180,58 @@ export function deleteMcpServer(name: string, scope: "global" | "project"): { ok
   existing.mcpServers = servers
   if (existing.servers) delete existing.servers
   const success = writeMcpJson(scope, existing)
-  if (success) invalidateMcpEnabledCache()
+  if (success) invalidateMcpStatusCache()
   return success ? { ok: true } : { ok: false, error: "写入失败" }
 }
 
 // ── Public API: OAuth login ──────────────────────────────
 
+/** 返回 OAuth 手动配置说明，不再 spawn agent mcp login */
 export async function loginMcpServer(serverName: string): Promise<{ ok: boolean; output: string }> {
   const config = getConfig()
-  if (!config.workspaceDir) return { ok: false, output: "工作目录未配置" }
-  if (!resolveAgentBinary()) return { ok: false, output: "Cursor CLI 未安装" }
+  const ws = (config.workspaceDir ?? "").trim()
+  if (!ws) return { ok: false, output: "工作目录未配置" }
 
-  const env: Record<string, string> = { ...process.env as Record<string, string> }
-  applyProxyEnv(env, config)
+  const server = findMcpEntry(serverName)
+  if (!server) return { ok: false, output: `找不到 MCP 服务器: ${serverName}` }
 
-  const cwd = config.workspaceDir.trim()
-  logCursorAgentInvocation("mcp-login", ["mcp", "login", serverName], cwd)
+  const projectDir = findCursorProjectDir(ws)
+  const authPath = projectDir ? path.join(projectDir, "mcp-auth.json") : "~/.cursor/projects/<工作区>/mcp-auth.json"
 
-  try {
-    const child = spawn("agent", ["mcp", "login", serverName].map(quoteArg), {
-      shell: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
-      cwd, env,
-    })
+  const lines = [
+    `MCP「${serverName}」需手动完成 OAuth 配置：`,
+    "",
+    "1. 在浏览器完成该 MCP 提供商的 OAuth 授权",
+    `2. 将 access_token 写入 ${authPath}`,
+    "3. 或在 Cursor IDE 中对该 MCP 执行授权后刷新本页",
+  ]
 
-    let stdout = "", stderr = ""
-    let loginTimedOut = false
-    let spawnErr: string | undefined
-    child.stdout?.on("data", (d: Buffer) => { stdout += d.toString() })
-    child.stderr?.on("data", (d: Buffer) => {
-      const chunk = d.toString()
-      stderr += chunk
-      const urlMatch = chunk.match(/https?:\/\/[^\s]+/)
-      if (urlMatch) {
-        const { shell } = require("electron")
-        shell.openExternal(urlMatch[0])
-      }
-    })
-
-    const code = await new Promise<number>((resolve) => {
-      let settled = false
-      let timer: ReturnType<typeof setTimeout>
-      const finish = (c: number) => {
-        if (settled) {
-          return
-        }
-        settled = true
-        clearTimeout(timer)
-        const ok = c === 0 && !loginTimedOut && !spawnErr
-        logCursorAgentResponse("mcp-login", {
-          ok,
-          stdout,
-          stderr,
-          error: loginTimedOut ? "timeout (60s)" : spawnErr,
-        })
-        resolve(c)
-      }
-      timer = setTimeout(() => {
-        loginTimedOut = true
-        try { child.kill() } catch { /* */ }
-        finish(1)
-      }, 60_000)
-      child.on("exit", (c) => finish(c ?? 1))
-      child.on("error", (err) => {
-        spawnErr = err instanceof Error ? err.message : String(err)
-        finish(1)
-      })
-    })
-
-    const out = (stdout + stderr).replace(ANSI_RE, "").replace(/\r/g, "").trim()
-    if (code === 0) {
-      invalidateMcpEnabledCache()
-    }
-    return { ok: code === 0, output: out || (code === 0 ? "认证完成" : "认证失败") }
-  } catch (e: any) {
-    const msg = e?.message ?? "启动失败"
-    logCursorAgentResponse("mcp-login", { ok: false, stdout: "", stderr: "", error: msg })
-    return { ok: false, output: msg }
+  if (server.type === "url" && server.url) {
+    lines.push("", `服务端点：${server.url}`)
+    try { await shell.openExternal(server.url) } catch { /* ignore */ }
   }
+
+  return { ok: false, output: lines.join("\n") }
 }
 
-// ── Public API: Tools Query ──────────────────────────────
+// ── Public API: Tools Query ────────────────────────────────
 
-function extractParams(schema: any): McpToolInfo["params"] {
-  if (!schema?.properties) return undefined
-  const required = new Set<string>(schema.required ?? [])
-  return Object.entries(schema.properties).map(([k, v]: [string, any]) => ({
-    name: k,
-    type: v.type,
-    description: v.description,
-    required: required.has(k),
-  }))
-}
-
-/** stdio MCP 直连探测；cwd 用于 npx/相对路径/项目根 env 等依赖工作目录的场景 */
-function queryToolsViaProtocol(cmd: string, args: string[], envOverride?: Record<string, string>, cwd?: string): Promise<{ ok: boolean; tools: McpToolInfo[]; error?: string }> {
-  return new Promise((resolve) => {
-    const env: Record<string, string> = { ...process.env as Record<string, string>, ...(envOverride ?? {}) }
-    if (!env.PATH && env.Path) env.PATH = env.Path
-
-    let child: ReturnType<typeof spawn>
-    try {
-      const spawnOpts: Parameters<typeof spawn>[2] = { env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: true }
-      if (cwd) spawnOpts.cwd = cwd
-      child = spawn(quoteArg(cmd), args.map(quoteArg), spawnOpts)
-    } catch (e: any) {
-      resolve({ ok: false, tools: [], error: `启动失败: ${e.message}` })
-      return
-    }
-
-    let stdout = ""
-    let phase: "init" | "list" | "done" = "init"
-    const timeout = setTimeout(() => {
-      try { child.kill() } catch { /* */ }
-      resolve({ ok: false, tools: [], error: "查询超时" })
-    }, 15_000)
-
-    const finish = (result: { ok: boolean; tools: McpToolInfo[]; error?: string }) => {
-      if (phase === "done") return
-      phase = "done"
-      clearTimeout(timeout)
-      try { child.kill() } catch { /* */ }
-      resolve(result)
-    }
-
-    child.stdout?.on("data", (data: Buffer) => {
-      stdout += data.toString()
-      for (const raw of stdout.split("\n")) {
-        const line = raw.trim()
-        if (!line) continue
-        try {
-          const msg = JSON.parse(line)
-          if (msg.id === 1 && msg.result && phase === "init") {
-            phase = "list"
-            child.stdin?.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) + "\n")
-          }
-          if (msg.id === 2 && msg.result?.tools) {
-            const tools: McpToolInfo[] = (msg.result.tools as any[]).map((t: any) => ({ name: t.name, description: t.description, params: extractParams(t.inputSchema) }))
-            finish({ ok: true, tools })
-          }
-        } catch { /* not json */ }
-      }
-    })
-
-    child.on("error", (err) => finish({ ok: false, tools: [], error: `启动失败: ${err.message}` }))
-    child.on("close", () => {
-      if (phase === "done") return
-      // init：未握手；list：已 initialize 但未收到 tools/list 响应，均视为失败
-      finish({ ok: false, tools: [], error: phase === "list" ? "进程退出，未获取到工具列表" : "进程退出，未获取到工具" })
-    })
-
-    child.stdin?.write(JSON.stringify({
-      jsonrpc: "2.0", id: 1, method: "initialize",
-      params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "cursor-claw", version: "1.0.0" } },
-    }) + "\n")
-  })
-}
-
-async function queryToolsViaHttp(url: string, headers?: Record<string, string>): Promise<{ ok: boolean; tools: McpToolInfo[]; error?: string }> {
-  const rpc = (id: number, method: string, params: object = {}) => JSON.stringify({ jsonrpc: "2.0", id, method, params })
-  const post = (body: string): Promise<any> => new Promise((resolve, reject) => {
-    const u = new URL(url)
-    const isHttps = u.protocol === "https:"
-    const mod = isHttps ? require("node:https") : require("node:http")
-    const req = mod.request(u, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", ...(headers ?? {}) },
-      timeout: 10_000,
-    }, (res: any) => {
-      let data = ""
-      res.on("data", (chunk: Buffer) => { data += chunk.toString() })
-      res.on("end", () => {
-        try {
-          if (res.headers["content-type"]?.includes("text/event-stream")) {
-            for (const line of data.split("\n")) {
-              if (line.startsWith("data:")) {
-                const parsed = JSON.parse(line.slice(5).trim())
-                if (parsed.id !== undefined) { resolve(parsed); return }
-              }
-            }
-          }
-          resolve(JSON.parse(data))
-        } catch { resolve(null) }
-      })
-    })
-    req.on("error", reject)
-    req.on("timeout", () => { req.destroy(); reject(new Error("timeout")) })
-    req.write(body)
-    req.end()
-  })
-
-  try {
-    const initRes = await post(rpc(1, "initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "cursor-claw", version: "1.0.0" } }))
-    if (!initRes?.result) return { ok: false, tools: [], error: "initialize 失败" }
-    const listRes = await post(rpc(2, "tools/list"))
-    if (!listRes?.result?.tools) return { ok: false, tools: [], error: "tools/list 无结果" }
-    const tools: McpToolInfo[] = (listRes.result.tools as any[]).map((t: any) => ({ name: t.name, description: t.description, params: extractParams(t.inputSchema) }))
-    return { ok: true, tools }
-  } catch (e: any) {
-    return { ok: false, tools: [], error: e?.message ?? "HTTP 请求失败" }
-  }
-}
-
-function queryToolsViaCli(serverName: string): Promise<{ ok: boolean; tools: McpToolInfo[]; error?: string }> {
-  const config = getConfig()
-  if (!config.workspaceDir || !resolveAgentBinary()) return Promise.resolve({ ok: false, tools: [], error: "CLI 不可用" })
-  const env: Record<string, string> = { ...process.env as Record<string, string> }
-  applyProxyEnv(env, config)
-  return spawnAsync(["mcp", "list-tools", serverName], config.workspaceDir, env).then((r) => {
-    const clean = (r.stdout + r.stderr).replace(ANSI_RE, "").replace(/\r/g, "")
-    if (r.code !== 0) return { ok: false, tools: [] as McpToolInfo[], error: clean.trim().split("\n").pop()?.trim() || `exit ${r.code}` }
-    const tools: McpToolInfo[] = []
-    for (const line of clean.split("\n")) {
-      const m = line.match(/^[-–]\s+(\S+)/)
-      if (m) tools.push({ name: m[1] })
-    }
-    return { ok: true, tools }
-  })
-}
-
+/** 通过 HTTP/stdio 直连查询 MCP 工具列表，无 CLI fallback */
 export async function getMcpServerTools(serverName: string): Promise<{ ok: boolean; tools: McpToolInfo[]; error?: string }> {
-  const servers = getMcpServerList()
-  const server = servers.find((s) => s.name === serverName)
+  const server = findMcpEntry(serverName)
   if (!server) return { ok: false, tools: [], error: "MCP 服务器未找到" }
 
   const config = getConfig()
   const workspaceCwd = (config.workspaceDir || "").trim()
-  let fallback: { ok: boolean; tools: McpToolInfo[]; error?: string } | undefined
 
-  // CLI 优先：agent mcp list-tools 在 workspace 上下文中解析 MCP，复用 Cursor CLI 运行时，比直连 stdio 更可靠
-  if (workspaceCwd) {
-    const cliResult = await queryToolsViaCli(serverName)
-    if (cliResult.ok && cliResult.tools.length > 0) return cliResult
-    fallback = cliResult
-  }
-
-  // CLI 失败或未配置 workspace 时，回退 HTTP / stdio 直连探测
   if (server.type === "url" && server.url) {
     const headers = server.rawConfig?.headers as Record<string, string> | undefined
-    const result = await queryToolsViaHttp(server.url, headers)
-    if (result.ok && result.tools.length > 0) return result
-    fallback = result
+    return queryToolsViaHttp(server.url, headers)
   }
 
   if (server.type === "command" && server.command) {
-    // stdio spawn 传入 workspace cwd，与 spawnAsync/loginMcpServer 保持一致
-    const result = await queryToolsViaProtocol(server.command, server.args ?? [], server.env, workspaceCwd || undefined)
-    if (result.ok && result.tools.length > 0) return result
-    fallback = result
+    return queryToolsViaProtocol(server.command, server.args ?? [], server.env, workspaceCwd || undefined)
   }
 
-  // 直连也失败：有 workspace 时已尝试过 CLI（fallback 保留最后一次错误）；无 workspace 时最后再试 CLI
-  return fallback ?? queryToolsViaCli(serverName)
+  return { ok: false, tools: [], error: "服务器配置无效" }
 }

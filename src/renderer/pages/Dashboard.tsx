@@ -12,14 +12,12 @@ import {
   Clock,
   Loader2,
   Trash2,
-  Download,
-  LogIn,
-  AlertTriangle,
   CheckCircle2,
   Circle,
   ChevronRight,
   FolderOpen,
   Rocket,
+  Info,
 } from "lucide-react"
 import logoUrl from "../assets/logo.png"
 import TitleBar from "../components/TitleBar"
@@ -47,15 +45,12 @@ export default function Dashboard({ onSettings, active }: Props) {
   const [showQueue, setShowQueue] = useState(false)
   const [showChannels, setShowChannels] = useState(false)
   const [expandedSession, setExpandedSession] = useState<string | null>(null)
-  const [cliStatus, setCliStatus] = useState<"checking" | "installed" | "missing" | "need-login">("checking")
-  const [cliInstalling, setCliInstalling] = useState(false)
-  const [cliLoggingIn, setCliLoggingIn] = useState(false)
-  const [cliMessage, setCliMessage] = useState("")
+  const [onboard, setOnboard] = useState<OnboardState | null>(null)
+  const [onboardDismissed, setOnboardDismissed] = useState(false)
+  const [cliMigrationPending, setCliMigrationPending] = useState(false)
   const [stoppingAgent, setStoppingAgent] = useState(false)
   const [clearingQueue, setClearingQueue] = useState(false)
   const [showSessions, setShowSessions] = useState(false)
-  const [onboard, setOnboard] = useState<OnboardState | null>(null)
-  const [onboardDismissed, setOnboardDismissed] = useState(false)
 
   const refreshOnboard = useCallback(async () => {
     const cfg = await window.electronAPI.getConfig()
@@ -63,12 +58,15 @@ export default function Dashboard({ onSettings, active }: Props) {
     const channelReady = channels.some((c) => c.enabled && (c.type === "feishu"
       ? !!(c.larkAppId?.trim() && c.larkAppSecret?.trim())
       : !!c.wechatToken?.trim()))
-    const hasSdkKey = (cfg.agentResources ?? []).some((r) => r.type === "sdk" && r.apiKey?.trim())
-    setOnboard((prev) => ({
+    const resources = cfg.agentResources ?? []
+    const hasSdkKey = resources.some((r) => r.type === "sdk" && r.apiKey?.trim())
+    const hasCcProfile = resources.some((r) => r.type === "claude-code" && r.apiKey?.trim())
+    setOnboard({
       workspaceReady: !!cfg.workspaceDir?.trim(),
-      agentReady: hasSdkKey || (prev?.agentReady ?? false),
+      agentReady: hasSdkKey || hasCcProfile,
       channelReady,
-    }))
+    })
+    setCliMigrationPending(!!cfg.cliMigrationPending)
   }, [])
 
   // 从设置页返回时立即刷新清单状态
@@ -79,18 +77,9 @@ export default function Dashboard({ onSettings, active }: Props) {
   const logRef = useRef<HTMLPreElement>(null)
 
   useEffect(() => {
-    const syncCliStatus = (s: DaemonStatus) => {
-      if (s.running && s.cliAvailable !== undefined) {
-        setCliStatus((prev) =>
-          !s.cliAvailable && (prev === "installed" || prev === "need-login") ? "missing" : prev,
-        )
-      }
-    }
-
     const refresh = async () => {
       const s = await window.electronAPI.getDaemonStatus()
       setStatus(s)
-      syncCliStatus(s)
       window.electronAPI.getSessionAgents().then(setSessionList).catch(() => {})
       await refreshOnboard()
       if (s.queueLength && s.queueLength > 0) {
@@ -109,7 +98,6 @@ export default function Dashboard({ onSettings, active }: Props) {
 
     const unsub = window.electronAPI.onDaemonStatus((s) => {
       setStatus(s)
-      syncCliStatus(s)
     })
     const unsubLog = window.electronAPI.onDaemonLog((line) => {
       setLogLines((prev) => {
@@ -118,59 +106,22 @@ export default function Dashboard({ onSettings, active }: Props) {
       })
     })
 
-    let cancelCliSchedule: (() => void) | undefined
-    window.electronAPI.getConfig().then((cfg) => {
-      // 仅当存在绑定 CLI 资源的通道时才提示 CLI 安装/登录
-      const cliInUse = (cfg.channels ?? []).some((c) => c.enabled && c.agentResourceId === "cli")
-        || (cfg.channels ?? []).length === 0
-      if (!cliInUse) {
-        setCliStatus("installed")
-        return
-      }
-      const runCliChecks = () => {
-        void (async () => {
-          const installed = await window.electronAPI.checkCli()
-          if (!installed) {
-            setCliStatus("missing")
-            return
-          }
-          const st = await window.electronAPI.checkCliLogin()
-          setCliStatus(st.loggedIn ? "installed" : "need-login")
-        })()
-      }
-      if (typeof requestIdleCallback === "function") {
-        const id = requestIdleCallback(runCliChecks, { timeout: 2500 })
-        cancelCliSchedule = () => cancelIdleCallback(id)
-      } else {
-        const cliTimer = window.setTimeout(runCliChecks, 0)
-        cancelCliSchedule = () => clearTimeout(cliTimer)
-      }
-    })
-
     window.electronAPI.getSessionAgents().then(setSessionList).catch(() => {})
     const unsubSessions = window.electronAPI.onSessionAgents?.((list: typeof sessionList) => setSessionList(list))
 
     return () => {
       clearInterval(timer)
-      cancelCliSchedule?.()
       unsub()
       unsubLog()
       unsubSessions?.()
     }
-  }, [])
+  }, [refreshOnboard])
 
   useEffect(() => {
     if (logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight
     }
   }, [logLines])
-
-  // CLI 已登录也视为 Agent 资源就绪
-  useEffect(() => {
-    if (cliStatus === "installed") {
-      setOnboard((prev) => (prev ? { ...prev, agentReady: true } : prev))
-    }
-  }, [cliStatus])
 
   const handleStart = async () => {
     setStarting(true)
@@ -210,63 +161,6 @@ export default function Dashboard({ onSettings, active }: Props) {
     } else {
       setQueueMessages([])
     }
-  }
-
-  const handleInstallCli = async () => {
-    setCliInstalling(true)
-    setCliMessage("")
-    try {
-      const result = await window.electronAPI.installCli()
-      if (result.ok) {
-        setCliStatus("need-login")
-        setCliMessage("CLI 安装成功，正在打开浏览器进行授权...")
-        try {
-          const loginResult = await window.electronAPI.loginCli()
-          if (loginResult.ok) {
-            const st = await window.electronAPI.checkCliLogin()
-            if (st.loggedIn) {
-              setCliStatus("installed")
-              setCliMessage("")
-            } else {
-              setCliStatus("need-login")
-              setCliMessage(st.error ?? loginResult.output ?? "请重试登录")
-            }
-          } else {
-            setCliMessage(loginResult.output)
-          }
-        } catch (e: unknown) {
-          setCliMessage(`授权失败: ${e instanceof Error ? e.message : String(e)}`)
-        }
-      } else {
-        setCliMessage(result.output)
-      }
-    } catch (e: unknown) {
-      setCliMessage(e instanceof Error ? e.message : String(e))
-    }
-    setCliInstalling(false)
-  }
-
-  const handleLoginOnly = async () => {
-    setCliLoggingIn(true)
-    setCliMessage("")
-    try {
-      const loginResult = await window.electronAPI.loginCli()
-      if (!loginResult.ok) {
-        setCliMessage(loginResult.output)
-        setCliLoggingIn(false)
-        return
-      }
-      const st = await window.electronAPI.checkCliLogin()
-      if (st.loggedIn) {
-        setCliStatus("installed")
-        setCliMessage("")
-      } else {
-        setCliMessage(st.error ?? loginResult.output ?? "登录后仍未检测到账号，请重试")
-      }
-    } catch (e: unknown) {
-      setCliMessage(e instanceof Error ? e.message : String(e))
-    }
-    setCliLoggingIn(false)
   }
 
   const handleStopAgent = async () => {
@@ -347,6 +241,11 @@ export default function Dashboard({ onSettings, active }: Props) {
     const m = Math.floor((seconds % 3600) / 60)
     const s = seconds % 60
     return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`
+  }
+
+  const handleDismissCliMigration = async () => {
+    await window.electronAPI.markCliMigrationNotified()
+    setCliMigrationPending(false)
   }
 
   const isStarting = starting || !!status.starting
@@ -504,6 +403,37 @@ export default function Dashboard({ onSettings, active }: Props) {
         </div>
       </div>
 
+      {/* 历史 CLI 绑定迁移提示（一次性 Banner） */}
+      {cliMigrationPending && (
+        <div className="mx-6 mb-3 rounded-xl border border-amber-800/50 bg-amber-950/20 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-2">
+              <Info size={16} className="mt-0.5 shrink-0 text-amber-400" />
+              <div>
+                <p className="text-sm font-medium text-amber-200">CLI 绑定已自动迁移</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  已自动将历史 Cursor CLI 绑定迁移至 SDK / Claude Code，请检查各通道的 Agent 资源设置是否符合预期。
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={() => onSettings("channel")}
+                className="rounded-lg bg-amber-600/20 px-2.5 py-1 text-xs text-amber-300 transition hover:bg-amber-600/30"
+              >
+                检查通道设置
+              </button>
+              <button
+                onClick={() => void handleDismissCliMigration()}
+                className="rounded px-1.5 py-0.5 text-xs text-gray-500 transition hover:bg-gray-800 hover:text-gray-300"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Onboarding checklist */}
       {onboard && !onboardDismissed && !(onboard.workspaceReady && onboard.agentReady && onboard.channelReady) && (
         <div className="mx-6 mb-3 rounded-xl border border-blue-800/50 bg-blue-950/20 p-4">
@@ -519,7 +449,7 @@ export default function Dashboard({ onSettings, active }: Props) {
             {(() => {
               const items = [
                 { done: onboard.workspaceReady, icon: FolderOpen, label: "选择主工作目录", desc: "Agent 在此目录中工作", tab: "general" },
-                { done: onboard.agentReady, icon: Bot, label: "配置 Agent 资源", desc: "登录 Cursor CLI 或添加 SDK Key", tab: "agent" },
+                { done: onboard.agentReady, icon: Bot, label: "配置 Agent 资源", desc: "添加 Cursor SDK Key 或 Claude Code Profile", tab: "agent" },
                 { done: onboard.channelReady, icon: MessageSquare, label: "添加消息通道", desc: "接入飞书或微信并绑定 Agent 资源", tab: "channel" },
               ]
               const nextIdx = items.findIndex((it) => !it.done)
@@ -668,57 +598,6 @@ export default function Dashboard({ onSettings, active }: Props) {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* CLI Status - only show when missing */}
-      {cliStatus === "missing" && (
-        <div className="mx-6 flex items-center justify-between rounded-lg border border-yellow-800/50 bg-yellow-950/20 px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={14} className="text-yellow-400" />
-            <span className="text-xs text-yellow-300">
-              Cursor CLI 未安装 — 无法自动拉起会话
-            </span>
-          </div>
-          <button
-            onClick={handleInstallCli}
-            disabled={cliInstalling}
-            className="flex items-center gap-1.5 rounded-md bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-400 transition hover:bg-blue-600/30 disabled:opacity-50"
-          >
-            {cliInstalling ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <Download size={12} />
-            )}
-            {cliInstalling ? "安装中..." : "一键安装"}
-          </button>
-        </div>
-      )}
-      {cliStatus === "need-login" && (
-        <div className="mx-6 flex items-center justify-between rounded-lg border border-yellow-800/50 bg-yellow-950/20 px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={14} className="text-yellow-400" />
-            <span className="text-xs text-yellow-300">
-              Cursor CLI 未登录 — 请完成授权后再使用自动会话等功能
-            </span>
-          </div>
-          <button
-            onClick={handleLoginOnly}
-            disabled={cliLoggingIn}
-            className="flex items-center gap-1.5 rounded-md bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-400 transition hover:bg-blue-600/30 disabled:opacity-50"
-          >
-            {cliLoggingIn ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <LogIn size={12} />
-            )}
-            {cliLoggingIn ? "登录中..." : "登录 Cursor"}
-          </button>
-        </div>
-      )}
-      {cliMessage && (
-        <div className="mx-6 mt-1 rounded-lg border border-gray-800 bg-gray-900/50 px-4 py-2">
-          <pre className="whitespace-pre-wrap font-mono text-xs text-gray-400">{cliMessage}</pre>
         </div>
       )}
 

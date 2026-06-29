@@ -66,6 +66,15 @@ const MCP_TEMPLATE = JSON.stringify({
 }, null, 2)
 const emptyMcpForm: McpEditForm = { json: MCP_TEMPLATE, source: "global" }
 
+/** MCP 错误文案：过滤 CLI 相关提示，引导检查 mcp.json */
+function formatMcpUiError(raw?: string): string {
+  const msg = (raw ?? "").trim()
+  if (!msg || /CLI|agent.*未安装|请安装.*CLI|需要.*CLI/i.test(msg)) {
+    return "请检查 mcp.json 配置；URL 型 MCP 需 OAuth 时在 Cursor IDE 或 mcp-auth.json 完成授权"
+  }
+  return msg
+}
+
 const TABS: { id: Tab; label: string; icon: typeof SettingsIcon }[] = [
   { id: "general", label: "通用", icon: SettingsIcon },
   { id: "proxy", label: "网络", icon: Network },
@@ -131,7 +140,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
     if (!mcpTools[name]) {
       setMcpTools((p) => ({ ...p, [name]: { loading: true, tools: [] } }))
       const res = await window.electronAPI.getMcpTools(name)
-      setMcpTools((p) => ({ ...p, [name]: { loading: false, tools: res.tools, error: res.ok ? undefined : res.error } }))
+      setMcpTools((p) => ({ ...p, [name]: { loading: false, tools: res.tools, error: res.ok ? undefined : formatMcpUiError(res.error) } }))
     }
   }
 
@@ -176,7 +185,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
     setMcpRefreshing(false)
     for (const s of servers) {
       window.electronAPI.getMcpTools(s.name).then((res) => {
-        setMcpTools((p) => ({ ...p, [s.name]: { loading: false, tools: res.tools, error: res.ok ? undefined : res.error } }))
+        setMcpTools((p) => ({ ...p, [s.name]: { loading: false, tools: res.tools, error: res.ok ? undefined : formatMcpUiError(res.error) } }))
       })
     }
   }, [])
@@ -421,9 +430,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
         const models = await window.electronAPI.listCcModels()
         if (models.length > 0) setTaskModelOptions(models.map((m) => ({ ...m, params: "" })))
       } else {
-        const r = await window.electronAPI.listModels()
-        if (r.ok && r.models.length > 0) setTaskModelOptions(r.models.map((m) => ({ ...m, params: "" })))
-        else if (!r.ok) void showAlert("错误", r.error || "获取模型列表失败")
+        void showAlert("提示", "请先添加 SDK Key 或 Claude Code Profile 后再选择模型")
       }
     } finally {
       setLoadingTaskModels(false)
@@ -450,10 +457,9 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
     setMcpLoading((p) => ({ ...p, [name]: false }))
     if (!res.ok) {
       setMcpServers((prev) => prev.map((s) => s.name === name ? { ...s, enabled: !enabled } : s))
-      void showAlert("错误", res.output || `MCP ${enabled ? "启用" : "禁用"}失败`)
+      void showAlert("错误", formatMcpUiError(res.output) || `MCP ${enabled ? "启用" : "禁用"}失败`)
     }
   }
-  const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/\r/g, "").trim()
   const [mcpLoginPending, setMcpLoginPending] = useState<Record<string, boolean>>({})
   const handleMcpLogin = (name: string) => {
     setMcpLoginPending((p) => ({ ...p, [name]: true }))
@@ -461,7 +467,10 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
       setMcpLoginPending((p) => ({ ...p, [name]: false }))
       if (res.ok) {
         setMcpServers((prev) => prev.map((s) => s.name === name ? { ...s, authenticated: true } : s))
+        return
       }
+      // T1：loginMcp 返回 OAuth 手动配置说明，不再依赖 CLI
+      if (res.output) void showAlert("OAuth 配置", res.output)
     })
   }
   const openMcpAdd = () => { setMcpEditOriginalName(null); setMcpEditing({ ...emptyMcpForm }) }
@@ -748,14 +757,15 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                   <div className="flex-1" />
                   <button onClick={openMcpAdd} className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-blue-500"><Plus size={12} />新增</button>
                 </div>
+                <p className="text-xs text-gray-600">读写 ~/.cursor/mcp.json 与项目 .cursor/mcp.json，无需安装 Cursor CLI</p>
                 <div className="space-y-2">
                   {mcpServers.map((s) => {
                     const expanded = mcpExpanded === s.name
                     const toolState = mcpTools[s.name]
                     const rawStatus = mcpStatus[s.name]
                     const isReady = rawStatus === "ready" || rawStatus === "enabled"
-                    const statusColor = !rawStatus ? "text-gray-600" : isReady ? "text-green-400" : rawStatus === "disabled" || rawStatus.includes("not loaded") ? "text-gray-500" : "text-red-400"
-                    const statusLabel = !rawStatus ? "—" : isReady ? "ready" : rawStatus === "disabled" ? "disabled" : rawStatus.includes("not loaded") ? "not loaded" : rawStatus
+                    const statusColor = !rawStatus ? "text-gray-600" : isReady ? "text-green-400" : rawStatus === "disabled" || rawStatus.includes("not loaded") ? "text-gray-500" : rawStatus === "needs_login" ? "text-amber-400" : "text-red-400"
+                    const statusLabel = !rawStatus ? "—" : isReady ? "ready" : rawStatus === "disabled" ? "disabled" : rawStatus === "needs_login" ? "需授权" : rawStatus.includes("not loaded") ? "not loaded" : rawStatus
                     return (
                     <div key={s.name} className="rounded-lg border border-gray-700 overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-3">
@@ -816,7 +826,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                       )}
                     </div>
                   )})}
-                  {mcpServers.length === 0 && <p className="py-4 text-center text-xs text-gray-600">暂无 MCP 服务器配置</p>}
+                  {mcpServers.length === 0 && <p className="py-4 text-center text-xs text-gray-600">暂无 MCP 服务器配置，可点击「新增」或编辑 mcp.json</p>}
                 </div>
               </section>
             </>)}
@@ -979,7 +989,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                   <p className="text-sm text-gray-400">按以下顺序完成配置：</p>
                   <ol className="list-decimal space-y-1 pl-5 text-xs text-gray-500">
                     <li><button onClick={() => setTab("general")} className="text-blue-400 hover:underline">通用</button> — 选择主工作目录</li>
-                    <li><button onClick={() => setTab("agent")} className="text-blue-400 hover:underline">Agent</button> — 登录 Cursor CLI 或添加 SDK Key</li>
+                    <li><button onClick={() => setTab("agent")} className="text-blue-400 hover:underline">Agent</button> — 添加 Cursor SDK Key 或 Claude Code Profile</li>
                     <li><button onClick={() => setTab("channel")} className="text-blue-400 hover:underline">消息通道</button> — 接入飞书 / 微信，绑定 Agent 资源与模型</li>
                   </ol>
                   <p className="text-xs text-gray-600">完成后回到主页启动 Daemon 即可使用。以下为飞书手动建应用时需要的权限与事件配置参考。</p>

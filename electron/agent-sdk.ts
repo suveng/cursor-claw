@@ -40,6 +40,8 @@ import {
   isRunTimeoutFailure as isRunTimeoutFailureImpl,
   type FinalizerContext,
 } from "./finalize-sdk-run"
+import { launchCcAgentFromHttp } from "./agent-cc-http"
+import { dispatchToClaudeCodeAgent } from "./agent-claude-sdk"
 
 interface SdkSessionAgent {
   sessionKey: string
@@ -1395,6 +1397,35 @@ function parseInboundMessageIds(body: Record<string, unknown>): string[] | undef
   return ids.length ? ids : undefined
 }
 
+/** 已废弃 CLI 绑定的用户可见错误（IM Daemon 统一入口） */
+const LEGACY_CLI_BIND_ERROR =
+  "通道仍绑定已废弃的 Cursor CLI，请在设置中将 Agent 资源改为 SDK 或 Claude Code Profile"
+
+/** 解析通道绑定的 Agent 资源类型；legacy CLI 须先于 getAgentResource fallback 拦截 */
+function resolveBoundAgentResourceType(
+  sessionKey: string,
+  channelId?: string,
+): "sdk" | "claude-code" | "cli" {
+  const channel = getChannel(channelId) ?? resolveChannelForSession(sessionKey)
+  const boundId = channel?.agentResourceId
+  if (boundId === "cli") return "cli"
+  const resource = getAgentResource(boundId)
+  if ((resource as { type?: string }).type === "cli") return "cli"
+  return resource.type === "claude-code" ? "claude-code" : "sdk"
+}
+
+/** Daemon 统一 dispatch：按通道资源类型委托 SDK 或 Claude Code 长驻实例 */
+async function dispatchAgentFromHttp(
+  sessionKey: string,
+  taskText: string,
+  messageIds?: string[],
+): Promise<{ ok: boolean; error?: string }> {
+  const route = resolveBoundAgentResourceType(sessionKey)
+  if (route === "cli") return { ok: false, error: LEGACY_CLI_BIND_ERROR }
+  if (route === "claude-code") return dispatchToClaudeCodeAgent(sessionKey, taskText, messageIds)
+  return dispatchToSdkAgent(sessionKey, taskText, messageIds)
+}
+
 export async function launchSdkAgentFromHttp(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const sessionKey = typeof body.session_key === "string" ? body.session_key.trim() : ""
   if (!sessionKey) return { ok: false, error: "session_key is required" }
@@ -1414,10 +1445,14 @@ export async function launchSdkAgentFromHttp(body: Record<string, unknown>): Pro
   const messageIds = parseInboundMessageIds(body)
   const meta: LaunchMeta = { chatId, chatType: chatType === "group" ? "group" : "p2p", messageIds }
 
+  const route = resolveBoundAgentResourceType(sessionKey, channelId)
+  if (route === "cli") return { ok: false, error: LEGACY_CLI_BIND_ERROR }
+  if (route === "claude-code") return launchCcAgentFromHttp(body)
+
   const channel = getChannel(channelId) ?? resolveChannelForSession(sessionKey)
   const resource = getAgentResource(channel?.agentResourceId)
   if (resource.type !== "sdk") {
-    return { ok: false, error: "请配置 SDK 资源（设置 → Agent）" }
+    return { ok: false, error: "请配置 SDK 或 Claude Code 资源（设置 → Agent）" }
   }
 
   const isOwnTask = chatType === "task" || chatType === "temp" || chatType === "workflow"
@@ -1493,7 +1528,7 @@ export function ensureAgentSdkHttpServer(): void {
           return
         }
         const messageIds = parseInboundMessageIds(body)
-        const result = await dispatchToSdkAgent(session_key, task_text, messageIds)
+        const result = await dispatchAgentFromHttp(session_key, task_text, messageIds)
         jsonAgentApi(res, result, result.ok ? 200 : 400)
         return
       }

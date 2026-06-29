@@ -2,11 +2,11 @@
   "change_id": "20260629232914-完全移除Cursor CLI依赖",
   "name": "完全移除Cursor CLI依赖",
   "flow": "standard",
-  "stage": "planned",
+  "stage": "applied",
   "source": "kb-propose",
   "workflow_version": "v2.6",
   "created_at": "2026-06-29T23:29:14+0800",
-  "updated_at": "2026-06-29T23:45:00+0800",
+  "updated_at": "2026-06-30T00:20:00+0800",
   "external": {
     "figma_confirmed": true,
     "figma_decision": "auto-none",
@@ -17,14 +17,19 @@
     {
       "id": "T1",
       "title": "MCP 管理器去 CLI 化",
-      "status": "pending",
-      "files": ["electron/mcp-manager.ts"],
+      "status": "done",
+      "files": [
+        "electron/mcp-manager.ts",
+        "electron/mcp-tools-probe.ts",
+        "electron/mcp-status-map.ts",
+        "electron/mcp-types.ts"
+      ],
       "depends_on": []
     },
     {
       "id": "T2",
       "title": "Settings MCP Tab 与飞书 MCP/Model 指令",
-      "status": "pending",
+      "status": "done",
       "files": [
         "electron/command-handler.ts",
         "src/renderer/pages/Settings.tsx"
@@ -34,7 +39,7 @@
     {
       "id": "T3",
       "title": "移除 CLI Agent 资源类型与默认绑定",
-      "status": "pending",
+      "status": "done",
       "files": [
         "electron/config-store.ts",
         "src/shared/channel-types.ts"
@@ -44,58 +49,67 @@
     {
       "id": "T4",
       "title": "删除 CLI 相关 IPC 与 models:list",
-      "status": "pending",
+      "status": "done",
       "files": [
         "electron/main.ts",
         "electron/preload.ts",
-        "src/env.d.ts"
+        "src/renderer/env.d.ts"
       ],
       "depends_on": []
     },
     {
       "id": "T5",
       "title": "Renderer 移除 CLI UI 与统一 SDK/CC 模型路径",
-      "status": "pending",
+      "status": "done",
       "files": [
         "src/renderer/components/AgentPanel.tsx",
+        "src/renderer/components/AgentResourceModals.tsx",
         "src/renderer/components/ChannelPanel.tsx",
+        "src/renderer/components/ChannelModelSection.tsx",
         "src/renderer/pages/Dashboard.tsx",
         "src/renderer/pages/Settings.tsx",
-        "src/renderer/components/WorkflowPanel.tsx"
+        "src/renderer/components/WorkflowPanel.tsx",
+        "src/renderer/env.d.ts"
       ],
       "depends_on": ["T3", "T4"]
     },
     {
       "id": "T6",
       "title": "历史 CLI 绑定迁移与 Dashboard 提示 Banner",
-      "status": "pending",
+      "status": "done",
       "files": [
         "electron/config-store.ts",
-        "src/renderer/pages/Dashboard.tsx"
+        "electron/daemon-manager.ts",
+        "electron/main.ts",
+        "electron/preload.ts",
+        "src/renderer/pages/Dashboard.tsx",
+        "src/renderer/env.d.ts"
       ],
       "depends_on": ["T3", "T5"]
     },
     {
       "id": "T7",
       "title": "删除 agent-cli spawn 与 agent-launcher CLI 路径",
-      "status": "pending",
+      "status": "done",
       "files": [
         "electron/proxy-env.ts",
-        "electron/agent-cli.ts",
         "electron/agent-launcher.ts",
+        "electron/agent-cli.ts",
+        "electron/daemon-manager.ts",
         "electron/agent-sdk.ts",
-        "electron/agent-claude-sdk.ts",
-        "electron/daemon-manager.ts"
+        "electron/agent-cc-http.ts",
+        "electron/mcp-tools-probe.ts",
+        "electron/AGENTS.md"
       ],
       "depends_on": ["T2", "T4", "T5", "T6"]
     },
     {
       "id": "T8",
       "title": "帮助与 Setup 文案扫尾",
-      "status": "pending",
+      "status": "done",
       "files": [
-        "src/renderer/pages/Settings.tsx",
-        "README.md"
+        "README.md",
+        "src/daemon.ts"
       ],
       "depends_on": ["T7"]
     }
@@ -106,7 +120,7 @@
     {
       "path": "knowledge/变更/进行中/20260629232914-完全移除Cursor CLI依赖/00-manifest.json",
       "kind": "change_doc",
-      "source": "kb-propose",
+      "source": "kb-apply",
       "status": "changed"
     },
     {
@@ -126,6 +140,162 @@
       "kind": "change_doc",
       "source": "kb-plan",
       "status": "added"
+    },
+    {
+      "path": "README.md",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-cc-http.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-cli.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "deleted"
+    },
+    {
+      "path": "electron/agent-launcher.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-sdk.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/command-handler.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/config-store.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/daemon-manager.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/main.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/mcp-manager.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/mcp-status-map.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/mcp-tools-probe.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/mcp-types.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/preload.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/proxy-env.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/AgentPanel.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/AgentResourceModals.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "src/renderer/components/ChannelModelSection.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/ChannelPanel.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/WorkflowPanel.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/env.d.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/pages/Dashboard.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/pages/Settings.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/shared/channel-types.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
     }
   ]
 }

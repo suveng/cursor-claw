@@ -41,6 +41,8 @@ export interface AppConfig {
   mainChatIds: Record<string, string>
   /** Daemon 固定端口（0 = 随机） */
   daemonPort: number
+  /** 历史 CLI 绑定已迁移，Dashboard 待展示一次性提示 Banner */
+  cliMigrationPending: boolean
 
   // ── 旧字段（仅用于迁移，新代码不应再读取）──
   allowOthers: boolean
@@ -79,6 +81,7 @@ const defaults: AppConfig = {
   closeWindowAction: "ask",
   mainChatIds: {},
   daemonPort: 19528,
+  cliMigrationPending: false,
 
   allowOthers: false,
   digitalIdentity: "",
@@ -129,7 +132,23 @@ export function saveConfig(partial: Partial<AppConfig>): void {
 
 // ── 通道 / 资源 工具 ──────────────────────────────────────
 
-export const CLI_RESOURCE_ID = "cli"
+/** 首个可运行资源：优先 SDK，其次 Claude Code */
+function findFirstRunnableResource(resources: AgentResource[]): AgentResource | undefined {
+  return resources.find((r) => r.type === "sdk") ?? resources.find((r) => r.type === "claude-code")
+}
+
+/** 历史持久化的 CLI 资源条目（含虚拟 id "cli" 与 type:"cli"） */
+function isLegacyCliResource(r: { id: string; type: string }): boolean {
+  return r.id === "cli" || r.type === "cli"
+}
+
+/** 通道 agentResourceId 是否仍指向已废弃的 CLI 绑定（含历史持久化 type:"cli"） */
+function isLegacyCliBinding(agentResourceId: string, resources: AgentResource[]): boolean {
+  if (agentResourceId === "cli") return true
+  const bound = resources.find((r) => r.id === agentResourceId)
+  if (!bound) return true
+  return isLegacyCliResource(bound as { id: string; type: string })
+}
 
 export function newChannelId(): string {
   return `ch_${randomBytes(4).toString("hex")}`
@@ -171,17 +190,14 @@ export function resolveChannelForSession(sessionKey: string): MessageChannel | u
 }
 
 export function getAgentResources(): AgentResource[] {
-  const list = getConfig().agentResources ?? []
-  if (!list.some((r) => r.id === CLI_RESOURCE_ID)) {
-    return [{ id: CLI_RESOURCE_ID, type: "cli", name: "Cursor CLI" }, ...list]
-  }
-  return list
+  return getConfig().agentResources ?? []
 }
 
-export function getAgentResource(id?: string): AgentResource {
-  const cli: AgentResource = { id: CLI_RESOURCE_ID, type: "cli", name: "Cursor CLI" }
-  if (!id) return cli
-  return getAgentResources().find((r) => r.id === id) ?? cli
+export function getAgentResource(id?: string): AgentResource | undefined {
+  const resources = getAgentResources()
+  const fallback = findFirstRunnableResource(resources)
+  if (!id) return fallback
+  return resources.find((r) => r.id === id) ?? fallback
 }
 
 export function saveChannel(channel: MessageChannel): void {
@@ -239,11 +255,8 @@ export function migrateLegacyConfig(hooks?: LegacyMigrationHooks): void {
   const cfg = getConfig()
   const partial: Partial<AppConfig> = {}
 
-  // Agent 资源
-  let resources = [...(cfg.agentResources ?? [])]
-  if (!resources.some((r) => r.id === CLI_RESOURCE_ID)) {
-    resources = [{ id: CLI_RESOURCE_ID, type: "cli", name: "Cursor CLI" }, ...resources]
-  }
+  // Agent 资源（不再注入虚拟 CLI）
+  const resources = [...(cfg.agentResources ?? [])]
   let legacySdkId = resources.find((r) => r.type === "sdk" && r.apiKey === cfg.cursorApiKey?.trim())?.id
   if (cfg.cursorApiKey?.trim() && !legacySdkId) {
     legacySdkId = newSdkResourceId()
@@ -252,7 +265,9 @@ export function migrateLegacyConfig(hooks?: LegacyMigrationHooks): void {
   partial.agentResources = resources
 
   const firstSdk = resources.find((r) => r.type === "sdk")
-  const agentResourceId = firstSdk?.id ?? (cfg.agentMode === "sdk" && legacySdkId ? legacySdkId : CLI_RESOURCE_ID)
+  const firstCc = resources.find((r) => r.type === "claude-code")
+  const agentResourceId =
+    firstSdk?.id ?? (cfg.agentMode === "sdk" && legacySdkId ? legacySdkId : firstCc?.id ?? "")
   const channels = [...(cfg.channels ?? [])]
 
   const baseModel = {
@@ -355,23 +370,59 @@ export function migrateLegacyConfig(hooks?: LegacyMigrationHooks): void {
 
   partial.channelsMigrated = true
   saveConfig(partial)
-  ensureSdkChannelBindings()
+  migrateCliBindings()
 }
 
-/** IM 调度 SDK-only：通道仍指向 cli 时自动绑定首个 SDK 资源 */
+/** 启动时把仍指向 CLI 的通道改绑到首个 SDK / Claude Code 资源 */
 export function ensureSdkChannelBindings(): void {
   const cfg = getConfig()
-  const firstSdk = (cfg.agentResources ?? []).find((r) => r.type === "sdk")
-  if (!firstSdk) return
+  const resources = cfg.agentResources ?? []
+  const target = findFirstRunnableResource(resources)
+  if (!target) return
   let changed = false
   const channels = getChannels().map((c) => {
-    if (c.agentResourceId === CLI_RESOURCE_ID) {
+    if (isLegacyCliBinding(c.agentResourceId, resources)) {
       changed = true
-      return { ...c, agentResourceId: firstSdk.id }
+      return { ...c, agentResourceId: target.id }
     }
     return c
   })
   if (changed) saveConfig({ channels })
+}
+
+/** 一次性清理历史 CLI 资源并改绑通道；有变更时标记 Dashboard Banner 待展示 */
+export function migrateCliBindings(): { migrated: boolean; details?: string } {
+  const cfg = getConfig()
+  const resources = cfg.agentResources ?? []
+  const hadCliResources = resources.some((r) => isLegacyCliResource(r as { id: string; type: string }))
+  const hadLegacyBindings = getChannels().some((c) => isLegacyCliBinding(c.agentResourceId, resources))
+
+  if (hadCliResources) {
+    saveConfig({
+      agentResources: resources.filter((r) => !isLegacyCliResource(r as { id: string; type: string })),
+    })
+  }
+
+  ensureSdkChannelBindings()
+
+  const migrated = hadCliResources || hadLegacyBindings
+  if (migrated) {
+    saveConfig({ cliMigrationPending: true })
+  }
+
+  return migrated
+    ? { migrated: true, details: "已移除历史 CLI 资源并将通道改绑至 SDK / Claude Code" }
+    : { migrated: false }
+}
+
+/** Dashboard 是否应展示 CLI 迁移提示 Banner */
+export function getCliMigrationPending(): boolean {
+  return !!getConfig().cliMigrationPending
+}
+
+/** 用户关闭 Banner 后清除待展示标记 */
+export function markCliMigrationNotified(): void {
+  saveConfig({ cliMigrationPending: false })
 }
 
 // ── 主会话 chatId（CLI resume）─────────────────────────────

@@ -19,7 +19,7 @@ function emptyChannel(type: "feishu" | "wechat", defaultName: string): ChannelCo
     name: defaultName,
     enabled: true,
     type,
-    agentResourceId: "cli",
+    agentResourceId: "",
     model: "auto",
     modelParams: "",
     othersModel: "",
@@ -54,8 +54,7 @@ export default function ChannelPanel() {
       othersWorkspaceDir: c.othersWorkspaceDir ?? "",
       digitalIdentity: c.digitalIdentity ?? cfg.digitalIdentity ?? "",
     })))
-    const list = cfg.agentResources ?? []
-    setResources(list.some((r) => r.id === "cli") ? list : [{ id: "cli", type: "cli", name: "Cursor CLI" }, ...list])
+    setResources(cfg.agentResources ?? [])
   }, [])
 
   useEffect(() => { void reload() }, [reload])
@@ -90,7 +89,11 @@ export default function ChannelPanel() {
     setShowAddMenu(false)
     const count = channels.filter((c) => c.type === type).length
     const base = type === "feishu" ? "飞书" : "微信"
-    setEditing(emptyChannel(type, count > 0 ? `${base} ${count + 1}` : base))
+    const ch = emptyChannel(type, count > 0 ? `${base} ${count + 1}` : base)
+    // 新建通道默认绑定首个 SDK 或 Claude Code 资源
+    const defaultRes = resources.find((r) => r.type === "sdk") ?? resources.find((r) => r.type === "claude-code")
+    if (defaultRes) ch.agentResourceId = defaultRes.id
+    setEditing(ch)
     setIsNew(true)
   }
 
@@ -160,7 +163,7 @@ export default function ChannelPanel() {
                             <span className="text-gray-700">·</span>
                           </>
                         )}
-                        <span className="truncate">{resource?.name ?? "Cursor CLI"} · 主模型 {c.model || "auto"}{c.othersModel ? ` · 其他人 ${c.othersModel}` : ""}{c.workspaceDir ? ` · 📁${c.workspaceDir.split(/[\\/]/).pop()}` : ""}</span>
+                        <span className="truncate">{resource?.name ?? "未绑定资源"} · 主模型 {c.model || "auto"}{c.othersModel ? ` · 其他人 ${c.othersModel}` : ""}{c.workspaceDir ? ` · 📁${c.workspaceDir.split(/[\\/]/).pop()}` : ""}</span>
                       </p>
                     </div>
                   </div>

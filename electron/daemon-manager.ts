@@ -9,23 +9,17 @@ import { app, BrowserWindow, ipcMain, powerSaveBlocker } from "electron"
 import {
   getConfig, saveConfig, type AppConfig,
   getChannels, getEnabledChannels, getChannel,
-  updateChannel, migrateLegacyConfig, effectiveWorkspaceDir, ensureSdkChannelBindings,
-  mainChatScopeKey, type MessageChannel,
+  updateChannel, migrateLegacyConfig, effectiveWorkspaceDir, migrateCliBindings,
+  mainChatScopeKey, setMainChatIdForScope, type MessageChannel,
 } from "./config-store"
 import { parseChatKey, type DaemonChannelConfig, type ChannelStatusInfo } from "../src/shared/channel-types"
 import { validateCron, readTasksFromFile, writeTasksToFile, previewCronNextRuns, getNextCronFireLabel } from "./cron-scheduler"
 import { seedBuiltins, listDefinitions, saveDefinition, deleteDefinition, listInstances, getInstance, saveInstance, deleteInstance } from "./workflow-file"
 import { runWorkflowDefinition } from "./workflow-runner"
-import { pushLog, pushUiLog, broadcastLog, getLogBuffer, clearLogBuffer, logCursorAgentInvocation, escapeLogContentSingleLine, resetLogFilePath } from "./ui-logger"
-import { resolveAgentBinary, applyProxyEnv, quoteArg, getAgentPaths, execAgentSync } from "./agent-cli"
-import {
-  stopAgent as _stopCliAgent,
-  isAgentRunning as _isCliAgentRunning, getRunningSessionCount as _getCliRunningCount,
-  getAgentChildPid, getSessionAgentCount as _getCliSessionCount, getIndependentTaskStatuses as _getCliTaskStatuses,
-  P2P_SESSION_KEY, setMainChatId, getMainChatId,
-  type ChatType,
-} from "./agent-launcher"
-import { stopAllSdkSessions, getSdkSessionCount, getSdkSessionList, checkSdkApiKey, listSdkModels, ensureAgentSdkHttpServer } from "./agent-sdk"
+import { pushLog, pushUiLog, broadcastLog, getLogBuffer, clearLogBuffer, escapeLogContentSingleLine, resetLogFilePath } from "./ui-logger"
+import { applyProxyEnv } from "./proxy-env"
+import { getSdkSessionCount, getSdkSessionList, checkSdkApiKey, listSdkModels, ensureAgentSdkHttpServer } from "./agent-sdk"
+import { getClaudeCodeSessionList } from "./agent-claude-sdk"
 import {
   setDaemonPort,
   injectWorkspaceToDir, injectWorkspaceMcpAndRules, clearInjectionCache,
@@ -49,8 +43,7 @@ import {
   fetchChatNames, fetchUserNames, initSessionDispatcher, previousActiveSessionMap,
 } from "./session-dispatcher"
 
-export { applyProxyEnv, checkCliInstalled, installCli, execAgentSync, execAgentAsync, type ExecAgentOptions as ExecAgentSyncOptions } from "./agent-cli"
-export { checkAgentLoggedIn, loginCli } from "./agent-launcher"
+export { applyProxyEnv } from "./proxy-env"
 export { getLogBuffer } from "./ui-logger"
 export { checkSdkApiKey, listSdkModels } from "./agent-sdk"
 export { checkClaudeCodeApiKey, CLAUDE_CODE_MODEL_LIST } from "./agent-claude-sdk"
@@ -58,29 +51,42 @@ export { injectWorkspaceMcpAndRules, injectWorkspaceToDir, clearInjectionCache }
 export { getQueueMessages, clearMessageQueue, deleteQueueMessage } from "./session-dispatcher"
 
 
+/** 是否有活跃 SDK 或 Claude Code 会话（不含已移除的 CLI sessionAgents） */
 function isAgentRunning(): boolean {
-  return _isCliAgentRunning() || getSdkSessionCount() > 0
+  return getSdkSessionCount() > 0 || getClaudeCodeSessionList().length > 0
 }
 
 function getRunningSessionCount(): number {
-  return _getCliRunningCount() + getSdkSessionCount()
+  return getSdkSessionCount() + getClaudeCodeSessionList().length
 }
 
 function getSessionAgentCount(): number {
-  return _getCliSessionCount() + getSdkSessionCount()
+  return getRunningSessionCount()
 }
 
 function stopAgent(): void {
-  stopAllSdkSessions()
-  _stopCliAgent()
+  stopAllSessionAgents()
 }
 
+/** 定时任务 / 临时会话运行态（SDK + CC 合并） */
 function getIndependentTaskStatuses(): Record<string, { running: boolean; pid?: number; startedAt?: number }> {
-  const out: Record<string, { running: boolean; pid?: number; startedAt?: number }> = _getCliTaskStatuses()
+  const out: Record<string, { running: boolean; pid?: number; startedAt?: number }> = {}
   for (const s of getSdkSessionList()) {
-    if (s.chatType === "task" || s.chatType === "temp") out[s.sessionKey] = { running: true, startedAt: s.startedAt }
+    if (s.chatType === "task" || s.chatType === "temp") {
+      out[s.sessionKey] = { running: true, startedAt: s.startedAt }
+    }
+  }
+  for (const s of getClaudeCodeSessionList()) {
+    if (s.chatType === "task" || s.chatType === "temp") {
+      out[s.sessionKey] = { running: true, pid: s.pid, startedAt: s.startedAt }
+    }
   }
   return out
+}
+
+/** 状态展示用 PID：优先 CC 子进程，SDK 无本地 pid 时返回 null */
+function getAgentDisplayPid(): number | null {
+  return getClaudeCodeSessionList().find((s) => s.pid > 0)?.pid ?? null
 }
 
 
@@ -108,7 +114,6 @@ export interface DaemonStatus {
   agentRunning?: boolean
   agentPid?: number | null
   sessionAgentCount?: number
-  cliAvailable?: boolean
   error?: string
   workspaceMismatch?: boolean
   daemonWorkspaceDir?: string
@@ -399,7 +404,7 @@ export async function getDaemonStatus(): Promise<DaemonStatus> {
       queueLength: health.queueLength as number,
       hasChatId: health.hasChatId as boolean,
       agentRunning: isAgentRunning() || getSessionAgentCount() > 0,
-      agentPid: getAgentChildPid(),
+      agentPid: getAgentDisplayPid(),
       sessionAgentCount: getRunningSessionCount(),
       channels: health.channels as ChannelStatusInfo[] | undefined,
       feishuEnabled: health.feishuEnabled as boolean | undefined,
@@ -900,7 +905,7 @@ async function checkAndExecutePendingCommands(): Promise<void> {
             `🛡️ Daemon: ${status.running ? "✅ 运行中" : "❌ 未运行"}`,
             status.version ? `🔄 版本: ${status.version}` : "",
             status.uptime !== undefined ? `⌛️ 运行时间: ${Math.floor(status.uptime / 60)}分钟` : "",
-            `🤖 Agent: ${isAgentRunning() ? `✅ 运行中 (PID: ${getAgentChildPid()})` : "❌ 未运行"}`,
+            `🤖 Agent: ${isAgentRunning() ? `✅ 运行中${getAgentDisplayPid() ? ` (PID: ${getAgentDisplayPid()})` : ""}` : "❌ 未运行"}`,
             `📭 队列消息: ${status.queueLength ?? 0} 条`,
             `⏰ 定时任务: 开启 ${schedEnabled} / 共 ${schedTotal} 条`,
           ].filter(Boolean)
@@ -978,7 +983,7 @@ async function checkAndExecutePendingCommands(): Promise<void> {
           }
           const wsDir = resolveResetWorkspaceDir(sessionKey, claimed.chatId, claimed.chatType)
           const cmdChannelId = claimed.chatId ? parseChatKey(claimed.chatId).channelId : undefined
-          if (wsDir && cmdChannelId) setMainChatId(mainChatScopeKey(cmdChannelId, wsDir), "")
+          if (wsDir && cmdChannelId) setMainChatIdForScope(mainChatScopeKey(cmdChannelId, wsDir), "")
           broadcastLog(`[指令 /reset] 已重置会话 ${sessionKey ?? claimed.chatId ?? "unknown"}`, "INFO")
           await reply(true, "✅ 当前会话已重置, 请重新发消息开启新会话")
           break
@@ -1237,7 +1242,7 @@ async function autoStartDaemonOnLaunch(): Promise<void> {
 export function initDaemonManager(): void {
   process.env.APP_DATA_DIR = app.getPath("userData")
   runLegacyConfigMigration()
-  ensureSdkChannelBindings()
+  migrateCliBindings()
   seedBuiltins()
   initSessionDispatcher()
   ensureAgentSdkHttpServer()

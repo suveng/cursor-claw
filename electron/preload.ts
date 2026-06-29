@@ -128,13 +128,6 @@ export interface InjectResult {
   message: string
 }
 
-export interface CliLoginStatus {
-  cliFound: boolean
-  loggedIn: boolean
-  identityLine?: string
-  error?: string
-}
-
 export type UpdaterCheckResult =
   | { status: "dev"; currentVersion: string; message: string }
   | { status: "error"; currentVersion: string; message: string }
@@ -218,6 +211,8 @@ const api = {
   },
   getConfig: (): Promise<AppConfig> => ipcRenderer.invoke("config:get"),
   saveConfig: (config: Partial<AppConfig>): Promise<ConfigSaveResult> => ipcRenderer.invoke("config:save", config),
+  markCliMigrationNotified: (): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke("config:mark-cli-migration-notified"),
   setAutoStart: (enabled: boolean): Promise<{ ok: boolean }> => ipcRenderer.invoke("app:set-auto-start", enabled),
   applyWorkspaceSwitch: (workspaceDir: string, stopOldSessions: boolean): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke("config:apply-workspace-switch", workspaceDir, stopOldSessions),
@@ -242,11 +237,6 @@ const api = {
   getQueueMessages: (): Promise<{ index: number; fileId: string; preview: string; sessionKey?: string; chatType?: string; timestamp?: number; senderOpenId?: string }[]> => ipcRenderer.invoke("daemon:queue"),
   deleteQueueMessage: (fileId: string): Promise<boolean> => ipcRenderer.invoke("daemon:queue-delete", fileId),
   clearQueueMessages: (): Promise<number> => ipcRenderer.invoke("daemon:queue-clear"),
-  checkCli: (): Promise<boolean> => ipcRenderer.invoke("cli:check"),
-  checkCliLogin: (opts?: { forceRefresh?: boolean }): Promise<CliLoginStatus> => ipcRenderer.invoke("cli:login-status", opts),
-  installCli: (): Promise<{ ok: boolean; output: string }> => ipcRenderer.invoke("cli:install"),
-  loginCli: (): Promise<{ ok: boolean; output: string }> => ipcRenderer.invoke("cli:login"),
-  listModels: (): Promise<{ ok: boolean; models: { id: string; label: string; current: boolean }[]; error?: string }> => ipcRenderer.invoke("models:list"),
   checkSdkApiKey: (apiKey: string): Promise<{ ok: boolean; email?: string; error?: string }> => ipcRenderer.invoke("sdk:check-api-key", apiKey),
   listSdkModels: (apiKey: string, currentModel?: string, currentParams?: string): Promise<{ ok: boolean; models: { id: string; label: string; params: string; current: boolean }[]; error?: string }> => ipcRenderer.invoke("sdk:list-models", apiKey, currentModel, currentParams),
   checkCcApiKey: (apiKey: string, baseUrl?: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("cc:check-api-key", apiKey, baseUrl),

@@ -1,10 +1,10 @@
 // ── 多消息通道共享类型与工具 ─────────────────────────────
 // Electron 主进程与 Daemon 子进程共用。
 
-/** Agent 资源：1 个本机 CLI（id 固定 "cli"）+ N 个 SDK Key + N 个 Claude Code Profile */
+/** Agent 资源：N 个 SDK Key + N 个 Claude Code Profile */
 export interface AgentResource {
-  id: string;            // "cli" | "sdk_<hex>" | "cc_<hex>"
-  type: "cli" | "sdk" | "claude-code";
+  id: string;            // "sdk_<hex>" | "cc_<hex>"
+  type: "sdk" | "claude-code";
   name: string;
   apiKey?: string;       // 仅 SDK
   /** 校验成功后缓存的账号邮箱（仅展示用） */
@@ -31,7 +31,7 @@ export interface MessageChannel {
   wechatToken?: string;
   wechatAccountId?: string;
   // Agent 绑定
-  agentResourceId: string;        // "cli" 或 sdk 资源 id
+  agentResourceId: string;        // sdk / claude-code 资源 id
   model: string;                  // 主模型（"" / "auto" = 默认）
   modelParams: string;            // JSON 序列化的 {id,value}[]，仅 SDK
   othersModel: string;            // 其他人/群聊模型，空 = 跟随主模型

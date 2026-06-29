@@ -52,13 +52,18 @@ function DefEditor({ initial, onSave, onCancel }: DefEditorProps) {
   const modelLabel = useCallback((id: string) => modelOptions.find((o) => o.id === id)?.label || id, [modelOptions])
 
   useEffect(() => {
-    window.electronAPI.getConfig().then((cfg) => {
+    void window.electronAPI.getConfig().then(async (cfg) => {
       setDefaultDir(cfg.workspaceDir || "未配置")
       setDefaultModel(cfg.model || "auto")
-      const fetcher = cfg.agentMode === "sdk" ? window.electronAPI.listSdkModels : window.electronAPI.listModels
-      fetcher().then((res) => {
+      const resources = cfg.agentResources ?? []
+      const sdkRes = resources.find((r) => r.type === "sdk" && r.apiKey?.trim())
+      if (sdkRes) {
+        const res = await window.electronAPI.listSdkModels(sdkRes.apiKey!, cfg.model, cfg.modelParams)
         if (res.ok) setModelOptions(res.models.map((m) => ({ id: m.id, label: m.label || m.id })))
-      })
+      } else {
+        const models = await window.electronAPI.listCcModels()
+        if (models.length > 0) setModelOptions(models.map((m) => ({ id: m.id, label: m.label || m.id })))
+      }
     })
   }, [])
 

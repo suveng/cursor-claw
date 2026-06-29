@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from "react"
 import {
-  Plus, Pencil, Trash2, X, Loader2, ShieldCheck, ShieldAlert, LogIn, RefreshCw, Eye, EyeOff, Terminal, KeyRound,
+  Plus, Pencil, Trash2, KeyRound,
 } from "lucide-react"
 import useInlineModal from "./useInlineModal"
-
-const inputCls = "w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+import { SdkEditModal, CcEditModal } from "./AgentResourceModals"
 
 function newSdkId(): string {
   const hex = Array.from(crypto.getRandomValues(new Uint8Array(4))).map((b) => b.toString(16).padStart(2, "0")).join("")
@@ -14,65 +13,6 @@ function newSdkId(): string {
 function newCcResourceId(): string {
   const hex = Array.from(crypto.getRandomValues(new Uint8Array(4))).map((b) => b.toString(16).padStart(2, "0")).join("")
   return `cc_${hex}`
-}
-
-function CliStatusPanel() {
-  const [status, setStatus] = useState<{ checking: boolean; cliFound?: boolean; loggedIn?: boolean; identity?: string; error?: string }>({ checking: true })
-  const [loggingIn, setLoggingIn] = useState(false)
-
-  const refresh = useCallback(async (force = false) => {
-    setStatus((s) => ({ ...s, checking: true }))
-    try {
-      const cliOk = await window.electronAPI.checkCli()
-      if (!cliOk) { setStatus({ checking: false, cliFound: false }); return }
-      const login = await window.electronAPI.checkCliLogin({ forceRefresh: force })
-      setStatus({ checking: false, cliFound: login.cliFound, loggedIn: login.loggedIn, identity: login.identityLine, error: login.error })
-    } catch (e) {
-      setStatus({ checking: false, error: String(e) })
-    }
-  }, [])
-
-  useEffect(() => { void refresh(true) }, [refresh])
-
-  const handleReLogin = useCallback(async () => {
-    setLoggingIn(true)
-    try {
-      await window.electronAPI.loginCli()
-      await refresh(true)
-    } finally {
-      setLoggingIn(false)
-    }
-  }, [refresh])
-
-  if (status.checking) return <div className="flex items-center gap-2 text-xs text-gray-500"><Loader2 size={12} className="animate-spin" />检测中...</div>
-  if (!status.cliFound) return (
-    <div className="rounded-lg border border-yellow-800/50 bg-yellow-900/20 px-4 py-3">
-      <div className="flex items-center gap-2 text-sm text-yellow-400"><ShieldAlert size={14} />未检测到 Cursor CLI</div>
-      <p className="mt-1 text-xs text-gray-500">请确认已安装 Cursor 并将 CLI 添加到系统 PATH</p>
-    </div>
-  )
-  return (
-    <div className={`rounded-lg border px-4 py-3 ${status.loggedIn ? "border-green-800/50 bg-green-900/20" : "border-red-800/50 bg-red-900/20"}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm">
-          <Terminal size={14} className="text-gray-400" />
-          <span className="font-medium text-gray-200">Cursor CLI</span>
-          {status.loggedIn ? <><ShieldCheck size={14} className="text-green-400" /><span className="text-green-400">已登录</span></> : <><ShieldAlert size={14} className="text-red-400" /><span className="text-red-400">未登录</span></>}
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => void handleReLogin()} disabled={loggingIn} className="flex items-center gap-1 rounded px-2 py-1 text-xs text-blue-400 hover:bg-gray-800 disabled:opacity-50">
-            {loggingIn ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />}
-            {loggingIn ? "登录中..." : "重新登录"}
-          </button>
-          <button onClick={() => void refresh(true)} className="flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-400 hover:bg-gray-800">
-            <RefreshCw size={12} />刷新
-          </button>
-        </div>
-      </div>
-      {status.identity && <p className="mt-1 text-xs text-gray-400">{status.identity}</p>}
-      {status.error && <p className="mt-1 text-xs text-red-400">{status.error}</p>}
-    </div>
-  )
 }
 
 export default function AgentPanel() {
@@ -107,8 +47,7 @@ export default function AgentPanel() {
     setResources(sdkList)
     const resolvedCcList = ccList ?? ccResources
     setCcResources(resolvedCcList)
-    const all: AgentResource[] = [{ id: "cli", type: "cli", name: "Cursor CLI" }, ...sdkList, ...resolvedCcList]
-    await window.electronAPI.saveConfig({ agentResources: all })
+    await window.electronAPI.saveConfig({ agentResources: [...sdkList, ...resolvedCcList] })
   }
 
   const openAdd = () => {
@@ -201,12 +140,6 @@ export default function AgentPanel() {
   return (
     <>
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-300">Cursor CLI</h3>
-        <p className="text-xs text-gray-600">本机 CLI 登录态，全局唯一；通道可绑定 CLI 作为 Agent 资源。</p>
-        <CliStatusPanel />
-      </section>
-
-      <section className="space-y-3">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-gray-300">Cursor SDK</h3>
           <div className="flex-1" />
@@ -288,83 +221,33 @@ export default function AgentPanel() {
       </section>
 
       {editingCc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
-              <h3 className="text-sm font-semibold text-gray-200">{isNewCc ? "添加 CC Profile" : "编辑 CC Profile"}</h3>
-              <button onClick={() => setEditingCc(null)} className="text-gray-500 hover:text-white"><X size={16} /></button>
-            </div>
-            <div className="space-y-3 px-6 py-4">
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">名称</label>
-                <input type="text" value={editingCc.name} onChange={(e) => setEditingCc({ ...editingCc, name: e.target.value })} className={inputCls} placeholder="如：个人号 / 工作号" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">API Key</label>
-                <div className="relative">
-                  <input type={showCcKey ? "text" : "password"} value={editingCc.apiKey ?? ""} onChange={(e) => { setEditingCc({ ...editingCc, apiKey: e.target.value }); setVerifyResultCc(null) }} placeholder="sk-ant-..." className={inputCls + " pr-9"} />
-                  <button type="button" onClick={() => setShowCcKey(!showCcKey)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">{showCcKey ? <EyeOff size={14} /> : <Eye size={14} />}</button>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <button onClick={() => void handleCcVerify()} disabled={verifyingCc || !editingCc.apiKey?.trim()} className="flex items-center gap-1 rounded-md border border-gray-600 px-3 py-1.5 text-xs text-gray-300 transition hover:border-blue-500 hover:text-blue-400 disabled:opacity-50">
-                  {verifyingCc ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-                  {verifyingCc ? "验证中..." : "验证"}
-                </button>
-                {verifyResultCc?.ok && <span className="flex items-center gap-1 text-xs text-green-400"><ShieldCheck size={13} />有效</span>}
-                {verifyResultCc && !verifyResultCc.ok && <span className="flex items-center gap-1 text-xs text-red-400"><ShieldAlert size={13} />{verifyResultCc.error}</span>}
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">API Base URL（选填）</label>
-                <input type="text" value={editingCc.baseUrl ?? ""} onChange={(e) => setEditingCc({ ...editingCc, baseUrl: e.target.value })} className={inputCls} placeholder="https://api.anthropic.com" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">默认模型（选填）</label>
-                <input type="text" value={editingCc.model ?? ""} onChange={(e) => setEditingCc({ ...editingCc, model: e.target.value })} className={inputCls} placeholder="claude-opus-4-5" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
-              <button onClick={() => setEditingCc(null)} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>
-              <button onClick={() => void handleCcSave()} disabled={!editingCc.name.trim() || !editingCc.apiKey?.trim()} className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-40">保存</button>
-            </div>
-          </div>
-        </div>
+        <CcEditModal
+          editing={editingCc}
+          isNew={isNewCc}
+          showKey={showCcKey}
+          verifying={verifyingCc}
+          verifyResult={verifyResultCc}
+          onClose={() => setEditingCc(null)}
+          onChange={(next) => { setEditingCc(next); setVerifyResultCc(null) }}
+          onToggleShowKey={() => setShowCcKey(!showCcKey)}
+          onVerify={() => void handleCcVerify()}
+          onSave={() => void handleCcSave()}
+        />
       )}
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
-              <h3 className="text-sm font-semibold text-gray-200">{isNew ? "添加 SDK Key" : "编辑 SDK Key"}</h3>
-              <button onClick={() => setEditing(null)} className="text-gray-500 hover:text-white"><X size={16} /></button>
-            </div>
-            <div className="space-y-3 px-6 py-4">
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">名称</label>
-                <input type="text" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className={inputCls} placeholder="如：个人号 / 工作号" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">API Key</label>
-                <div className="relative">
-                  <input type={showKey ? "text" : "password"} value={editing.apiKey ?? ""} onChange={(e) => { setEditing({ ...editing, apiKey: e.target.value }); setVerifyResult(null) }} placeholder="crsr_..." className={inputCls + " pr-9"} />
-                  <button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">{showKey ? <EyeOff size={14} /> : <Eye size={14} />}</button>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <button onClick={() => void handleVerify()} disabled={verifying || !editing.apiKey?.trim()} className="flex items-center gap-1 rounded-md border border-gray-600 px-3 py-1.5 text-xs text-gray-300 transition hover:border-blue-500 hover:text-blue-400 disabled:opacity-50">
-                  {verifying ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-                  {verifying ? "验证中..." : "验证"}
-                </button>
-                {verifyResult?.ok && <span className="flex items-center gap-1 text-xs text-green-400"><ShieldCheck size={13} />有效{verifyResult.email ? ` (${verifyResult.email})` : ""}</span>}
-                {verifyResult && !verifyResult.ok && <span className="flex items-center gap-1 text-xs text-red-400"><ShieldAlert size={13} />{verifyResult.error}</span>}
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
-              <button onClick={() => setEditing(null)} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>
-              <button onClick={() => void handleSave()} disabled={!editing.name.trim() || !editing.apiKey?.trim()} className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-40">保存</button>
-            </div>
-          </div>
-        </div>
+        <SdkEditModal
+          editing={editing}
+          isNew={isNew}
+          showKey={showKey}
+          verifying={verifying}
+          verifyResult={verifyResult}
+          onClose={() => setEditing(null)}
+          onChange={(next) => { setEditing(next); setVerifyResult(null) }}
+          onToggleShowKey={() => setShowKey(!showKey)}
+          onVerify={() => void handleVerify()}
+          onSave={() => void handleSave()}
+        />
       )}
       {ModalPortal}
     </>

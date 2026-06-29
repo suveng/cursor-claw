@@ -2,20 +2,14 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from "electron"
 import * as path from "node:path"
 import * as fs from "node:fs"
 import * as os from "node:os"
-import { getConfig, saveConfig } from "./config-store"
+import { getConfig, saveConfig, markCliMigrationNotified } from "./config-store"
 import {
   startDaemon,
   stopDaemon,
   getDaemonStatus,
   getQueueMessages,
   deleteQueueMessage,
-  checkCliInstalled,
-  checkAgentLoggedIn,
-  installCli,
-  loginCli,
   clearMessageQueue,
-  execAgentAsync,
-  applyProxyEnv,
   initDaemonManager,
   cleanupDaemonManager,
   saveAppConfigFromRenderer,
@@ -24,7 +18,6 @@ import {
   checkClaudeCodeApiKey,
   CLAUDE_CODE_MODEL_LIST,
 } from "./daemon-manager"
-import { parseListModelsStdout } from "./command-handler"
 import {
   getMcpServerList,
   saveMcpServer,
@@ -156,6 +149,10 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("config:get", () => getConfig())
   ipcMain.handle("config:save", (_, config) => saveAppConfigFromRenderer(config))
+  ipcMain.handle("config:mark-cli-migration-notified", () => {
+    markCliMigrationNotified()
+    return { ok: true }
+  })
   ipcMain.handle("app:set-auto-start", (_, enabled: boolean) => {
     saveConfig({ autoStart: enabled })
     applyLoginItemSetting(enabled)
@@ -203,10 +200,6 @@ function registerIpcHandlers(): void {
   ipcMain.handle("daemon:queue", () => getQueueMessages())
   ipcMain.handle("daemon:queue-delete", (_e, fileId: string) => deleteQueueMessage(fileId))
   ipcMain.handle("daemon:queue-clear", () => clearMessageQueue())
-  ipcMain.handle("cli:check", () => checkCliInstalled())
-  ipcMain.handle("cli:login-status", (_, opts?: { forceRefresh?: boolean }) => checkAgentLoggedIn(opts))
-  ipcMain.handle("cli:install", () => installCli())
-  ipcMain.handle("cli:login", () => loginCli())
   ipcMain.handle("mcp:list-all", () => getMcpServerList())
   ipcMain.handle("mcp:save", (_, name: string, entry: Record<string, unknown>, source: "global" | "project") => {
     saveMcpServer(name, entry, source)
@@ -354,18 +347,6 @@ function registerIpcHandlers(): void {
     const dir = path.join(os.homedir(), ".cursor", "skills", name)
     if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true })
     return { ok: true }
-  })
-
-  ipcMain.handle("models:list", async () => {
-    const config = getConfig()
-    const env: Record<string, string> = { ...process.env as Record<string, string>, NODE_USE_ENV_PROXY: "1" }
-    applyProxyEnv(env, config)
-    const ws = config.workspaceDir?.trim() || undefined
-    const run = await execAgentAsync(["--list-models"], env, { timeoutMs: 30_000, logLabel: "list-models", cwd: ws })
-    if (!run.ok) {
-      return { ok: false, models: [], error: run.error || run.stderr.trim() || "获取模型列表失败" }
-    }
-    return { ok: true, models: parseListModelsStdout(run.stdout) }
   })
 
   ipcMain.handle("sdk:check-api-key", (_, apiKey: string) => checkSdkApiKey(apiKey))

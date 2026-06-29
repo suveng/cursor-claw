@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto"
 import {
-  getConfig, getEnabledChannels, getAgentResource, updateChannel,
+  getEnabledChannels, getAgentResource, updateChannel,
   resolveChannelForSession, type MessageChannel, type ScheduledTask,
 } from "./config-store"
 import { validateCron, readTasksFromFile, writeTasksToFile, previewCronNextRuns, getNextCronFireLabel } from "./cron-scheduler"
 import { broadcastLog } from "./ui-logger"
-import { applyProxyEnv, execAgentSync } from "./agent-cli"
 import { listSdkModels } from "./agent-sdk"
-import { McpServerEntry, getMcpServerList, getMcpEnabledMap, toggleMcpServer, deleteMcpServer, saveMcpServer } from "./mcp-manager"
+import { McpServerEntry, getMcpServerList, getMcpEnabledMap, getMcpStatusMap, toggleMcpServer, deleteMcpServer, saveMcpServer } from "./mcp-manager"
 import { httpPost } from "./daemon-client"
 import { deleteDefinition, getDefinition, listDefinitions, listInstances } from "./workflow-file"
 import { runWorkflowDefinition } from "./workflow-runner"
@@ -51,13 +50,18 @@ export function parseListModelsStdout(out: string): ListedModel[] {
   return models
 }
 
+/** 飞书 /model 指令：仅 SDK / Claude Code 通道可列出模型 */
 async function listCursorModelsForCommands(channel?: MessageChannel): Promise<{ ok: true; models: ListedModel[] } | { ok: false; error: string }> {
   const resource = getAgentResource(channel?.agentResourceId)
+  if (!resource) {
+    return { ok: false, error: "请先在设置中配置 SDK 或 Claude Code Agent 资源并绑定到通道" }
+  }
   if (resource.type === "sdk") {
     const r = await listSdkModels(resource.apiKey ?? "", channel?.model, channel?.modelParams)
     if (!r.ok) return { ok: false, error: r.error || "SDK 获取模型列表失败" }
     return { ok: true, models: r.models }
-  } else if (resource.type === "claude-code") {
+  }
+  if (resource.type === "claude-code") {
     const currentModel = channel?.model?.trim() || ""
     const models: ListedModel[] = CLAUDE_CODE_MODEL_LIST.map((m) => ({
       id: m.id,
@@ -66,19 +70,7 @@ async function listCursorModelsForCommands(channel?: MessageChannel): Promise<{ 
     }))
     return { ok: true, models }
   }
-  const config = getConfig()
-  const env: Record<string, string> = { ...process.env as Record<string, string>, NODE_USE_ENV_PROXY: "1" }
-  applyProxyEnv(env, config)
-  const ws = config.workspaceDir?.trim() || undefined
-  const run = execAgentSync(["--list-models"], env, { timeoutMs: 30_000, logLabel: "list-models-cmd", cwd: ws })
-  if (!run.ok) {
-    return { ok: false, error: run.error || run.stderr.trim() || "获取模型列表失败" }
-  }
-  const models = parseListModelsStdout(run.stdout)
-  if (models.length === 0) {
-    return { ok: false, error: "未解析到任何模型，请检查 agent --list-models 输出格式是否变化" }
-  }
-  return { ok: true, models }
+  return { ok: false, error: "请绑定 SDK 或 Claude Code Agent 资源" }
 }
 
 export async function handleFeishuModelCommand(port: number, messageId: string, raw: string, chatId?: string): Promise<void> {
@@ -106,7 +98,7 @@ export async function handleFeishuModelCommand(port: number, messageId: string, 
     const cfgModel = channel.model?.trim() || "auto"
     const lines: string[] = [`📝 通道「${channel.name}」主模型: ${cfgModel}`]
     if (cfgModel === "auto") {
-      lines.push("（auto：启动 Agent 时不传 --model，由 CLI 默认策略选择）")
+      lines.push("（auto：使用通道默认模型策略）")
     }
     const lr = await listCursorModelsForCommands(channel)
     if (lr.ok) {
@@ -117,9 +109,9 @@ export async function handleFeishuModelCommand(port: number, messageId: string, 
       } else if (cfgModel !== "auto") {
         lines.push("（当前配置 id 不在本次列表中，若刚换模型列表可再执行 /model ls）")
       }
-      const cliCur = lr.models.filter((m) => m.current)
-      if (cliCur.length > 0) {
-        lines.push(`标注 (current): ${cliCur.map((m) => m.id).join(", ")}`)
+      const markedCurrent = lr.models.filter((m) => m.current)
+      if (markedCurrent.length > 0) {
+        lines.push(`标注 (current): ${markedCurrent.map((m) => m.id).join(", ")}`)
       }
     } else {
       lines.push(`⚠️ 无法拉取模型列表: ${lr.error}`)
@@ -453,6 +445,24 @@ function resolveMcpTarget(list: McpServerEntry[], token: string): McpServerEntry
   return list.find((s) => s.name.toLowerCase() === token.toLowerCase()) ?? null
 }
 
+/** 飞书 /mcp 错误文案：不出现「需要 CLI」类表述 */
+function formatMcpCommandError(raw?: string): string {
+  const msg = (raw ?? "").trim()
+  if (!msg || /CLI|agent.*未安装|请安装.*CLI|需要.*CLI/i.test(msg)) {
+    return "请检查 mcp.json 配置，并确保通道已绑定 SDK 或 Claude Code 资源"
+  }
+  return msg
+}
+
+/** 将探测状态转为飞书可读文案 */
+function formatMcpHealthStatus(status?: string): string {
+  if (!status) return "未知"
+  if (status === "ready") return "🟢 可连接"
+  if (status === "disabled") return "⚪ 已禁用"
+  if (status === "needs_login") return "🟡 需 OAuth 授权"
+  return `🔴 ${status}`
+}
+
 export async function handleFeishuMcpCommand(port: number, messageId: string, raw: string, chatId?: string): Promise<void> {
   const parts = raw.trim().split(/\s+/).filter((p) => p.length > 0)
 
@@ -462,13 +472,14 @@ export async function handleFeishuMcpCommand(port: number, messageId: string, ra
 
   if (sub === "ls" || sub === "list") {
     const list = getMcpServerList()
-    const enabledMap = await getMcpEnabledMap()
-    if (list.length === 0) { await reportCommandResult(port, messageId, true, "📭 暂无 MCP 服务器"); return }
+    const [enabledMap, statusMap] = await Promise.all([getMcpEnabledMap(), getMcpStatusMap()])
+    if (list.length === 0) { await reportCommandResult(port, messageId, true, "📭 暂无 MCP 服务器\n\n💡 可在设置页 MCP Tab 或编辑 mcp.json 添加配置"); return }
     const lines = list.map((s, i) => {
       const flag = enabledMap[s.name] === false ? "🔴" : "🟢"
       const src = s.source === "global" ? "[G]" : "[P]"
       const detail = s.type === "url" ? s.url : s.command
-      return `  ${i + 1}. ${flag} ${src} ${s.name}  (${detail})`
+      const health = enabledMap[s.name] === false ? "disabled" : (statusMap[s.name] ?? "")
+      return `  ${i + 1}. ${flag} ${src} ${s.name}  (${detail})  ${formatMcpHealthStatus(health)}`
     })
     await reportCommandResult(port, messageId, true, `📦 MCP 服务器列表：\n${lines.join("\n")}`)
     return
@@ -480,12 +491,13 @@ export async function handleFeishuMcpCommand(port: number, messageId: string, ra
     if (!token) { await reportCommandResult(port, messageId, false, "用法: /mcp info <序号|名称>"); return }
     const target = resolveMcpTarget(list, token)
     if (!target) { await reportCommandResult(port, messageId, false, `❌ 找不到: ${token}`); return }
-    const enabledMap = await getMcpEnabledMap()
+    const [enabledMap, statusMap] = await Promise.all([getMcpEnabledMap(), getMcpStatusMap()])
     const lines = [
       `📦 ${target.name}`,
       `  类型: ${target.type}`,
       `  来源: ${target.source}`,
-      `  状态: ${enabledMap[target.name] === false ? "🔴 已禁用" : "🟢 已启用"}`,
+      `  开关: ${enabledMap[target.name] === false ? "🔴 已禁用" : "🟢 已启用"}`,
+      `  健康: ${formatMcpHealthStatus(enabledMap[target.name] === false ? "disabled" : statusMap[target.name])}`,
     ]
     if (target.type === "url") lines.push(`  URL: ${target.url}`)
     else lines.push(`  命令: ${target.command} ${(target.args ?? []).join(" ")}`)
@@ -505,7 +517,7 @@ export async function handleFeishuMcpCommand(port: number, messageId: string, ra
     const enabled = sub === "enable"
     const result = await toggleMcpServer(target.name, enabled)
     await reportCommandResult(port, messageId, result.ok,
-      result.ok ? `✅ ${target.name} 已${enabled ? "启用" : "禁用"}` : `❌ 操作失败: ${result.output}`)
+      result.ok ? `✅ ${target.name} 已${enabled ? "启用" : "禁用"}` : `❌ ${formatMcpCommandError(result.output)}`)
     return
   }
 

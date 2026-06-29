@@ -152,8 +152,8 @@ function parseInboundMessageIds(body: Record<string, unknown>): string[] | undef
 
 // ── HTTP 请求处理 ─────────────────────────────────────────────────────────────
 
-/** 从 HTTP 请求体解析参数并调用已注入的 launch handler */
-async function launchCcAgentFromHttp(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+/** 从 HTTP 请求体解析参数并调用已注入的 launch handler（供 Daemon 统一 /api/agent/launch 委托） */
+export async function launchCcAgentFromHttp(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   if (!_ccLaunchHandler) return { ok: false, error: "launch handler 未注册" }
 
   const sessionKey = typeof body.session_key === "string" ? body.session_key.trim() : ""

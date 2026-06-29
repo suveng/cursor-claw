@@ -17,7 +17,6 @@ interface Props {
 
 /** optgroup 标签：按 Agent 资源类型分组展示 */
 const RESOURCE_GROUP_LABELS: Record<AgentResource["type"], string> = {
-  cli: "Cursor CLI",
   sdk: "Cursor SDK",
   "claude-code": "Claude Code Profile",
 }
@@ -30,7 +29,7 @@ const parseModelKey = (key: string): { id: string; params: string } => {
 
 /**
  * 通道编辑弹窗 — Agent 资源与模型区块。
- * Cursor CLI/SDK：通道级主/其他人模型 + 获取列表；Claude Code Profile：只读说明，不拉列表。
+ * Cursor SDK：通道级主/其他人模型 + 获取列表；Claude Code Profile：只读说明，不拉列表。
  */
 export default function ChannelModelSection({ channel, draft, set, resources, showAlert }: Props) {
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
@@ -39,7 +38,7 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
   const resource = resources.find((r) => r.id === draft.agentResourceId) ?? resources[0]
   // 类型派生：驱动 UI 分支（CE-2）
   const isCcProfile = resource?.type === "claude-code"
-  const isCursorChannel = resource?.type === "cli" || resource?.type === "sdk"
+  const isSdkChannel = resource?.type === "sdk"
 
   // 持久化模型字段快照，供 CC → Cursor 切回时回显（CE-8）
   const persistedModels = useRef({
@@ -57,10 +56,6 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
       if (resource?.type === "sdk") {
         const r = await window.electronAPI.listSdkModels(resource.apiKey ?? "", draft.model, draft.modelParams)
         if (r.ok && r.models.length > 0) setModelOptions(r.models)
-        else if (!r.ok) void showAlert("错误", r.error || "获取模型列表失败")
-      } else if (resource?.type === "cli") {
-        const r = await window.electronAPI.listModels()
-        if (r.ok && r.models.length > 0) setModelOptions(r.models.map((m) => ({ ...m, params: "" })))
         else if (!r.ok) void showAlert("错误", r.error || "获取模型列表失败")
       }
     } finally {
@@ -99,14 +94,14 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
   }
 
   // 按 type 分组资源，供 optgroup 渲染（CE-9 / F4）
-  const groupedTypes: AgentResource["type"][] = ["cli", "sdk", "claude-code"]
+  const groupedTypes: AgentResource["type"][] = ["sdk", "claude-code"]
 
   return (
     <div className="space-y-3 rounded-lg border border-gray-800 p-3">
       <div className="flex items-center gap-2">
         <h4 className="text-xs font-medium text-gray-400">Agent 资源与模型</h4>
         {/* Cursor 通道才展示「获取模型列表」；CC 不渲染按钮（CE-4 / F2） */}
-        {isCursorChannel && (
+        {isSdkChannel && (
           <button
             onClick={() => void fetchModels()}
             disabled={loadingModels}
@@ -157,8 +152,8 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
         </div>
       )}
 
-      {/* Cursor CLI/SDK：通道级主模型与其他人模型（CE-3 / F1） */}
-      {isCursorChannel && (
+      {/* Cursor SDK：通道级主模型与其他人模型 */}
+      {isSdkChannel && (
         <>
           <div>
             <label className="mb-1 block text-xs text-gray-500">主模型 <span className="text-gray-600">— 主用户私聊 / 定时任务默认</span></label>

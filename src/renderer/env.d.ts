@@ -7,8 +7,8 @@ import type { WorkflowDefinition, WorkflowInstance } from "../shared/workflow-ty
 
 interface AgentResource {
   id: string
-  /** cli=本机 Cursor CLI；sdk=Anthropic SDK Key；claude-code=Claude Code SDK */
-  type: "cli" | "sdk" | "claude-code"
+  /** sdk=Cursor SDK Key；claude-code=Claude Code Profile */
+  type: "sdk" | "claude-code"
   name: string
   apiKey?: string
   email?: string
@@ -81,8 +81,10 @@ interface AppConfig {
   wechatEnabled: boolean
   wechatToken: string
   wechatAccountId: string
-  agentMode: "cli" | "sdk"
+  agentMode: "sdk"
   cursorApiKey: string
+  /** 历史 CLI 绑定已迁移，Dashboard 待展示一次性提示 Banner */
+  cliMigrationPending?: boolean
 }
 
 interface ScheduledTask {
@@ -95,13 +97,6 @@ interface ScheduledTask {
   channelId?: string
   model?: string
   modelParams?: string
-}
-
-interface CliLoginStatus {
-  cliFound: boolean
-  loggedIn: boolean
-  identityLine?: string
-  error?: string
 }
 
 interface SkillTreeNode {
@@ -195,6 +190,7 @@ interface ElectronAPI {
   onUpdaterStatus(cb: (payload: { kind: "available" } | { kind: "downloaded"; version: string } | { kind: "downloading" }) => void): () => void
   getConfig(): Promise<AppConfig>
   saveConfig(config: Partial<AppConfig>): Promise<ConfigSaveResult>
+  markCliMigrationNotified(): Promise<{ ok: boolean }>
   setAutoStart(enabled: boolean): Promise<{ ok: boolean }>
   applyWorkspaceSwitch(workspaceDir: string, stopOldSessions: boolean): Promise<{ ok: boolean; error?: string }>
   respondWindowClose(payload: { action: "minimize" | "quit" | "cancel"; remember: boolean }): Promise<void>
@@ -212,11 +208,6 @@ interface ElectronAPI {
   getQueueMessages(): Promise<{ index: number; fileId: string; preview: string; sessionKey?: string; chatType?: string; timestamp?: number; senderOpenId?: string }[]>
   deleteQueueMessage(fileId: string): Promise<boolean>
   clearQueueMessages(): Promise<number>
-  checkCli(): Promise<boolean>
-  checkCliLogin(opts?: { forceRefresh?: boolean }): Promise<CliLoginStatus>
-  installCli(): Promise<{ ok: boolean; output: string }>
-  loginCli(): Promise<{ ok: boolean; output: string }>
-  listModels(): Promise<{ ok: boolean; models: { id: string; label: string; current: boolean }[]; error?: string }>
   checkSdkApiKey(apiKey: string): Promise<{ ok: boolean; email?: string; error?: string }>
   listSdkModels(apiKey: string, currentModel?: string, currentParams?: string): Promise<{ ok: boolean; models: { id: string; label: string; params: string; current: boolean }[]; error?: string }>
   /** 校验 Claude Code API Key 有效性 */

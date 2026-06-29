@@ -186,7 +186,7 @@ xattr -cr /Applications/Cursor\ Claw.app
    - **飞书凭据**：填入 App ID / App Secret
    - **配置权限**：按引导在飞书后台开通权限和事件订阅
    - **绑定用户**：选择工作目录，在飞书私聊机器人完成绑定
-   - **Cursor CLI**：检测 / 安装 CLI，选择模型
+   - **Agent 资源**：配置 Cursor SDK API Key 或 Claude Code Profile，选择模型
    - **检查启动**：一键保存、注入工作区并启动 Daemon
 3. （可选）在设置页面中配置微信接入，扫码登录即可双通道运行
 4. 在 Dashboard 查看运行状态，通过飞书或微信开始协作
@@ -318,7 +318,7 @@ nodes:
 | `/task` | 定时任务管理（`/task ls` 列表、`/task trigger <id>` 手动触发） |
 | `/workflow` / `/wf` | 工作流管理（`ls` / `info` / `run` / `status` / `delete`） |
 | `/run` | 启动一个独立临时 Agent 执行指定任务 |
-| `/model` | Cursor CLI 模型（`/model ls` / `info` / `set <序号>`） |
+| `/model` | SDK / Claude Code 模型（`/model ls` / `info` / `set <序号>`） |
 | `/mcp` | MCP 服务器管理（`/mcp ls` / `info` / `enable` / `disable` / `add` / `delete`） |
 | `/workspace` | 查看 / 切换工作目录 |
 | `/clean` | 清空消息队列 |
@@ -340,7 +340,7 @@ nodes:
 Daemon 进程独立于 Cursor 运行，即使 Agent 会话中断，系统也能自动恢复：
 
 1. **Daemon** 通过飞书 WebSocket 长连接 / 微信 iLink 长轮询持续监听消息
-2. 当收到新消息且 Agent 已断开时，自动通过 Cursor CLI 拉起新会话
+2. 当收到新消息且 Agent 已断开时，自动通过 Cursor SDK 或 Claude Code 拉起新会话
 3. 支持 `--resume` 模式延续上一次会话上下文
 
 ## 设置页面
@@ -351,7 +351,7 @@ Daemon 进程独立于 Cursor 运行，即使 Agent 会话中断，系统也能�
 |-----|------|
 | 通用 | 飞书凭据、微信接入、主用户绑定、工作目录、数字身份、群聊开关、关闭行为、应用更新 |
 | 网络 | HTTP/HTTPS 代理、NO_PROXY 配置 |
-| Agent | 模型选择（主模型 / 其他用户模型 / 定时任务模型）、驱动模式（CLI / SDK）、会话模式 |
+| Agent | Agent 资源（SDK / Claude Code Profile）、模型选择（主模型 / 其他用户模型 / 定时任务模型）、会话模式 |
 | MCP | MCP 服务器可视化管理（启停 / 编辑 / 认证 / 工具列表） |
 | Rules | Cursor Rules 文件管理 |
 | Skills | Agent Skills 文件树管理 |
@@ -483,7 +483,7 @@ Daemon 进程独立于 Cursor 运行，即使 Agent 会话中断，系统也能�
 
 - **凭据安全**：App Secret / iLink Token 是敏感信息，应用会加密存储
 - **网络要求**：Daemon 需保持与飞书 / 微信服务器的网络连接，企业网络如有代理限制，可在设置中配置代理
-- **Cursor CLI 依赖**：自动拉起 Agent 功能依赖 Cursor CLI，可在向导中一键安装
+- **Agent 鉴权**：IM 与任务执行需配置 Cursor SDK API Key 或 Claude Code Profile，无需安装 Cursor CLI
 
 ## 开发
 
