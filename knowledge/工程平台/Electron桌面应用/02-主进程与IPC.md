@@ -25,7 +25,18 @@ Renderer 经 preload 调 `daemon:start` 等 IPC，主进程 spawn Daemon 并 `da
 
 ### IPC（节选）
 
-`config:get/save`、`daemon:*`、`window:*`、`mcp:*`/`rules:*`/`skills:*`、`models:list`/`sdk:*`；完整列表见 preload，扩展 handler 在 daemon-manager。
+`config:get/save`、`daemon:*`、`window:*`、`mcp:*`/`rules:*`/`skills:*`、`sdk:*`/`cc:*`；**已删除** `cli:*`、`models:list`（模型列表改走 `sdk:list-models` / `cc:list-models`）。完整列表见 `preload.ts`，扩展 handler 在 daemon-manager。
+
+### MCP IPC（文件 + 探测，非 CLI）
+
+| IPC | 说明 |
+|---|---|
+| `mcp:list-all` | 合并 global/project `mcp.json` 条目 |
+| `mcp:toggle` | 写 `disabled: true/false` |
+| `mcp:enabled-map` | 读 json `disabled !== true` |
+| `mcp:status-map` | HTTP/stdio 探测（`mcp-tools-probe`） |
+| `mcp:tools` | 单服工具列表（HTTP/stdio） |
+| `mcp:login` | OAuth 手动引导 + 打开文档（无 `agent mcp login`） |
 
 ### Daemon HTTP
 
@@ -43,7 +54,7 @@ Renderer 经 preload 调 `daemon:start` 等 IPC，主进程 spawn Daemon 并 `da
 
 - `broadcastLog` / `daemon:log` 推送 Daemon 与主进程日志到 Dashboard。
 - `powerSaveBlocker` 在 Daemon 运行期阻止系统休眠（daemon-manager）。
-- MCP CLI 调用 30s 超时（`electron/mcp-manager.ts`）。
+- MCP 健康探测：stdio 15s、HTTP 10s 超时（`mcp-tools-probe.ts`）；`mcp:status-map` 结果 30s TTL 缓存（`mcp-status-map.ts`）。
 
 ### Agent 失败日志归档
 
@@ -59,5 +70,6 @@ Renderer 经 preload 调 `daemon:start` 等 IPC，主进程 spawn Daemon 并 `da
 
 ## 十、变更记录
 
+2026-06-30：MCP 改 mcp.json + HTTP/stdio 探测；删除 `cli:*`、`models:list` IPC（archive 20260629232914）。
 2026-06-28：§七 补充 Agent 失败时 `archiveAgentFailureLogs` 挂接、产物目录与 notify 不阻断约定。
 2026-06-27：kb-sync 初始建立

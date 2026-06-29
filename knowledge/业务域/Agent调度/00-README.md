@@ -4,7 +4,7 @@
 
 ## 职责边界
 
-**负责**：会话模型（私聊/群聊/临时/定时/工作流）、Cursor SDK 与 Claude Code SDK 两条 IM 执行路径、CLI/SDK 启动、`--resume` 上下文、Daemon 转发调度、远程 `/` 指令、Cron 定时触发。
+**负责**：会话模型（私聊/群聊/临时/定时/工作流）、Cursor SDK 与 Claude Code SDK 双引擎 IM/任务/工作流执行、CC `--resume` 续接、Daemon 转发调度、远程 `/` 指令、Cron 定时触发。
 
 **不负责**：消息通道连接（飞书/微信 WebSocket）、MCP 工具实现、工作流 YAML 编排细节（见工作流域）。
 
@@ -14,7 +14,7 @@
 |------|------|------|
 | 01 | [01-概览.md](./01-概览.md) | 模块总图、架构、术语、依赖 |
 | 02 | [02-多会话模型.md](./02-多会话模型.md) | 五类 ChatType、sessionKey、工作目录隔离 |
-| 03 | [03-启动与自动重连.md](./03-启动与自动重连.md) | CLI/SDK 启动、resume、崩溃自愈、僵尸检测 |
+| 03 | [03-启动与自动重连.md](./03-启动与自动重连.md) | SDK/CC 启动、resume、崩溃自愈 |
 | 04 | [04-远程指令.md](./04-远程指令.md) | 12+ 远程指令与权限模型 |
 | 05 | [05-定时任务.md](./05-定时任务.md) | Cron 调度、独立 Agent、文件热重载 |
 
@@ -29,7 +29,7 @@
 | 模块 | 路径 |
 |------|------|
 | 会话调度 | `electron/session-dispatcher.ts` |
-| CLI 启动 | `electron/agent-launcher.ts`、`electron/agent-cli.ts` |
+| Prompt 构建 | `electron/agent-launcher.ts`（`buildPrompt` 等，无 CLI spawn） |
 | Cursor SDK 启动 | `electron/agent-sdk.ts` |
 | CC SDK 启动 | `electron/agent-claude-sdk.ts`（入口）、`electron/agent-cc-types.ts`、`electron/agent-cc-utils.ts`、`electron/agent-cc-stream.ts`、`electron/agent-cc-events.ts`、`electron/agent-cc-http.ts` |
 | Daemon 编排 | `electron/daemon-manager.ts` |
@@ -41,6 +41,7 @@
 
 ## 变更记录
 
+2026-06-30：移除 Cursor CLI 依赖；IM/任务/工作流均经 session-dispatcher 路由 sdk/cc（archive 20260629232914）。
 2026-06-27：Daemon IM 编排、SDK-only、inject 废弃（archive 20260627162620）。
 2026-06-27：kb-sync 初始建立。
 2026-06-29：扩展 Claude Code SDK 执行引擎（archive 20260629164130）。
