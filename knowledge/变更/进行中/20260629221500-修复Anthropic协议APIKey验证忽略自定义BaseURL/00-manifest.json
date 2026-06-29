@@ -1,0 +1,15 @@
+{
+  "id": "20260629221500-修复Anthropic协议APIKey验证忽略自定义BaseURL",
+  "name": "修复Anthropic协议APIKey验证忽略自定义BaseURL",
+  "flow": "standard",
+  "stage": "proposed",
+  "source": "kb-propose",
+  "workflow_version": "0.3.3",
+  "updated_at": "2026-06-29T22:15:08+0800",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "bugfix",
+    "priority": "high"
+  }
+}
