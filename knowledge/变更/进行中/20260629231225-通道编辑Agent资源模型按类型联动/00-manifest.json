@@ -1,0 +1,39 @@
+{
+  "change_id": "20260629231225-通道编辑Agent资源模型按类型联动",
+  "name": "通道编辑Agent资源模型按类型联动",
+  "flow": "standard",
+  "stage": "designed",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-06-29T23:12:25+0800",
+  "updated_at": "2026-06-29T23:16:45+0800",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "缺陷修复",
+    "priority": "P2"
+  },
+  "tasks": [],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/进行中/20260629231225-通道编辑Agent资源模型按类型联动/00-manifest.json",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260629231225-通道编辑Agent资源模型按类型联动/01-proposal.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260629231225-通道编辑Agent资源模型按类型联动/02-design.md",
+      "kind": "change_doc",
+      "source": "kb-design",
+      "status": "changed"
+    }
+  ]
+}
