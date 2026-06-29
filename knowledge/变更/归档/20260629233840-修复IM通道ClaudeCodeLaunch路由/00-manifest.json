@@ -1,0 +1,57 @@
+{
+  "change_id": "20260629233840-修复IM通道ClaudeCodeLaunch路由",
+  "name": "修复IM通道ClaudeCodeLaunch路由",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "Electron Daemon launch/dispatch 按 Agent 资源类型路由",
+      "status": "done",
+      "files": [
+        "electron/agent-cc-http.ts",
+        "electron/agent-sdk.ts",
+        "electron/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "electron/agent-cc-http.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent-sdk.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "kind": "agents"
+    },
+    {
+      "path": "knowledge/变更/归档/20260629233840-修复IM通道ClaudeCodeLaunch路由/00-manifest.json",
+      "kind": "change_doc",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260629233840-修复IM通道ClaudeCodeLaunch路由/01-proposal.md",
+      "kind": "change_doc",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260629233840-修复IM通道ClaudeCodeLaunch路由/05-summary.md",
+      "kind": "change_doc",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "source": "archive"
+    }
+  ],
+  "updated_at": "2026-06-30T00:10:00+08:00"
+}
