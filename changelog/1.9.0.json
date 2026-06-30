@@ -1,0 +1,14 @@
+{
+  "version": "1.9.0",
+  "date": "2026-06-30",
+  "changes": [
+    "移除 Cursor CLI 依赖，Agent 执行全面切换为 SDK 多引擎路径，旧 CLI 绑定将自动迁移。",
+    "新增 Claude Agent SDK、Codex、OpenCode 三套执行引擎，可在 Dashboard 新建 Profile 并绑定 IM 通道、任务与工作流。",
+    "MCP 管理迁入 Dashboard 会话详情，按工作区与引擎类型展示服务器状态与 OAuth 授权。",
+    "Claude Agent 路径支持项目级 MCP 审批门控，未获批服务器显示「未启用」状态。",
+    "CC 引擎运行看门狗与超时收尾对齐 SDK 行为，超时时推送明确通知且会话可直接继续。",
+    "通道编辑 Agent 资源按引擎类型联动，避免错绑不兼容的 Profile。",
+    "修复自定义 Anthropic Base URL 下 API Key 校验被错误拒绝的问题。",
+    "修复飞书通道 CC 引擎流式回复正文整段重复两遍的问题。"
+  ]
+}
