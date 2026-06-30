@@ -1,0 +1,212 @@
+{
+  "change_id": "20260630112137-ClaudeAgent-MCP展示与注入对齐",
+  "name": "ClaudeAgent-MCP展示与注入对齐",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-06-30T11:21:37+0800",
+  "updated_at": "2026-06-30T13:45:59+0800",
+  "archived_at": "2026-06-30T13:45:59+0800",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "缺陷修复+展示升级",
+    "priority": "P1",
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / notifications 配置",
+    "reference_docs": [
+      {
+        "title": "Claude Code MCP 官方文档",
+        "url": "https://code.claude.com/docs/en/mcp"
+      },
+      {
+        "title": "@anthropic-ai/claude-agent-sdk 0.3.195 sdk.d.ts",
+        "url": "https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk"
+      }
+    ]
+  },
+  "tasks": [
+    { "id": "T1", "title": "注入层 cc-mcp-loader 改读 Claude 原生源", "status": "done", "files": ["electron/cc-mcp-loader.ts"], "depends_on": [] },
+    { "id": "T2", "title": "CC 路径 session 缓存 + strictMcpConfig + 暴露 session getter", "status": "done", "files": ["electron/agent-cc-types.ts", "electron/agent-cc-events.ts", "electron/agent-claude-sdk.ts"], "depends_on": ["T1"] },
+    { "id": "T3", "title": "SDK 路径 session 缓存注入快照 + 暴露 session getter", "status": "done", "files": ["electron/agent-sdk.ts"], "depends_on": [] },
+    { "id": "T4", "title": "mcp-status-map 缓存键加 engineType", "status": "done", "files": ["electron/mcp-status-map.ts", "electron/mcp-manager.ts"], "depends_on": [] },
+    { "id": "T5", "title": "新建 session-mcp-status.ts 取数器", "status": "done", "files": ["electron/session-mcp-status.ts"], "depends_on": ["T1", "T2", "T3", "T4"] },
+    { "id": "T6", "title": "端点层 + 渲染层 IPC + UI dispatch + emptyHint", "status": "done", "files": ["electron/main.ts", "electron/preload.ts", "src/renderer/env.d.ts", "src/renderer/components/SessionMcpPanel.tsx", "src/renderer/lib/mcp-view-strategy.ts"], "depends_on": ["T5"] },
+    { "id": "T-FIX-1", "title": "T5 snapshot 路径读盘补 config", "status": "done", "files": ["electron/session-mcp-status.ts"], "depends_on": ["T5"] },
+    { "id": "T-FIX-2", "title": "T5 加 CC status 枚举→UI 词汇映射", "status": "done", "files": ["electron/session-mcp-status.ts"], "depends_on": ["T5"] },
+    { "id": "T-FIX-3", "title": "force 参数端到端透传", "status": "done", "files": ["electron/session-mcp-status.ts", "electron/main.ts", "electron/preload.ts", "src/renderer/env.d.ts", "src/renderer/components/SessionMcpPanel.tsx"], "depends_on": ["T5", "T6"] },
+    { "id": "T-FIX-4", "title": "getSessionMcpStatus 加 engineType hint + CC 无 session 读盘 fallback", "status": "done", "files": ["electron/session-mcp-status.ts", "electron/main.ts", "electron/preload.ts", "src/renderer/env.d.ts", "src/renderer/components/SessionMcpPanel.tsx"], "depends_on": ["T5", "T6"] },
+    { "id": "T-FIX-5", "title": "T2 init 快照浅拷贝", "status": "done", "files": ["electron/agent-cc-events.ts"], "depends_on": ["T2"] },
+    { "id": "T-FIX-6", "title": "agent-claude-sdk.ts 抽 agent-cc-session-registry.ts 控行数", "status": "done", "files": ["electron/agent-claude-sdk.ts", "electron/agent-cc-session-registry.ts"], "depends_on": ["T2"] },
+    { "id": "T-FIX-7", "title": "env.d.ts 抽 types/mcp.d.ts 控行数", "status": "done", "files": ["src/renderer/env.d.ts", "src/renderer/types/mcp.d.ts"], "depends_on": ["T6"] }
+  ],
+  "reviews": [
+    { "id": "R1", "severity": "warning", "status": "fixed", "file": "electron/session-mcp-status.ts", "summary": "CC idle snapshot 缺 config 渲染 undefined", "task_id": "T-FIX-1", "resolution": "T-FIX-1 snapshot 读盘补 config + toEntry 防 undefined" },
+    { "id": "R2", "severity": "warning", "status": "fixed", "file": "electron/session-mcp-status.ts", "summary": "CC status 枚举与 UI 期望不匹配，needs-auth 不显示授权按钮", "task_id": "T-FIX-2", "resolution": "T-FIX-2 mapCcStatusToUi connected→ready needs-auth→needs_login" },
+    { "id": "R3", "severity": "warning", "status": "fixed", "file": "src/renderer/components/SessionMcpPanel.tsx", "summary": "刷新按钮 force 被丢弃，SDK 刷新命中 30s 缓存失效", "task_id": "T-FIX-3", "resolution": "T-FIX-3 force 四参 IPC 链透传至 fetchMcpStatusMap" },
+    { "id": "R4", "severity": "warning", "status": "fixed", "file": "electron/session-mcp-status.ts", "summary": "CC 无 session 时 T5 不走读盘 fallback，与设计 mermaid 不符", "task_id": "T-FIX-4", "resolution": "T-FIX-4 CC 无 session + engineType=claude-code 读盘 fallback" },
+    { "id": "R5", "severity": "warning", "status": "fixed", "file": "electron/agent-cc-events.ts", "summary": "T2 init 快照浅引用赋值，SDK mutate 污染风险", "task_id": "T-FIX-5", "resolution": "T-FIX-5 init 快照浅拷贝" },
+    { "id": "R6", "severity": "warning", "status": "fixed", "file": "electron/agent-claude-sdk.ts", "summary": "agent-claude-sdk.ts 本次新引入超 300 行", "task_id": "T-FIX-6", "resolution": "T-FIX-6 抽 agent-cc-session-registry.ts agent-claude-sdk 291行" },
+    { "id": "R7", "severity": "warning", "status": "fixed", "file": "src/renderer/env.d.ts", "summary": "env.d.ts 本次新引入超 300 行", "task_id": "T-FIX-7", "resolution": "T-FIX-7 抽 types/mcp.d.ts env.d.ts 288行" }
+  ],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260630112137-ClaudeAgent-MCP展示与注入对齐/00-manifest.json",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630112137-ClaudeAgent-MCP展示与注入对齐/01-proposal.md",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630112137-ClaudeAgent-MCP展示与注入对齐/02-design.md",
+      "kind": "change_doc",
+      "source": "kb-design",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630112137-ClaudeAgent-MCP展示与注入对齐/03-tasks.md",
+      "kind": "change_doc",
+      "source": "kb-plan",
+      "status": "changed"
+    },
+    {
+      "path": "electron/cc-mcp-loader.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/mcp-status-map.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/mcp-manager.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-cc-types.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-cc-events.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-claude-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session-mcp-status.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/main.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/preload.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/env.d.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/SessionMcpPanel.tsx",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/lib/mcp-view-strategy.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "kind": "other",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/AGENTS.md",
+      "kind": "other",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630112137-ClaudeAgent-MCP展示与注入对齐/04-review.md",
+      "kind": "change_doc",
+      "source": "kb-review",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-cc-session-registry.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/types/mcp.d.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630112137-ClaudeAgent-MCP展示与注入对齐/05-summary.md",
+      "kind": "change_doc",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/07-ClaudeCodeSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/03-渲染端界面.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    }
+  ]
+}

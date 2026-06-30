@@ -190,6 +190,13 @@ export interface McpServerEntry {
   rawConfig?: Record<string, unknown>
 }
 
+/** agent:mcp-status IPC 返回结构：按 sessionKey 取运行时 MCP 状态（servers+statusMap+source） */
+export interface AgentMcpStatusResult {
+  servers: McpServerEntry[]
+  statusMap: Record<string, string>
+  source: "runtime" | "snapshot" | "disk"
+}
+
 const api = {
   getAppVersion: (): Promise<string> => ipcRenderer.invoke("updater:current-version"),
   checkAppUpdate: (): Promise<UpdaterCheckResult> => ipcRenderer.invoke("updater:check"),
@@ -263,6 +270,13 @@ const api = {
   toggleMcp: (name: string, enabled: boolean): Promise<{ ok: boolean; output: string }> => ipcRenderer.invoke("mcp:toggle", name, enabled),
   getMcpEnabledMap: (force?: boolean): Promise<Record<string, boolean>> => ipcRenderer.invoke("mcp:enabled-map", force),
   getMcpStatusMap: (force?: boolean, workspaceDir?: string): Promise<Record<string, string>> => ipcRenderer.invoke("mcp:status-map", force, workspaceDir),
+  // 按 sessionKey 取运行时 MCP 状态（CC/SDK 展示入口，对应 agent:mcp-status IPC）
+  getAgentMcpStatus: (
+    sessionKey: string,
+    force?: boolean,
+    engineType?: string,
+    workspaceDir?: string,
+  ): Promise<AgentMcpStatusResult> => ipcRenderer.invoke("agent:mcp-status", sessionKey, force, engineType, workspaceDir),
   getMcpTools: (name: string, workspaceDir?: string): Promise<{ ok: boolean; tools: { name: string; description?: string; params?: { name: string; type?: string; description?: string; required?: boolean }[] }[]; error?: string }> => ipcRenderer.invoke("mcp:tools", name, workspaceDir),
   getRules: (): Promise<{ name: string; content: string }[]> => ipcRenderer.invoke("rules:list"),
   saveRule: (name: string, content: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("rules:save", name, content),

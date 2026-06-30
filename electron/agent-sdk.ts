@@ -1,5 +1,5 @@
 import * as http from "node:http"
-import { Agent, type SDKAgent, type Run, type SDKMessage } from "@cursor/sdk"
+import { Agent, type SDKAgent, type Run, type SDKMessage, type McpServerConfig } from "@cursor/sdk"
 import { resolve, join, dirname } from "node:path"
 import { existsSync, writeFileSync, mkdirSync } from "node:fs"
 import { createRequire } from "node:module"
@@ -43,7 +43,7 @@ import {
 import { launchCcAgentFromHttp } from "./agent-cc-http"
 import { dispatchToClaudeCodeAgent } from "./agent-claude-sdk"
 
-interface SdkSessionAgent {
+export interface SdkSessionAgent {
   sessionKey: string
   agent: SDKAgent
   run: Run | null
@@ -117,6 +117,8 @@ interface SdkSessionAgent {
   watchdogState: "running" | "draining" | "cancelling"
   /** watchdog 状态切换时间戳（ms） */
   watchdogStateAt: number
+  /** 最近一次注入 SDK 的 inline mcpServers 快照（SDK 无 list/status API，展示侧 T5 据此渲染） */
+  lastInjectedMcpServers?: Record<string, McpServerConfig>
 }
 
 const sdkSessions = new Map<string, SdkSessionAgent>()
@@ -698,6 +700,8 @@ function buildSendOptions(session: SdkSessionAgent, idempotencyKey: string): Par
     session.workspaceDir,
   ) as Record<string, unknown>
   options.idempotencyKey = idempotencyKey
+  // ponytail: SDK 无 MCP list/status API；缓存当次注入快照供展示侧（T5）读取
+  session.lastInjectedMcpServers = options.mcpServers as Record<string, McpServerConfig> | undefined
   return options as Parameters<SDKAgent["send"]>[1]
 }
 
@@ -720,12 +724,14 @@ async function maybeRotateSessionForPressure(
   }
   const previousAgent = session.agent
   const previousAgentId = session.agentId
+  // ponytail: 提取注入变量只读盘一次，供 Agent.create 与切换成功后回写快照复用
+  const injected = loadInlineMcpServers(session.workspaceDir ?? process.cwd())
   let nextAgent: SDKAgent
   try {
     nextAgent = await Agent.create({
       apiKey: session.apiKey ?? "",
       model: modelSelection,
-      mcpServers: loadInlineMcpServers(session.workspaceDir ?? process.cwd()),
+      mcpServers: injected,
       local: {
         cwd: session.workspaceDir ?? process.cwd(),
         settingSources: ["project", "user"],
@@ -745,6 +751,8 @@ async function maybeRotateSessionForPressure(
   }
   session.agent = nextAgent
   session.agentId = nextAgent.agentId
+  // ponytail: 轮转成功后同步注入快照（失败保留旧快照，避免展示侧拿到未生效配置）
+  session.lastInjectedMcpServers = injected
   try {
     previousAgent.close()
   } catch {
@@ -1138,6 +1146,11 @@ export function getSdkSessionList() {
   }))
 }
 
+/** 取 SDK session 实体（含 lastInjectedMcpServers 注入快照；展示侧 T5 据此渲染 inline MCP） */
+export function getSdkSession(sessionKey: string): SdkSessionAgent | undefined {
+  return sdkSessions.get(sessionKey)
+}
+
 export interface SdkLaunchOptions {
   sessionKey: string
   chatType: ChatType
@@ -1208,11 +1221,13 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     }
     pushUiLog("SDK", "INFO", `[${sessionKey}] 正在创建 SDK Agent (cwd=${workspaceDir}, model=${JSON.stringify(modelSelection)})`)
 
+    // ponytail: 提取注入变量只读盘一次，供 Agent.create 与 session.lastInjectedMcpServers 初始化复用
+    const injected = loadInlineMcpServers(workspaceDir)
     // 自动压缩：SDK LocalAgentOptions / SendOptions 无 autoCompress 字段；接近上限时由 harness 默认 summarization（onDelta summary-* 可观测）
     const agent = await Agent.create({
       apiKey,
       model: modelSelection,
-      mcpServers: loadInlineMcpServers(workspaceDir),
+      mcpServers: injected,
       local: {
         cwd: workspaceDir,
         settingSources: ["project", "user"],
@@ -1248,6 +1263,8 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
       inboundMessageIds: meta?.messageIds,
       watchdogState: "running",
       watchdogStateAt: Date.now(),
+      // ponytail: 创建即带注入快照，展示侧（T5）在首次 send 前也能读到当次 inline mcpServers
+      lastInjectedMcpServers: injected,
     }
 
     sdkSessions.set(sessionKey, session)

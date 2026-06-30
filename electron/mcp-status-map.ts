@@ -3,16 +3,18 @@ import { readMcpAuthStore } from "./mcp-project-dir"
 import type { McpServerEntry } from "./mcp-types"
 import { queryToolsViaHttp, queryToolsViaProtocol } from "./mcp-tools-probe"
 
-/** 状态缓存：按 workspaceDir 分桶，保留 30s TTL */
+/** 状态缓存：按 `wsKey::engineType` 分桶，保留 30s TTL */
 interface McpStatusCache { status: Record<string, string>; ts: number; ws: string }
 const MCP_STATUS_CACHE_TTL_MS = 30_000
 const mcpStatusCacheByWs = new Map<string, McpStatusCache>()
 const mcpStatusInflightByWs = new Map<string, Promise<McpStatusCache>>()
 
-/** 解析有效工作区：省略时回退 config.workspaceDir */
-function resolveWorkspaceKey(workspaceDir?: string): string {
+/** 解析缓存键：`wsKey::engineType`；省略 engineType 默认 sdk 保持现网兼容 */
+function resolveWorkspaceKey(workspaceDir?: string, engineType?: string): string {
   const ws = (workspaceDir ?? getConfig().workspaceDir ?? "").trim()
-  return ws || "__default__"
+  const base = ws || "__default__"
+  // ponytail: 缓存键加 engineType 后缀，防同 workspace 切 SDK/CC 会话时读盘 probe 与 SDK 配置源串台
+  return `${base}::${engineType ?? "sdk"}`
 }
 
 /** 清除全部状态缓存（toggle/save 后调用） */
@@ -66,14 +68,16 @@ async function probeMcpServerStatus(server: McpServerEntry, workspaceDir: string
   return "配置无效"
 }
 
-/** 并行探测全部 MCP 服务器，带 per-workspace 30s 缓存 */
+/** 并行探测全部 MCP 服务器，带 per-workspace+engineType 30s 缓存 */
 export async function fetchMcpStatusMap(
   force = false,
   servers: McpServerEntry[],
   workspaceDir?: string,
+  engineType?: string,
 ): Promise<Record<string, string>> {
-  const wsKey = resolveWorkspaceKey(workspaceDir)
-  const probeCwd = wsKey === "__default__" ? "" : wsKey
+  const wsKey = resolveWorkspaceKey(workspaceDir, engineType)
+  // probeCwd 用原始 workspace 路径，不含 engineType 缓存键后缀（探测 cwd 与引擎类型无关）
+  const probeCwd = (workspaceDir ?? getConfig().workspaceDir ?? "").trim()
 
   if (!force) {
     const cached = mcpStatusCacheByWs.get(wsKey)

@@ -29,6 +29,7 @@ import {
   getMcpServerTools,
   getMcpStatusMap,
 } from "./mcp-manager"
+import { getSessionMcpStatus } from "./session-mcp-status"
 import { injectWorkspace } from "./workspace-injector"
 import { initTray, destroyTray } from "./tray"
 import { initAppUpdater } from "./updater"
@@ -217,6 +218,12 @@ function registerIpcHandlers(): void {
   ipcMain.handle("mcp:enabled-map", (_, force?: boolean) => getMcpEnabledMap(force ?? false))
   ipcMain.handle("mcp:status-map", (_, force?: boolean, workspaceDir?: string) => getMcpStatusMap(force ?? false, workspaceDir))
   ipcMain.handle("mcp:tools", (_, name: string, workspaceDir?: string) => getMcpServerTools(name, workspaceDir))
+  // 按 sessionKey 取运行时 MCP 状态（CC runtime/snapshot/disk、SDK 注入快照）；供 SessionMcpPanel 展示
+  ipcMain.handle(
+    "agent:mcp-status",
+    (_e, sessionKey: string, force?: boolean, engineType?: string, workspaceDir?: string) =>
+      getSessionMcpStatus(sessionKey, force, engineType, workspaceDir),
+  )
 
   ipcMain.handle("rules:list", () => {
     const config = getConfig()

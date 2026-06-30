@@ -55,11 +55,11 @@ export async function getMcpEnabledMap(_force = false): Promise<Record<string, b
   return map
 }
 
-/** 通过 HTTP/stdio 探测各服务器健康状态，保留 30s 缓存；可选 workspaceDir 绑定会话工作区 */
-export async function getMcpStatusMap(force = false, workspaceDir?: string): Promise<Record<string, string>> {
+/** 通过 HTTP/stdio 探测各服务器健康状态，保留 30s 缓存；可选 workspaceDir 绑定会话工作区，engineType 区分 SDK/CC 缓存桶 */
+export async function getMcpStatusMap(force = false, workspaceDir?: string, engineType?: string): Promise<Record<string, string>> {
   const ws = resolveMcpWorkspace(workspaceDir)
   const servers = ws ? getMcpServerListForWorkspace(ws) : getMcpServerList()
-  return fetchMcpStatusMap(force, servers, ws || undefined)
+  return fetchMcpStatusMap(force, servers, ws || undefined, engineType)
 }
 
 export function invalidateMcpEnabledCache(): void {

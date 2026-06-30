@@ -101,6 +101,16 @@ export function handleSdkMessage(
         session.ccSessionId = msg.session_id
       }
       if (msg.model) session.modelId = msg.model
+      // 缓存 init 上报的 MCP server 状态快照；idle/complete 不清空，供 Dashboard idle 展示。
+      // 浅拷贝：SDK 可能复用 message buffer，直接引用会被后续 mutate 污染 idle 面板快照。
+      // ponytail: msg.mcp_servers 是 {name,status}[]，浅拷贝后赋给可选字段更宽的快照类型（类型兼容）。
+      if (Array.isArray(msg.mcp_servers)) {
+        session.lastMcpServersSnapshot = msg.mcp_servers.map((s) => ({
+          ...s,
+          config: s.config ? { ...(s.config as object) } : s.config,
+          tools: s.tools ? [...s.tools] : s.tools,
+        }))
+      }
       return
     }
     // SDK hook 流事件：刷新活动时钟 + UI 日志（与 cc-sdk-hooks 回调格式一致）

@@ -31,8 +31,8 @@ export function getMcpViewConfig(engineType: McpEngineType): McpViewConfig {
         supported: true,
         emptyHint: (ws, usingFallback) =>
           usingFallback
-            ? `暂无 MCP 配置。可编辑 ~/.cursor/mcp.json，或在主工作区 ${ws}/.cursor/mcp.json 添加。`
-            : `暂无 MCP 配置。可编辑 ~/.cursor/mcp.json 或 ${ws}/.cursor/mcp.json。`,
+            ? `暂无 MCP 配置。可编辑 ~/.claude.json，或在主工作区 ${ws}/.mcp.json 添加。`
+            : `暂无 MCP 配置。可编辑 ~/.claude.json 或 ${ws}/.mcp.json。`,
       }
     case "codex":
     default:

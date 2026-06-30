@@ -82,5 +82,10 @@ export interface CcSessionAgent {
   watchdogStateAt: number
   /** watchdog 空闲/绝对超时触发时为 true；由 armCcWatchdog.onTimeout 置位，completeCcRun 消费 */
   watchdogTimedOut?: boolean
+  /**
+   * system/init 上报的 MCP server 状态快照；只在 init 时覆写，idle/complete 不清空，
+   * 供 Dashboard idle 会话展示 MCP 列表（与 SDK 路径 lastInjectedMcpServers 对称）。
+   */
+  lastMcpServersSnapshot?: Array<{ name: string; status: string; config?: unknown; scope?: string; tools?: unknown[] }>
   logAgg: { kind: "thinking" | "text" | null; buf: string }
 }

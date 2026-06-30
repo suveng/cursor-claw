@@ -12,7 +12,7 @@ import {
   resetContextUsagePeak,
   resolveDisplayContextTokens,
 } from "./context-usage"
-import { type ChatType, buildPrompt, resolveSessionChatName } from "./agent-launcher"
+import { type ChatType, buildPrompt } from "./agent-launcher"
 import { acquireRunGuard, completeRunGuard, releaseRunGuard } from "./agent-run-guard"
 import { maybeRotateContext } from "./context-rotation-lite"
 
@@ -28,13 +28,13 @@ import { notifySessionChat, clearStreamPostTimer, broadcastCcSessionStatus, comp
 import { armCcWatchdog, streamCcSdkMessages } from "./agent-cc-events"
 import { registerCcLaunchHandler, registerCcDispatchHandler } from "./agent-cc-http"
 import { PLATFORM_RUN_LIMIT_MS } from "./finalize-sdk-run"
+import { CC_SESSIONS } from "./agent-cc-session-registry"
 
 export type { PresentationEvent, PresentationKind } from "./agent-sdk"
 export type { ClaudeCodeLaunchOptions, CcSessionAgent } from "./agent-cc-types"
 export { CLAUDE_CODE_MODEL_LIST } from "./agent-cc-types"
 export { checkClaudeCodeApiKey, ensureClaudeCodeHttpServer, getCcAgentApiPort } from "./agent-cc-http"
-
-const CC_SESSIONS = new Map<string, CcSessionAgent>()
+export { getClaudeCodeSessionList, getCcSession, getCcActiveQuery } from "./agent-cc-session-registry"
 /** 长驻策略：Map + query(resume)；SDK 0.3.195 无 startup() 导出，与 Cursor SDK_RESIDENT_AGENT 语义对等 */
 const CC_PENDING_LAUNCHES = new Set<string>()
 const CC_FAILED_COOLDOWNS = new Map<string, number>()
@@ -86,9 +86,15 @@ function buildQueryOptions(session: CcSessionAgent) {
     permissionMode: "bypassPermissions" as const,
     allowDangerouslySkipPermissions: true,
     includePartialMessages: true,
+    // strictMcpConfig:true → SDK 只用 inline mcpServers，忽略 .mcp.json/settings/plugins 原生加载；
+    // inline 已由 cc-mcp-loader 从 .mcp.json+~/.claude.json 合并，避免重复加载与配置源串台。
+    strictMcpConfig: true,
     ...(session.ccSessionId ? { resume: session.ccSessionId } : {}),
   }
   const withMcp = appendInlineMcpToCcOptions(base, session.workspaceDir)
+  // 注入后打 UI 日志，供排查 inline server 数量与 strictMcpConfig 联动
+  const inlineCount = withMcp.mcpServers ? Object.keys(withMcp.mcpServers).length : 0
+  pushUiLog("CC", "INFO", `[${session.sessionKey}] [mcp] inline ${inlineCount} servers`)
   return {
     ...withMcp,
     hooks: buildCcSdkHooks({ session, markActivity: markSessionActivity }),
@@ -259,18 +265,6 @@ export function stopAllClaudeCodeSessions(): void {
   for (const key of [...CC_SESSIONS.keys()]) stopClaudeCodeSession(key)
   CC_FAILED_COOLDOWNS.clear()
   CC_PENDING_LAUNCHES.clear()
-}
-
-export function getClaudeCodeSessionList(): Array<{ sessionKey: string; chatType: string; startedAt: number; chatName?: string; pid: number; workspaceDir?: string }> {
-  return [...CC_SESSIONS.values()].map((s) => ({
-    sessionKey: s.sessionKey,
-    chatType: s.chatType as string,
-    startedAt: s.startedAt,
-    chatName: resolveSessionChatName(s.sessionKey, s.chatName, s.senderOpenId),
-    pid: 0,
-    // CC 会话工作区：供 Dashboard MCP 面板绑定 project mcp.json
-    workspaceDir: s.workspaceDir,
-  }))
 }
 
 function makeWatchdogOpts() {

@@ -56,3 +56,12 @@
 - **CardKit 降级**：创建/发卡片任一步失败 → 回退 `sendStreamMessage`（`streamPatchMode`）；流式更新失败 → `streamCardKitMode=false`，再 PATCH 或 `sendStreamSegments` 分段。
 - **节流**：`streamTextThrottleMs()`（500–1500ms）对 CardKit 更新同样生效；`isFirst`/`final` 不受节流跳过。
 - **工具/思考 CardKit**：`lark-core.renderToolProgressCard` / `renderThinkingCard`；`SessionProgressState.toolCards` 按 `tool_name` 分卡（并发工具各自 PATCH/关闭 streaming）；`started` 仅清该工具条目并发新卡。
+
+## SessionMcpPanel engineType dispatch
+
+- **取数入口**：`SessionMcpPanel.loadMcp` 按 `engineType` 经 `getMcpViewConfig` dispatch——`claude-code`/`sdk` 调 `window.electronAPI.getAgentMcpStatus(sessionKey, force, engineType, effectiveWs)`（`force` 刷新/login 后跳过 SDK probe 缓存；`engineType`+`effectiveWs` 供 CC 无 session 读盘 fallback）；`codex` `viewConfig.supported=false` early return 占位，不 crash。`viewConfig.supported` 为唯一 early-return 门，不再叠加 `!effectiveWs`。
+- **不直调 list/status IPC**：CC/SDK 路径**禁止**再调 `listMcpForWorkspace`/`getMcpStatusMap`（数据源已由 `agent:mcp-status` 统一）；`useEffect` 依赖 `[sessionKey, viewConfig.supported, loadMcp]`，sessionKey 切换自动重跑。`effectiveWs` 用于 `getAgentMcpStatus` CC fallback、`getMcpTools`、OAuth `loginMcp`、空态 `emptyHint` 文案。
+- **emptyHint 配置源文案**：`mcp-view-strategy.getMcpViewConfig` 按引擎给空态引导，**配置源路径不得串台**：
+  - `claude-code`：`~/.claude.json` / `${ws}/.mcp.json`（**严禁**出现 `.cursor`）；`usingFallback` 时「可编辑 ~/.claude.json，或在主工作区 ${ws}/.mcp.json 添加」，否则「可编辑 ~/.claude.json 或 ${ws}/.mcp.json」。
+  - `sdk`：`~/.cursor/mcp.json` / `${ws}/.cursor/mcp.json`（保持不变，**严禁**改成 `.claude.json`/`.mcp.json`）。
+  - `codex`：`supported=false` 占位，`emptyHint` 返回空串。

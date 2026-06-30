@@ -1,3 +1,5 @@
+/// <reference path="./types/mcp.d.ts" />
+
 declare module "*.png" {
   const src: string
   export default src
@@ -103,19 +105,6 @@ interface SkillTreeNode {
   name: string
   type: "file" | "directory"
   children?: SkillTreeNode[]
-}
-
-interface McpServerEntry {
-  name: string
-  type: "command" | "url"
-  command?: string
-  args?: string[]
-  url?: string
-  env?: Record<string, string>
-  source: "global" | "project"
-  authenticated?: boolean
-  rawConfig?: Record<string, unknown>
-  enabled?: boolean
 }
 
 interface DaemonStatus {
@@ -229,6 +218,13 @@ interface ElectronAPI {
   toggleMcp(name: string, enabled: boolean): Promise<{ ok: boolean; output: string }>
   getMcpEnabledMap(force?: boolean): Promise<Record<string, boolean>>
   getMcpStatusMap(force?: boolean, workspaceDir?: string): Promise<Record<string, string>>
+  /** 按 sessionKey 取运行时 MCP 状态（CC runtime/snapshot/disk、SDK 注入快照；force 跳过 probe 缓存） */
+  getAgentMcpStatus(
+    sessionKey: string,
+    force?: boolean,
+    engineType?: string,
+    workspaceDir?: string,
+  ): Promise<AgentMcpStatusResult>
   getMcpTools(name: string, workspaceDir?: string): Promise<{ ok: boolean; tools: { name: string; description?: string; params?: { name: string; type?: string; description?: string; required?: boolean }[] }[]; error?: string }>
   getRules(): Promise<{ name: string; content: string }[]>
   saveRule(name: string, content: string): Promise<{ ok: boolean }>

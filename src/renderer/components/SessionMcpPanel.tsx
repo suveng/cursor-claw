@@ -62,26 +62,24 @@ export default function SessionMcpPanel({
   const [loginOutput, setLoginOutput] = useState<string | null>(null)
 
   const loadMcp = useCallback(async (force = false) => {
-    if (!viewConfig.supported || !effectiveWs) return
+    // codex supported=false 已 early return；CC/SDK 统一走 agent:mcp-status（透传 force/engineType/workspaceDir）
+    if (!viewConfig.supported) return
     setRefreshing(true)
     setStatusLoading(true)
     try {
-      const [list, status] = await Promise.all([
-        window.electronAPI.listMcpForWorkspace(effectiveWs),
-        window.electronAPI.getMcpStatusMap(force, effectiveWs),
-      ])
-      setServers(list)
-      setStatusMap(status)
+      const res = await window.electronAPI.getAgentMcpStatus(sessionKey, force, engineType, effectiveWs)
+      setServers(res.servers)
+      setStatusMap(res.statusMap)
     } finally {
       setStatusLoading(false)
       setRefreshing(false)
     }
-  }, [effectiveWs, viewConfig.supported])
+  }, [sessionKey, engineType, effectiveWs, viewConfig.supported])
 
   useEffect(() => {
     if (!viewConfig.supported) return
     void loadMcp(false)
-  }, [sessionKey, effectiveWs, viewConfig.supported, loadMcp])
+  }, [sessionKey, viewConfig.supported, loadMcp])
 
   const toggleExpand = async (name: string) => {
     if (expanded === name) {
