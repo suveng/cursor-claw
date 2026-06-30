@@ -1,0 +1,69 @@
+{
+  "change_id": "20260630111028-SDK执行引擎文档补充",
+  "name": "SDK执行引擎文档补充",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "created_at": "2026-06-30T11:10:28+0800",
+  "updated_at": "2026-06-30T11:15:23+0800",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "补充 Cursor SDK 与 Claude Code SDK 执行引擎知识文档",
+      "status": "done",
+      "files": [
+        "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+        "knowledge/业务域/Agent调度/07-ClaudeCodeSDK执行引擎.md",
+        "knowledge/业务域/Agent调度/00-README.md",
+        "knowledge/业务域/Agent调度/01-概览.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260630111028-SDK执行引擎文档补充/00-manifest.json",
+      "kind": "change_doc",
+      "source": "kb-lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630111028-SDK执行引擎文档补充/01-proposal.md",
+      "kind": "change_doc",
+      "source": "kb-lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630111028-SDK执行引擎文档补充/05-summary.md",
+      "kind": "change_doc",
+      "source": "kb-lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "kb-lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/07-ClaudeCodeSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "kb-lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "kind": "knowledge",
+      "source": "kb-lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "kind": "knowledge",
+      "source": "kb-lite",
+      "status": "changed"
+    }
+  ]
+}

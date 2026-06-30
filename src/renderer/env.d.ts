@@ -199,10 +199,10 @@ interface ElectronAPI {
   startDaemon(): Promise<{ ok: boolean; error?: string }>
   stopDaemon(): Promise<void>
   stopAgent(): Promise<{ ok: boolean }>
-  getSessionAgents(): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string }[]>
+  getSessionAgents(): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" }[]>
   stopSessionAgent(sessionKey: string): Promise<{ ok: boolean }>
   stopAllSessionAgents(): Promise<{ ok: boolean }>
-  onSessionAgents(cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string }[]) => void): () => void
+  onSessionAgents(cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" }[]) => void): () => void
   getDaemonStatus(): Promise<DaemonStatus>
   getLogBuffer(): Promise<string[]>
   getQueueMessages(): Promise<{ index: number; fileId: string; preview: string; sessionKey?: string; chatType?: string; timestamp?: number; senderOpenId?: string }[]>
@@ -222,13 +222,14 @@ interface ElectronAPI {
   getScheduledTaskStatus(): Promise<Record<string, { running: boolean; pid?: number; startedAt?: number }>>
   onScheduledTaskStatus(cb: (statuses: Record<string, { running: boolean; pid?: number; startedAt?: number }>) => void): () => void
   getMcpServers(): Promise<McpServerEntry[]>
+  listMcpForWorkspace(workspaceDir: string): Promise<McpServerEntry[]>
   saveMcpServer(name: string, entry: Record<string, unknown>, source: "global" | "project"): Promise<{ ok: boolean }>
   deleteMcpServer(name: string): Promise<{ ok: boolean }>
-  loginMcp(name: string): Promise<{ ok: boolean; output: string }>
+  loginMcp(name: string, workspaceDir?: string): Promise<{ ok: boolean; output: string }>
   toggleMcp(name: string, enabled: boolean): Promise<{ ok: boolean; output: string }>
   getMcpEnabledMap(force?: boolean): Promise<Record<string, boolean>>
-  getMcpStatusMap(force?: boolean): Promise<Record<string, string>>
-  getMcpTools(name: string): Promise<{ ok: boolean; tools: { name: string; description?: string; params?: { name: string; type?: string; description?: string; required?: boolean }[] }[]; error?: string }>
+  getMcpStatusMap(force?: boolean, workspaceDir?: string): Promise<Record<string, string>>
+  getMcpTools(name: string, workspaceDir?: string): Promise<{ ok: boolean; tools: { name: string; description?: string; params?: { name: string; type?: string; description?: string; required?: boolean }[] }[]; error?: string }>
   getRules(): Promise<{ name: string; content: string }[]>
   saveRule(name: string, content: string): Promise<{ ok: boolean }>
   deleteRule(name: string): Promise<{ ok: boolean }>

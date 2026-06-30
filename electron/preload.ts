@@ -222,11 +222,11 @@ const api = {
   injectWorkspace: (): Promise<{ results: InjectResult[] }> => ipcRenderer.invoke("workspace:inject"),
   startDaemon: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("daemon:start"),
   stopAgent: (): Promise<{ ok: boolean }> => ipcRenderer.invoke("agent:stop"),
-  getSessionAgents: (): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string }[]> =>
+  getSessionAgents: (): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" }[]> =>
     ipcRenderer.invoke("agent:sessions"),
   stopSessionAgent: (sessionKey: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("agent:stop-session", sessionKey),
   stopAllSessionAgents: (): Promise<{ ok: boolean }> => ipcRenderer.invoke("agent:stop-all-sessions"),
-  onSessionAgents: (cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string }[]) => void) => {
+  onSessionAgents: (cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" }[]) => void) => {
     const handler = (_e: Electron.IpcRendererEvent, list: Parameters<typeof cb>[0]) => cb(list)
     ipcRenderer.on("agent:sessions", handler)
     return () => { ipcRenderer.removeListener("agent:sessions", handler) }
@@ -256,13 +256,14 @@ const api = {
     return () => ipcRenderer.removeListener("scheduled-tasks:status", handler)
   },
   getMcpServers: (): Promise<McpServerEntry[]> => ipcRenderer.invoke("mcp:list-all"),
+  listMcpForWorkspace: (workspaceDir: string): Promise<McpServerEntry[]> => ipcRenderer.invoke("mcp:list-for-workspace", workspaceDir),
   saveMcpServer: (name: string, entry: Record<string, unknown>, source: "global" | "project"): Promise<{ ok: boolean }> => ipcRenderer.invoke("mcp:save", name, entry, source),
   deleteMcpServer: (name: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("mcp:delete", name),
-  loginMcp: (name: string): Promise<{ ok: boolean; output: string }> => ipcRenderer.invoke("mcp:login", name),
+  loginMcp: (name: string, workspaceDir?: string): Promise<{ ok: boolean; output: string }> => ipcRenderer.invoke("mcp:login", name, workspaceDir),
   toggleMcp: (name: string, enabled: boolean): Promise<{ ok: boolean; output: string }> => ipcRenderer.invoke("mcp:toggle", name, enabled),
   getMcpEnabledMap: (force?: boolean): Promise<Record<string, boolean>> => ipcRenderer.invoke("mcp:enabled-map", force),
-  getMcpStatusMap: (force?: boolean): Promise<Record<string, string>> => ipcRenderer.invoke("mcp:status-map", force),
-  getMcpTools: (name: string): Promise<{ ok: boolean; tools: { name: string; description?: string; params?: { name: string; type?: string; description?: string; required?: boolean }[] }[]; error?: string }> => ipcRenderer.invoke("mcp:tools", name),
+  getMcpStatusMap: (force?: boolean, workspaceDir?: string): Promise<Record<string, string>> => ipcRenderer.invoke("mcp:status-map", force, workspaceDir),
+  getMcpTools: (name: string, workspaceDir?: string): Promise<{ ok: boolean; tools: { name: string; description?: string; params?: { name: string; type?: string; description?: string; required?: boolean }[] }[]; error?: string }> => ipcRenderer.invoke("mcp:tools", name, workspaceDir),
   getRules: (): Promise<{ name: string; content: string }[]> => ipcRenderer.invoke("rules:list"),
   saveRule: (name: string, content: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("rules:save", name, content),
   deleteRule: (name: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("rules:delete", name),

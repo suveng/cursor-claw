@@ -3,15 +3,21 @@ import { readMcpAuthStore } from "./mcp-project-dir"
 import type { McpServerEntry } from "./mcp-types"
 import { queryToolsViaHttp, queryToolsViaProtocol } from "./mcp-tools-probe"
 
-/** 状态缓存：探测耗时，保留 30s TTL */
+/** 状态缓存：按 workspaceDir 分桶，保留 30s TTL */
 interface McpStatusCache { status: Record<string, string>; ts: number; ws: string }
 const MCP_STATUS_CACHE_TTL_MS = 30_000
-let mcpStatusCache: McpStatusCache | null = null
-let mcpStatusInflight: Promise<McpStatusCache> | null = null
+const mcpStatusCacheByWs = new Map<string, McpStatusCache>()
+const mcpStatusInflightByWs = new Map<string, Promise<McpStatusCache>>()
 
-/** 清除状态缓存（toggle/save 后调用） */
+/** 解析有效工作区：省略时回退 config.workspaceDir */
+function resolveWorkspaceKey(workspaceDir?: string): string {
+  const ws = (workspaceDir ?? getConfig().workspaceDir ?? "").trim()
+  return ws || "__default__"
+}
+
+/** 清除全部状态缓存（toggle/save 后调用） */
 export function invalidateMcpStatusCache(): void {
-  mcpStatusCache = null
+  mcpStatusCacheByWs.clear()
 }
 
 /** 判断 URL 型 MCP 是否已有 OAuth 令牌 */
@@ -60,31 +66,39 @@ async function probeMcpServerStatus(server: McpServerEntry, workspaceDir: string
   return "配置无效"
 }
 
-/** 并行探测全部 MCP 服务器，带 30s 缓存 */
-export async function fetchMcpStatusMap(force = false, servers: McpServerEntry[]): Promise<Record<string, string>> {
-  const config = getConfig()
-  const ws = (config.workspaceDir || "").trim()
+/** 并行探测全部 MCP 服务器，带 per-workspace 30s 缓存 */
+export async function fetchMcpStatusMap(
+  force = false,
+  servers: McpServerEntry[],
+  workspaceDir?: string,
+): Promise<Record<string, string>> {
+  const wsKey = resolveWorkspaceKey(workspaceDir)
+  const probeCwd = wsKey === "__default__" ? "" : wsKey
 
-  if (!force && mcpStatusCache && mcpStatusCache.ws === ws && Date.now() - mcpStatusCache.ts < MCP_STATUS_CACHE_TTL_MS) {
-    return mcpStatusCache.status
+  if (!force) {
+    const cached = mcpStatusCacheByWs.get(wsKey)
+    if (cached && Date.now() - cached.ts < MCP_STATUS_CACHE_TTL_MS) {
+      return cached.status
+    }
   }
 
-  if (mcpStatusInflight) return (await mcpStatusInflight).status
+  const inflight = mcpStatusInflightByWs.get(wsKey)
+  if (inflight) return (await inflight).status
 
   const p = (async (): Promise<McpStatusCache> => {
     const status: Record<string, string> = {}
     await Promise.all(servers.map(async (server) => {
-      status[server.name] = await probeMcpServerStatus(server, ws)
+      status[server.name] = await probeMcpServerStatus(server, probeCwd)
     }))
-    const result: McpStatusCache = { status, ts: Date.now(), ws }
-    mcpStatusCache = result
+    const result: McpStatusCache = { status, ts: Date.now(), ws: wsKey }
+    mcpStatusCacheByWs.set(wsKey, result)
     return result
   })()
 
-  mcpStatusInflight = p
+  mcpStatusInflightByWs.set(wsKey, p)
   try {
     return (await p).status
   } finally {
-    mcpStatusInflight = null
+    mcpStatusInflightByWs.delete(wsKey)
   }
 }

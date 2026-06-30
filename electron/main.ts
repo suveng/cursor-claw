@@ -20,6 +20,7 @@ import {
 } from "./daemon-manager"
 import {
   getMcpServerList,
+  getMcpServerListForWorkspace,
   saveMcpServer,
   deleteMcpServer,
   loginMcpServer,
@@ -201,6 +202,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle("daemon:queue-delete", (_e, fileId: string) => deleteQueueMessage(fileId))
   ipcMain.handle("daemon:queue-clear", () => clearMessageQueue())
   ipcMain.handle("mcp:list-all", () => getMcpServerList())
+  ipcMain.handle("mcp:list-for-workspace", (_, workspaceDir: string) => getMcpServerListForWorkspace(workspaceDir))
   ipcMain.handle("mcp:save", (_, name: string, entry: Record<string, unknown>, source: "global" | "project") => {
     saveMcpServer(name, entry, source)
     return { ok: true }
@@ -210,11 +212,11 @@ function registerIpcHandlers(): void {
     if (!server) return { ok: false, error: "MCP 服务器不存在" }
     return deleteMcpServer(name, server.source)
   })
-  ipcMain.handle("mcp:login", (_, name: string) => loginMcpServer(name))
+  ipcMain.handle("mcp:login", (_, name: string, workspaceDir?: string) => loginMcpServer(name, workspaceDir))
   ipcMain.handle("mcp:toggle", (_, name: string, enabled: boolean) => toggleMcpServer(name, enabled))
   ipcMain.handle("mcp:enabled-map", (_, force?: boolean) => getMcpEnabledMap(force ?? false))
-  ipcMain.handle("mcp:status-map", (_, force?: boolean) => getMcpStatusMap(force ?? false))
-  ipcMain.handle("mcp:tools", (_, name: string) => getMcpServerTools(name))
+  ipcMain.handle("mcp:status-map", (_, force?: boolean, workspaceDir?: string) => getMcpStatusMap(force ?? false, workspaceDir))
+  ipcMain.handle("mcp:tools", (_, name: string, workspaceDir?: string) => getMcpServerTools(name, workspaceDir))
 
   ipcMain.handle("rules:list", () => {
     const config = getConfig()

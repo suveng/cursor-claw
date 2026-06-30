@@ -20,7 +20,7 @@ Electron 主进程：窗口/托盘、IPC、Daemon spawn/轮询、MCP/Rules/Skill
 
 Renderer → preload IPC → 主进程 spawn Daemon → `daemon:status-update` 回推。关闭窗口：ask/minimize/quit（`window:close-confirm`）。
 
-**CC Run**（Daemon→`cc-agent-api`→`query()`）：`startCcQuery` 并行 `buildQueryOptions`（`cc-sdk-hooks.ts`）、`armCcWatchdog`、`streamCcSdkMessages`。hooks 回调与 `hook_*` 流均 `markSessionActivity`。`armCcWatchdog`：`NEVER_CANCEL_ON_DURATION` 默认 true 时 `timeoutMs=Number.MAX_SAFE_INTEGER`，idle（默认 300s）/absolute（默认 7min，≠idle）均在 `onTick` 判定；`onTimeout` 先 `watchdogTimedOut=true` 再 `close()`。超时 `completeCcRun`→`cc-watchdog-finalize.ts`（IM+`stop_progress`），与 error 互斥（跳过 `setFailedCooldown`）。
+**CC Run**（Daemon→`cc-agent-api`→`query()`）：`startCcQuery` 并行 hooks/watchdog/stream；idle/absolute watchdog 在 `onTick` 判定，超时经 `cc-watchdog-finalize.ts` IM+`stop_progress`（详见 archive 20260630100827）。
 
 ## 五、接口
 
@@ -30,7 +30,9 @@ Renderer → preload IPC → 主进程 spawn Daemon → `daemon:status-update` �
 
 **Claude Agent IPC**：`cc:check-api-key`、`cc:list-models`；Run 经 Daemon→`cc-agent-api`→`query()`，不经 IPC。
 
-**MCP IPC**：`mcp:list-all`/`toggle`/`enabled-map`/`status-map`/`tools`/`login`（文件+HTTP/stdio 探测，无 CLI）。
+**MCP IPC**：`mcp:list-for-workspace(ws)` 合并 global+project mcp.json；`status-map(force?,ws?)`/`tools(name,ws?)`/`login(name,ws?)` 绑定 ws（省略回退 `config.workspaceDir`，30s 分桶 TTL）；`list-all`/`toggle`/`save`/`delete` 保留供 IM，Renderer 不调 toggle/save/delete。
+
+**agent:sessions**：每项增 `workspaceDir?`、`engineType: sdk|claude-code`（`getSessionAgentList` 组装）。
 
 ### Daemon HTTP
 
@@ -46,7 +48,7 @@ Renderer → preload IPC → 主进程 spawn Daemon → `daemon:status-update` �
 
 ## 七、非功能与可观测
 
-`broadcastLog`/`daemon:log` 推 Dashboard；Daemon 运行期 `powerSaveBlocker`。MCP 探测 stdio 15s/HTTP 10s；`mcp:status-map` 30s TTL。
+`broadcastLog`/`daemon:log` 推 Dashboard；Daemon 运行期 `powerSaveBlocker`。MCP 探测 stdio 15s/HTTP 10s。
 
 **失败归档**：`archiveAgentFailureLogs` best-effort 挂接 notify/finalizer；`crashAnalysisDir` 配置时写 logBuffer±30→`electron-log.txt`+`meta.json`；不阻断 notify。
 
@@ -62,6 +64,7 @@ Renderer → preload IPC → 主进程 spawn Daemon → `daemon:status-update` �
 
 ## 十、变更记录
 
+2026-06-30：MCP IPC 增 `mcp:list-for-workspace` 与 `workspaceDir` 上下文；`agent:sessions` 增 `engineType`/`workspaceDir`（archive 20260630104251）。
 2026-06-30：§二/§四/§七 CC Run hooks、watchdog idle/absolute 解耦与超时对称收尾（archive 20260630100827）。
 2026-06-30：补充 `cc:*` IPC；Claude Agent Run 经 cc-agent-api（archive 20260630002838）。
 2026-06-30：MCP 改 mcp.json 探测；删 `cli:*`/`models:list`（archive 20260629232914）。

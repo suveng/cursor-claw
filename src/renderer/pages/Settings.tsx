@@ -5,17 +5,12 @@ import {
   CheckCircle2,
   Loader2,
   RefreshCw,
-  ShieldCheck,
-  ShieldAlert,
-  LogIn,
   Plus,
   Pencil,
   Trash2,
-  Terminal,
   X,
   Settings as SettingsIcon,
   Network,
-  Blocks,
   FileCode2,
   Timer,
   Sparkles,
@@ -24,7 +19,6 @@ import {
   Play,
   ChevronDown,
   ChevronRight,
-  Wrench,
   File,
   Folder,
   FilePlus,
@@ -48,12 +42,9 @@ import { REQUIRED_FEISHU_SCOPES, FEISHU_SCOPES_JSON } from "../constants"
 
 interface Props { onBack: () => void; initialTab?: string; onTabConsumed?: () => void }
 
-type Tab = "general" | "channel" | "proxy" | "agent" | "mcp" | "rules" | "tasks" | "skills" | "workflows" | "setup" | "about"
+type Tab = "general" | "channel" | "proxy" | "agent" | "rules" | "tasks" | "skills" | "workflows" | "setup" | "about"
 type CloseWindowAction = "ask" | "minimize" | "quit"
 
-interface McpEditForm {
-  json: string; source: "global" | "project"; jsonError?: string
-}
 interface RuleFile { name: string; content: string }
 interface SkillFile { name: string; content: string }
 interface TaskItem {
@@ -61,26 +52,11 @@ interface TaskItem {
   channelId?: string; model?: string; modelParams?: string
 }
 
-const MCP_TEMPLATE = JSON.stringify({
-  "my-mcp-server": { command: "npx", args: ["-y", "@some/mcp-server"] },
-}, null, 2)
-const emptyMcpForm: McpEditForm = { json: MCP_TEMPLATE, source: "global" }
-
-/** MCP 错误文案：过滤 CLI 相关提示，引导检查 mcp.json */
-function formatMcpUiError(raw?: string): string {
-  const msg = (raw ?? "").trim()
-  if (!msg || /CLI|agent.*未安装|请安装.*CLI|需要.*CLI/i.test(msg)) {
-    return "请检查 mcp.json 配置；URL 型 MCP 需 OAuth 时在 Cursor IDE 或 mcp-auth.json 完成授权"
-  }
-  return msg
-}
-
 const TABS: { id: Tab; label: string; icon: typeof SettingsIcon }[] = [
   { id: "general", label: "通用", icon: SettingsIcon },
   { id: "proxy", label: "网络", icon: Network },
   { id: "agent", label: "Agent", icon: Bot },
   { id: "channel", label: "消息通道", icon: MessageSquare },
-  { id: "mcp", label: "MCP", icon: Blocks },
   { id: "rules", label: "Rules", icon: FileCode2 },
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "tasks", label: "定时任务", icon: Timer },
@@ -125,25 +101,6 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
   const [taskModelOptions, setTaskModelOptions] = useState<{ id: string; label: string; params: string }[]>([])
   const [loadingTaskModels, setLoadingTaskModels] = useState(false)
 
-  const [mcpServers, setMcpServers] = useState<McpServerEntry[]>([])
-  const [mcpLoading, setMcpLoading] = useState<Record<string, boolean>>({})
-  const [mcpStatusLoading, setMcpStatusLoading] = useState(true)
-  const [mcpEditing, setMcpEditing] = useState<McpEditForm | null>(null)
-  const [mcpEditOriginalName, setMcpEditOriginalName] = useState<string | null>(null)
-  const [mcpExpanded, setMcpExpanded] = useState<string | null>(null)
-  const [mcpTools, setMcpTools] = useState<Record<string, { loading: boolean; tools: { name: string; description?: string; params?: { name: string; type?: string; description?: string; required?: boolean }[] }[]; error?: string }>>({})
-  const [mcpStatus, setMcpStatus] = useState<Record<string, string>>({})
-
-  const toggleMcpExpand = async (name: string) => {
-    if (mcpExpanded === name) { setMcpExpanded(null); return }
-    setMcpExpanded(name)
-    if (!mcpTools[name]) {
-      setMcpTools((p) => ({ ...p, [name]: { loading: true, tools: [] } }))
-      const res = await window.electronAPI.getMcpTools(name)
-      setMcpTools((p) => ({ ...p, [name]: { loading: false, tools: res.tools, error: res.ok ? undefined : formatMcpUiError(res.error) } }))
-    }
-  }
-
   const [rules, setRules] = useState<RuleFile[]>([])
   const [ruleEditing, setRuleEditing] = useState<RuleFile | null>(null)
   const [ruleEditOriginalName, setRuleEditOriginalName] = useState<string | null>(null)
@@ -170,25 +127,6 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
   const loaded = useRef(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout>>()
 
-  const [mcpRefreshing, setMcpRefreshing] = useState(false)
-  const refreshMcpServers = useCallback(async (force = false) => {
-    setMcpRefreshing(true)
-    setMcpStatusLoading(true)
-    const [servers, enabled, status] = await Promise.all([
-      window.electronAPI.getMcpServers(),
-      window.electronAPI.getMcpEnabledMap(force),
-      window.electronAPI.getMcpStatusMap(force),
-    ])
-    setMcpServers(servers.map((s) => ({ ...s, enabled: enabled[s.name] ?? false })))
-    setMcpStatus(status)
-    setMcpStatusLoading(false)
-    setMcpRefreshing(false)
-    for (const s of servers) {
-      window.electronAPI.getMcpTools(s.name).then((res) => {
-        setMcpTools((p) => ({ ...p, [s.name]: { loading: false, tools: res.tools, error: res.ok ? undefined : formatMcpUiError(res.error) } }))
-      })
-    }
-  }, [])
   const refreshRules = useCallback(() => { window.electronAPI.getRules().then(setRules) }, [])
   const refreshSkills = useCallback(() => {
     window.electronAPI.getSkills().then(setSkills)
@@ -269,16 +207,13 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
   }, [tab])
 
   useEffect(() => {
-    const unsub1 = window.electronAPI.onMcpLoginComplete(({ serverName, ok }) => {
-      if (ok) setMcpServers((prev) => prev.map((s) => s.name === serverName ? { ...s, authenticated: true } : s))
-    })
     const unsub2 = window.electronAPI.onScheduledTaskStatus(setTaskStatuses)
     const unsub3 = window.electronAPI.onDaemonStatus?.(() => {
       window.electronAPI.getConfig().then((cfg) => {
         setWorkspaceDir((prev) => prev !== cfg.workspaceDir ? cfg.workspaceDir : prev)
       })
     })
-    return () => { unsub1(); unsub2(); unsub3?.() }
+    return () => { unsub2(); unsub3?.() }
   }, [])
 
   useEffect(() => {
@@ -292,7 +227,6 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
       setFirstFeishuAppId(config.channels?.find((c) => c.type === "feishu")?.larkAppId ?? config.larkAppId ?? "")
       loaded.current = true
     })
-    if (tab === "mcp") refreshMcpServers()
     if (tab === "rules") refreshRules()
     if (tab === "skills") refreshSkills()
     if (tab === "tasks") {
@@ -303,7 +237,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
         setAgentResources(cfg.agentResources ?? [])
       })
     }
-  }, [tab, refreshMcpServers, refreshRules, refreshSkills, refreshTasks])
+  }, [tab, refreshRules, refreshSkills, refreshTasks])
 
   const autoSave = useCallback(() => {
     if (!loaded.current) return
@@ -319,12 +253,9 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
         setWsSwitch({ old: r.oldWorkspaceDir, new: r.newWorkspaceDir, sessions: r.existingSessions ?? [] })
         setWorkspaceDir(r.oldWorkspaceDir)
       }
-      if (r.workspaceDirChanged) {
-        void refreshMcpServers(true)
-      }
       setSaved(true); setTimeout(() => setSaved(false), 1500)
     }, 500)
-  }, [workspaceDir, crashAnalysisDir, proxy, noProxy, closeWindowAction, refreshMcpServers])
+  }, [workspaceDir, crashAnalysisDir, proxy, noProxy, closeWindowAction])
 
   useEffect(() => { autoSave() }, [autoSave])
 
@@ -447,89 +378,6 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
     const next = !autoLaunch
     setAutoLaunch(next)
     await window.electronAPI.setAutoStart(next)
-  }
-
-  // ── MCP ──
-  const handleMcpToggle = async (name: string, enabled: boolean) => {
-    setMcpServers((prev) => prev.map((s) => s.name === name ? { ...s, enabled } : s))
-    setMcpLoading((p) => ({ ...p, [name]: true }))
-    const res = await window.electronAPI.toggleMcp(name, enabled)
-    setMcpLoading((p) => ({ ...p, [name]: false }))
-    if (!res.ok) {
-      setMcpServers((prev) => prev.map((s) => s.name === name ? { ...s, enabled: !enabled } : s))
-      void showAlert("错误", formatMcpUiError(res.output) || `MCP ${enabled ? "启用" : "禁用"}失败`)
-    }
-  }
-  const [mcpLoginPending, setMcpLoginPending] = useState<Record<string, boolean>>({})
-  const handleMcpLogin = (name: string) => {
-    setMcpLoginPending((p) => ({ ...p, [name]: true }))
-    window.electronAPI.loginMcp(name).then((res) => {
-      setMcpLoginPending((p) => ({ ...p, [name]: false }))
-      if (res.ok) {
-        setMcpServers((prev) => prev.map((s) => s.name === name ? { ...s, authenticated: true } : s))
-        return
-      }
-      // T1：loginMcp 返回 OAuth 手动配置说明，不再依赖 CLI
-      if (res.output) void showAlert("OAuth 配置", res.output)
-    })
-  }
-  const openMcpAdd = () => { setMcpEditOriginalName(null); setMcpEditing({ ...emptyMcpForm }) }
-  const openMcpEdit = (s: McpServerEntry) => {
-    setMcpEditOriginalName(s.name)
-    const inner = s.rawConfig ?? {}
-    setMcpEditing({ json: JSON.stringify({ [s.name]: inner }, null, 2), source: s.source })
-  }
-  const handleMcpDelete = async (name: string) => {
-    await window.electronAPI.deleteMcpServer(name)
-    setMcpServers((prev) => prev.filter((s) => s.name !== name))
-  }
-  const handleMcpSave = async () => {
-    if (!mcpEditing) return
-    const setErr = (msg: string) => setMcpEditing({ ...mcpEditing, jsonError: msg })
-    let raw = mcpEditing.json.trim()
-
-    // 兼容粘贴片段 `"name": { ... }` —— 补成 `{ "name": { ... } }`
-    if (raw.startsWith('"') && !raw.startsWith('{')) raw = `{${raw}}`
-
-    let parsed: Record<string, unknown>
-    try { parsed = JSON.parse(raw) }
-    catch { setErr("JSON 格式无效"); return }
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      setErr("JSON 必须是一个对象"); return
-    }
-
-    // 兼容完整 mcp.json 格式 `{ "mcpServers": { ... } }`
-    if ("mcpServers" in parsed && typeof parsed.mcpServers === "object" && parsed.mcpServers !== null) {
-      parsed = parsed.mcpServers as Record<string, unknown>
-    }
-
-    const keys = Object.keys(parsed)
-    if (keys.length === 0) { setErr("JSON 中没有 MCP 服务器配置"); return }
-    if (keys.length !== 1) { setErr("一次只能保存一个 MCP 服务器"); return }
-
-    const name = keys[0]
-    const entry = parsed[name]
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-      setErr(`"${name}" 的值必须是一个对象`); return
-    }
-    if (mcpEditOriginalName && mcpEditOriginalName !== name) await window.electronAPI.deleteMcpServer(mcpEditOriginalName)
-    await window.electronAPI.saveMcpServer(name, entry as Record<string, unknown>, mcpEditing.source)
-    const isNew = !mcpEditOriginalName
-    if (isNew) window.electronAPI.toggleMcp(name, true)
-    const isUrl = "url" in (entry as Record<string, unknown>) && !("command" in (entry as Record<string, unknown>))
-    const saved: McpServerEntry = {
-      name, type: isUrl ? "url" : "command", source: mcpEditing.source,
-      ...(isUrl ? { url: (entry as Record<string, string>).url } : { command: (entry as Record<string, string>).command, args: (entry as Record<string, string[]>).args }),
-      rawConfig: entry as Record<string, unknown>,
-      enabled: isNew ? true : undefined,
-    }
-    setMcpServers((prev) => {
-      const old = prev.find((s) => s.name === mcpEditOriginalName || s.name === name)
-      if (!isNew && old) saved.enabled = old.enabled
-      const filtered = prev.filter((s) => s.name !== name && s.name !== mcpEditOriginalName)
-      return [...filtered, saved]
-    })
-    setMcpEditing(null)
   }
 
   // ── Rules ──
@@ -747,89 +595,6 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
 
             {/* ═══ Agent ═══ */}
             {tab === "agent" && <AgentPanel />}
-
-            {/* ═══ MCP ═══ */}
-            {tab === "mcp" && (<>
-              <section className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-medium text-gray-300">MCP 服务器</h3>
-                  <button onClick={() => refreshMcpServers(true)} disabled={mcpRefreshing} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white disabled:opacity-50"><RefreshCw size={12} className={mcpRefreshing ? "animate-spin" : ""} />{mcpRefreshing ? "加载中" : "刷新"}</button>
-                  <div className="flex-1" />
-                  <button onClick={openMcpAdd} className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-blue-500"><Plus size={12} />新增</button>
-                </div>
-                <p className="text-xs text-gray-600">读写 ~/.cursor/mcp.json 与项目 .cursor/mcp.json，无需安装 Cursor CLI</p>
-                <div className="space-y-2">
-                  {mcpServers.map((s) => {
-                    const expanded = mcpExpanded === s.name
-                    const toolState = mcpTools[s.name]
-                    const rawStatus = mcpStatus[s.name]
-                    const isReady = rawStatus === "ready" || rawStatus === "enabled"
-                    const statusColor = !rawStatus ? "text-gray-600" : isReady ? "text-green-400" : rawStatus === "disabled" || rawStatus.includes("not loaded") ? "text-gray-500" : rawStatus === "needs_login" ? "text-amber-400" : "text-red-400"
-                    const statusLabel = !rawStatus ? "—" : isReady ? "ready" : rawStatus === "disabled" ? "disabled" : rawStatus === "needs_login" ? "需授权" : rawStatus.includes("not loaded") ? "not loaded" : rawStatus
-                    return (
-                    <div key={s.name} className="rounded-lg border border-gray-700 overflow-hidden">
-                      <div className="flex items-center justify-between px-4 py-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <button onClick={() => toggleMcpExpand(s.name)} className="shrink-0 rounded p-0.5 text-gray-500 transition hover:text-white">
-                            <ChevronDown size={14} className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
-                          </button>
-                          {s.type === "url" ? (s.enabled && s.authenticated ? <ShieldCheck size={16} className="shrink-0 text-green-400" /> : s.enabled && !s.authenticated ? <ShieldAlert size={16} className="shrink-0 text-amber-400" /> : <Network size={16} className="shrink-0 text-gray-400" />) : <Terminal size={16} className="shrink-0 text-gray-400" />}
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="truncate text-sm font-medium">{s.name}</p>
-                              <span className="shrink-0 rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-500">{s.source === "global" ? "全局" : "项目"}</span>
-                              {!mcpStatusLoading && <span className={`shrink-0 text-[10px] ${statusColor}`}>{statusLabel}</span>}
-                              {toolState && !toolState.loading && toolState.tools.length > 0 && <span className="shrink-0 rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-500">{toolState.tools.length} tools</span>}
-                            </div>
-                            <p className="truncate text-xs text-gray-500">{s.type === "url" ? s.url : `${s.command} ${(s.args ?? []).join(" ")}`}</p>
-                          </div>
-                        </div>
-                        <div className="ml-3 flex shrink-0 items-center gap-2">
-                          {s.type === "url" && s.enabled && (s.authenticated ? <span className="text-xs text-green-400">已认证</span> : mcpLoginPending[s.name] ? <button onClick={() => handleMcpLogin(s.name)} className="flex items-center gap-1 rounded-md bg-blue-600/70 px-2 py-1 text-xs font-medium text-white transition hover:bg-blue-500"><Loader2 size={12} className="animate-spin" />认证中</button> : <button onClick={() => handleMcpLogin(s.name)} className="flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-blue-500" title="仅当该 MCP 使用浏览器 OAuth 时需要"><LogIn size={12} />授权</button>)}
-                          <button onClick={() => openMcpEdit(s)} className="rounded p-1 text-gray-500 transition hover:bg-gray-800 hover:text-white"><Pencil size={13} /></button>
-                          <button onClick={() => handleMcpDelete(s.name)} className="rounded p-1 text-gray-500 transition hover:bg-gray-800 hover:text-red-400"><Trash2 size={13} /></button>
-                          {(mcpStatusLoading && s.enabled === undefined) || mcpLoading[s.name] ? (
-                            <div className="inline-flex h-5 w-9 shrink-0 items-center justify-center rounded-full bg-gray-700">
-                              <Loader2 size={12} className="animate-spin text-gray-400" />
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleMcpToggle(s.name, !s.enabled)}
-                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ${s.enabled ? "bg-green-500" : "bg-gray-600"}`}
-                            >
-                              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${s.enabled ? "translate-x-[18px]" : "translate-x-[3px]"}`} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      {expanded && (
-                        <div className="border-t border-gray-700/50 bg-gray-900/30 px-4 py-2.5">
-                          {toolState?.loading ? (
-                            <div className="flex items-center gap-2 py-1 text-xs text-gray-500"><Loader2 size={12} className="animate-spin" />正在获取工具列表…</div>
-                          ) : toolState?.error ? (
-                            <p className="py-1 text-xs text-gray-500">{toolState.error}</p>
-                          ) : toolState && toolState.tools.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">
-                              {toolState.tools.map((t) => {
-                                const tip = [t.description, ...(t.params ?? []).map((p) => `${p.required ? "* " : ""}${p.name}${p.type ? `: ${p.type}` : ""}${p.description ? ` — ${p.description}` : ""}`)].filter(Boolean).join("\n") || t.name
-                                return (
-                                  <span key={t.name} className="inline-flex items-center gap-1 rounded-md bg-gray-800 px-2 py-0.5 text-[11px] text-gray-300" title={tip}>
-                                    <Wrench size={10} className="shrink-0 text-gray-500" />{t.name}
-                                  </span>
-                                )
-                              })}
-                            </div>
-                          ) : (
-                            <p className="py-1 text-xs text-gray-500">无已注册工具</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )})}
-                  {mcpServers.length === 0 && <p className="py-4 text-center text-xs text-gray-600">暂无 MCP 服务器配置，可点击「新增」或编辑 mcp.json</p>}
-                </div>
-              </section>
-            </>)}
 
             {/* ═══ Rules ═══ */}
             {tab === "rules" && (<>
@@ -1144,42 +909,6 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
         </div>
       </div>
 
-      {/* ═══ MCP Edit Modal ═══ */}
-      {mcpEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="flex w-full max-w-lg flex-col rounded-xl border border-gray-700 bg-gray-900 shadow-2xl" style={{ maxHeight: "80vh" }}>
-            <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
-              <h3 className="text-sm font-semibold text-gray-200">{mcpEditOriginalName ? "编辑 MCP" : "新增 MCP"}</h3>
-              <button onClick={() => setMcpEditing(null)} className="text-gray-500 hover:text-white"><X size={16} /></button>
-            </div>
-            <div className="flex-1 space-y-3 overflow-y-auto px-6 py-4">
-              <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <label className="text-xs text-gray-500">配置 JSON</label>
-                  <select value={mcpEditing.source} onChange={(e) => setMcpEditing({ ...mcpEditing, source: e.target.value as "global" | "project" })} className="rounded border border-gray-700 bg-gray-900 px-2 py-0.5 text-xs text-gray-400 outline-none focus:border-blue-500">
-                    <option value="global">全局</option><option value="project">项目</option>
-                  </select>
-                </div>
-                <textarea
-                  value={mcpEditing.json}
-                  onChange={(e) => setMcpEditing({ ...mcpEditing, json: e.target.value, jsonError: undefined })}
-                  rows={14}
-                  spellCheck={false}
-                  className={inputCls + " font-mono text-xs leading-relaxed" + (mcpEditing.jsonError ? " border-red-500" : "")}
-                  placeholder={MCP_TEMPLATE}
-                />
-                {mcpEditing.jsonError && <p className="mt-1 text-xs text-red-400">{mcpEditing.jsonError}</p>}
-                <p className="mt-1 text-xs text-gray-600">格式: {"{"} "名称": {"{"} "command"|"url": ... {"}"} {"}"}</p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
-              <button onClick={() => setMcpEditing(null)} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>
-              <button onClick={handleMcpSave} className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-40">保存</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ═══ Rule Edit Modal ═══ */}
       {ruleEditing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -1400,7 +1129,6 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
             return
           }
           setWorkspaceDir(dir)
-          void refreshMcpServers(true)
         }}
       />
       {ModalPortal}

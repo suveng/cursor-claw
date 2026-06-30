@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import logoUrl from "../assets/logo.png"
 import TitleBar from "../components/TitleBar"
+import SessionMcpPanel from "../components/SessionMcpPanel"
 
 interface Props {
   /** 打开设置页，可指定初始 Tab */
@@ -66,6 +67,7 @@ export default function Dashboard({ onSettings, active }: Props) {
       agentReady: hasSdkKey || hasCcProfile,
       channelReady,
     })
+    setFallbackWorkspaceDir(cfg.workspaceDir?.trim() ?? "")
     setCliMigrationPending(!!cfg.cliMigrationPending)
   }, [])
 
@@ -73,7 +75,8 @@ export default function Dashboard({ onSettings, active }: Props) {
   useEffect(() => {
     if (active) void refreshOnboard()
   }, [active, refreshOnboard])
-  const [sessionList, setSessionList] = useState<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string }[]>([])
+  const [sessionList, setSessionList] = useState<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" }[]>([])
+  const [fallbackWorkspaceDir, setFallbackWorkspaceDir] = useState("")
   const logRef = useRef<HTMLPreElement>(null)
 
   useEffect(() => {
@@ -521,8 +524,8 @@ export default function Dashboard({ onSettings, active }: Props) {
               return (
                 <div key={s.sessionKey}>
                   <div
-                    className={`flex items-center justify-between rounded-lg bg-gray-800/60 px-3 py-2 ${hasPending ? "cursor-pointer hover:bg-gray-800/80" : ""}`}
-                    onClick={() => hasPending && toggleSessionExpand(s.sessionKey)}
+                    className="flex cursor-pointer items-center justify-between rounded-lg bg-gray-800/60 px-3 py-2 hover:bg-gray-800/80"
+                    onClick={() => toggleSessionExpand(s.sessionKey)}
                   >
                     <div className="flex items-center gap-2 overflow-hidden">
                       <span className={`h-2 w-2 rounded-full ${s.chatType === "group" ? "bg-green-400" : s.chatType === "task" ? "bg-yellow-400" : "bg-blue-400"}`} />
@@ -541,23 +544,33 @@ export default function Dashboard({ onSettings, active }: Props) {
                       <Square size={10} />
                     </button>
                   </div>
-                  {isExpanded && hasPending && (
-                    <div className="ml-4 mt-1 space-y-1 border-l-2 border-yellow-700/40 pl-3">
-                      {pendingMsgs.map((msg) => (
-                        <div key={msg.fileId} className="group flex items-start justify-between gap-2 rounded bg-gray-800/40 px-2.5 py-1.5">
-                          <div className="min-w-0 flex-1">
-                            <span className="text-[10px] text-gray-500">{formatTimestamp(msg.timestamp)}</span>
-                            <p className="truncate text-xs text-gray-300">{msg.preview}</p>
-                          </div>
-                          <button
-                            onClick={(e) => handleDeleteQueueMessage(msg.fileId, e)}
-                            className="shrink-0 rounded p-0.5 text-gray-600 opacity-0 transition hover:bg-red-600/20 hover:text-red-400 group-hover:opacity-100"
-                            title="删除此消息"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                  {isExpanded && (
+                    <div className="ml-4 mt-1 space-y-2 border-l-2 border-blue-700/40 pl-3">
+                      <SessionMcpPanel
+                        sessionKey={s.sessionKey}
+                        workspaceDir={s.workspaceDir}
+                        engineType={s.engineType}
+                        fallbackWorkspaceDir={fallbackWorkspaceDir}
+                      />
+                      {hasPending && (
+                        <div className="space-y-1 border-l-2 border-yellow-700/40 pl-3">
+                          {pendingMsgs.map((msg) => (
+                            <div key={msg.fileId} className="group flex items-start justify-between gap-2 rounded bg-gray-800/40 px-2.5 py-1.5">
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[10px] text-gray-500">{formatTimestamp(msg.timestamp)}</span>
+                                <p className="truncate text-xs text-gray-300">{msg.preview}</p>
+                              </div>
+                              <button
+                                onClick={(e) => handleDeleteQueueMessage(msg.fileId, e)}
+                                className="shrink-0 rounded p-0.5 text-gray-600 opacity-0 transition hover:bg-red-600/20 hover:text-red-400 group-hover:opacity-100"
+                                title="删除此消息"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>

@@ -1,0 +1,35 @@
+{
+  "change_id": "20260630105159-OpenCodeSDK执行引擎接入",
+  "name": "OpenCodeSDK执行引擎接入",
+  "flow": "standard",
+  "stage": "proposed",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-06-30T10:51:59+0800",
+  "updated_at": "2026-06-30T11:05:00+0800",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "新功能",
+    "priority": "P1",
+    "reference_doc_urls": [
+      "https://opencode.ai/docs/sdk/"
+    ],
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / notifications 配置"
+  },
+  "files": [
+    {
+      "path": "knowledge/变更/进行中/20260630105159-OpenCodeSDK执行引擎接入/00-manifest.json",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260630105159-OpenCodeSDK执行引擎接入/01-proposal.md",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "added"
+    }
+  ]
+}

@@ -30,9 +30,16 @@ function readApprovedServers(workspaceDir: string): Set<string> {
   return new Set()
 }
 
-/** 按名称查找 MCP 条目；同名时 project 优先于 global */
-function findMcpEntry(serverName: string): McpServerEntry | undefined {
-  const list = getMcpServerList()
+/** 解析 MCP 查询用工作区；省略时回退 config.workspaceDir */
+function resolveMcpWorkspace(workspaceDir?: string): string {
+  return (workspaceDir ?? getConfig().workspaceDir ?? "").trim()
+}
+
+/** 按名称查找 MCP 条目；同名时 project 优先于 global（可选 workspace 上下文） */
+function findMcpEntry(serverName: string, workspaceDir?: string): McpServerEntry | undefined {
+  const list = workspaceDir !== undefined
+    ? getMcpServerListForWorkspace(workspaceDir)
+    : getMcpServerList()
   return list.find((s) => s.name === serverName && s.source === "project")
     ?? list.find((s) => s.name === serverName)
 }
@@ -48,9 +55,11 @@ export async function getMcpEnabledMap(_force = false): Promise<Record<string, b
   return map
 }
 
-/** 通过 HTTP/stdio 探测各服务器健康状态，保留 30s 缓存 */
-export async function getMcpStatusMap(force = false): Promise<Record<string, string>> {
-  return fetchMcpStatusMap(force, getMcpServerList())
+/** 通过 HTTP/stdio 探测各服务器健康状态，保留 30s 缓存；可选 workspaceDir 绑定会话工作区 */
+export async function getMcpStatusMap(force = false, workspaceDir?: string): Promise<Record<string, string>> {
+  const ws = resolveMcpWorkspace(workspaceDir)
+  const servers = ws ? getMcpServerListForWorkspace(ws) : getMcpServerList()
+  return fetchMcpStatusMap(force, servers, ws || undefined)
 }
 
 export function invalidateMcpEnabledCache(): void {
@@ -83,6 +92,45 @@ export async function toggleMcpServer(
 }
 
 // ── Public API: CRUD ─────────────────────────────────────
+
+/** 读取 mcp.json servers 块；文件缺失或解析失败返回空对象 */
+function readMcpServersBlock(filePath: string): Record<string, Record<string, unknown>> {
+  try {
+    if (!fs.existsSync(filePath)) return {}
+    const cfg = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<string, unknown>
+    return (cfg.mcpServers ?? cfg.servers ?? {}) as Record<string, Record<string, unknown>>
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * 按工作区合并 global ~/.cursor/mcp.json 与 project .cursor/mcp.json。
+ * 同名 server 以 project 为准（与 mcp-sdk-loader.mergeMcpJsonEntries 规则一致）。
+ */
+export function getMcpServerListForWorkspace(workspaceDir: string): McpServerEntry[] {
+  const ws = resolveMcpWorkspace(workspaceDir)
+  const approved = ws ? readApprovedServers(ws) : new Set<string>()
+
+  const globalPath = path.join(os.homedir(), ".cursor", "mcp.json")
+  const globalServers = readMcpServersBlock(globalPath)
+  const merged = { ...globalServers }
+
+  const projectNames = new Set<string>()
+  if (ws) {
+    const projectPath = path.join(ws, ".cursor", "mcp.json")
+    const projectServers = readMcpServersBlock(projectPath)
+    for (const [name, raw] of Object.entries(projectServers)) {
+      merged[name] = raw
+      projectNames.add(name)
+    }
+  }
+
+  return Object.entries(merged).map(([name, raw]) => {
+    const source: "global" | "project" = projectNames.has(name) ? "project" : "global"
+    return buildEntry(name, raw, source, approved)
+  })
+}
 
 export function getMcpServerList(): McpServerEntry[] {
   const config = getConfig()
@@ -186,13 +234,12 @@ export function deleteMcpServer(name: string, scope: "global" | "project"): { ok
 
 // ── Public API: OAuth login ──────────────────────────────
 
-/** 返回 OAuth 手动配置说明，不再 spawn agent mcp login */
-export async function loginMcpServer(serverName: string): Promise<{ ok: boolean; output: string }> {
-  const config = getConfig()
-  const ws = (config.workspaceDir ?? "").trim()
+/** 返回 OAuth 手动配置说明；可选 workspaceDir 绑定 OAuth store 路径 */
+export async function loginMcpServer(serverName: string, workspaceDir?: string): Promise<{ ok: boolean; output: string }> {
+  const ws = resolveMcpWorkspace(workspaceDir)
   if (!ws) return { ok: false, output: "工作目录未配置" }
 
-  const server = findMcpEntry(serverName)
+  const server = findMcpEntry(serverName, ws)
   if (!server) return { ok: false, output: `找不到 MCP 服务器: ${serverName}` }
 
   const projectDir = findCursorProjectDir(ws)
@@ -216,13 +263,16 @@ export async function loginMcpServer(serverName: string): Promise<{ ok: boolean;
 
 // ── Public API: Tools Query ────────────────────────────────
 
-/** 通过 HTTP/stdio 直连查询 MCP 工具列表，无 CLI fallback */
-export async function getMcpServerTools(serverName: string): Promise<{ ok: boolean; tools: McpToolInfo[]; error?: string }> {
-  const server = findMcpEntry(serverName)
+/** 通过 HTTP/stdio 直连查询 MCP 工具列表；stdio cwd 绑定 workspaceDir */
+export async function getMcpServerTools(
+  serverName: string,
+  workspaceDir?: string,
+): Promise<{ ok: boolean; tools: McpToolInfo[]; error?: string }> {
+  const ws = resolveMcpWorkspace(workspaceDir)
+  const server = findMcpEntry(serverName, ws || undefined)
   if (!server) return { ok: false, tools: [], error: "MCP 服务器未找到" }
 
-  const config = getConfig()
-  const workspaceCwd = (config.workspaceDir || "").trim()
+  const workspaceCwd = ws || undefined
 
   if (server.type === "url" && server.url) {
     const headers = server.rawConfig?.headers as Record<string, string> | undefined
@@ -230,7 +280,7 @@ export async function getMcpServerTools(serverName: string): Promise<{ ok: boole
   }
 
   if (server.type === "command" && server.command) {
-    return queryToolsViaProtocol(server.command, server.args ?? [], server.env, workspaceCwd || undefined)
+    return queryToolsViaProtocol(server.command, server.args ?? [], server.env, workspaceCwd)
   }
 
   return { ok: false, tools: [], error: "服务器配置无效" }

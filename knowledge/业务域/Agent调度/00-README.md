@@ -17,12 +17,15 @@
 | 03 | [03-启动与自动重连.md](./03-启动与自动重连.md) | SDK/CC 启动、resume、崩溃自愈 |
 | 04 | [04-远程指令.md](./04-远程指令.md) | 12+ 远程指令与权限模型 |
 | 05 | [05-定时任务.md](./05-定时任务.md) | Cron 调度、独立 Agent、文件热重载 |
+| 06 | [06-CursorSDK执行引擎.md](./06-CursorSDK执行引擎.md) | `@cursor/sdk` launch/dispatch、resident、MCP、agent-api |
+| 07 | [07-ClaudeCodeSDK执行引擎.md](./07-ClaudeCodeSDK执行引擎.md) | `@anthropic-ai/claude-agent-sdk` query/resume、cc-agent-api |
 
 ## 推荐阅读路径
 
 1. **新人**：01 → 02 → 03
 2. **运维/飞书指令**：04 → 05
 3. **排查 IM 未 dispatch**：03 → 04（消息桥接 04）
+4. **SDK 排查**：06 → 07 → 03
 
 ## 关键源码
 
@@ -41,6 +44,7 @@
 
 ## 变更记录
 
+2026-06-30：新增 06 Cursor SDK、07 Claude Code SDK 执行引擎十段式文档（kb-sync lite）。
 2026-06-30：移除 Cursor CLI 依赖；IM/任务/工作流均经 session-dispatcher 路由 sdk/cc（archive 20260629232914）。
 2026-06-27：Daemon IM 编排、SDK-only、inject 废弃（archive 20260627162620）。
 2026-06-27：kb-sync 初始建立。

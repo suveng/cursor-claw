@@ -380,12 +380,12 @@ export function getSessionAgentList() {
   const sdkList = getSdkSessionList().map((s) => {
     const chatId = s.sessionKey.includes("::") ? s.sessionKey.split("::")[0] : s.sessionKey
     const chatName = s.chatName || chatNameCache.get(chatId) || (s.senderOpenId ? chatNameCache.get(s.senderOpenId) : undefined)
-    return { ...s, chatName, pid: 0 }
+    return { ...s, chatName, pid: 0, engineType: "sdk" as const }
   })
   const ccList = getClaudeCodeSessionList().map((s) => {
     const chatId = s.sessionKey.includes("::") ? s.sessionKey.split("::")[0] : s.sessionKey
     const chatName = s.chatName || chatNameCache.get(chatId)
-    return { ...s, chatName }
+    return { ...s, chatName, engineType: "claude-code" as const }
   })
   return [...sdkList, ...ccList]
 }
