@@ -23,6 +23,7 @@ import {
   ensureCcAgentBinaryPaths, resolveCcAgentBinaryPath,
 } from "./agent-cc-utils"
 import { appendInlineMcpToCcOptions } from "./cc-mcp-loader"
+import { buildCcSdkHooks } from "./cc-sdk-hooks"
 import { notifySessionChat, clearStreamPostTimer, broadcastCcSessionStatus, completeCcRun } from "./agent-cc-stream"
 import { armCcWatchdog, streamCcSdkMessages } from "./agent-cc-events"
 import { registerCcLaunchHandler, registerCcDispatchHandler } from "./agent-cc-http"
@@ -70,7 +71,12 @@ function buildQueryOptions(session: CcSessionAgent) {
     includePartialMessages: true,
     ...(session.ccSessionId ? { resume: session.ccSessionId } : {}),
   }
-  return appendInlineMcpToCcOptions(base, session.workspaceDir)
+  const withMcp = appendInlineMcpToCcOptions(base, session.workspaceDir)
+  return {
+    ...withMcp,
+    hooks: buildCcSdkHooks({ session, markActivity: markSessionActivity }),
+    includeHookEvents: true,
+  }
 }
 
 /** 启动 Query 并挂载事件流 */

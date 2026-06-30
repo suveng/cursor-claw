@@ -28,6 +28,8 @@
 - **二进制打包**：`ensureCcAgentBinaryPaths()` / `resolveCcAgentBinaryPath()` 解析 `@anthropic-ai/claude-agent-sdk-${platform}-${arch}` 内 `claude` 可执行文件；`electron-builder.yml` asarUnpack 解包平台包。
 - **resident 与 resume**：`CC_RESIDENT_AGENT`（默认开，`0` 关闭）Run 结束保留 Map 条目；`ccSessionId` 来自 SDK `system/init` / `result`，传入 `options.resume` 续跑上下文。
 - **Presentation 时序**：CC 路径对称 SDK 的 `PRESENTATION_ORDERING`（`presentationOrderingEligible` = 开关 + f41Stream + p2p）；tool/thinking 不抢 stream-text 首包。
+- **SDK hooks（CC）**：hook 逻辑放 `cc-sdk-hooks.ts`（`buildCcSdkHooks` / `formatCcHookUiLog`）；`buildQueryOptions` 合并 `hooks` + `includeHookEvents: true`；回调与 `hook_*` 流事件经 `markSessionActivity` 刷新时钟，UI 日志含 `hook_event=`，**禁止** hook 原文 IM notify。
+- **watchdog 超时（CC）**：`armCcWatchdog.onTimeout` 先置 `watchdogTimedOut` 再 close Query；`completeCcRun` 超时分支走 `cc-watchdog-finalize.ts`，复用 `formatUserSdkFailureMessage({ isTimeoutFailure: true })`，**跳过** `failedCooldowns`；主动 `stopClaudeCodeSession` 不得置 `watchdogTimedOut`。
 
 ## 模块边界
 

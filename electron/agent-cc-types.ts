@@ -80,5 +80,7 @@ export interface CcSessionAgent {
   runGuardToken?: string
   watchdogState: "running" | "draining" | "cancelling"
   watchdogStateAt: number
+  /** watchdog 空闲/绝对超时触发时为 true；由 armCcWatchdog.onTimeout 置位，completeCcRun 消费 */
+  watchdogTimedOut?: boolean
   logAgg: { kind: "thinking" | "text" | null; buf: string }
 }

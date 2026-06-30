@@ -14,6 +14,7 @@ import {
 import {
   appendCcAssistantStreamDelta, flushDeferredStreamPost, maybeReleaseDeferredAssistant,
 } from "./agent-cc-presentation"
+import { formatCcHookUiLog } from "./cc-sdk-hooks"
 
 /** Anthropic usage → TurnUsageSlice */
 function mapUsageToSlice(usage?: {
@@ -93,13 +94,25 @@ export function handleSdkMessage(
 ): void {
   markActivity(session, `sdk:${msg.type}`)
 
-  if (msg.type === "system" && msg.subtype === "init") {
-    if (msg.session_id) {
-      pushUiLog("CC", "INFO", `[${session.sessionKey}] cc_session_id=${msg.session_id}`)
-      session.ccSessionId = msg.session_id
+  if (msg.type === "system") {
+    if (msg.subtype === "init") {
+      if (msg.session_id) {
+        pushUiLog("CC", "INFO", `[${session.sessionKey}] cc_session_id=${msg.session_id}`)
+        session.ccSessionId = msg.session_id
+      }
+      if (msg.model) session.modelId = msg.model
+      return
     }
-    if (msg.model) session.modelId = msg.model
-    return
+    // SDK hook 流事件：刷新活动时钟 + UI 日志（与 cc-sdk-hooks 回调格式一致）
+    if (msg.subtype === "hook_started" || msg.subtype === "hook_progress" || msg.subtype === "hook_response") {
+      const hookMsg = msg as { hook_event: string; hook_name: string }
+      markActivity(session, `hook:${msg.subtype}`)
+      pushUiLog("CC", "INFO", formatCcHookUiLog(session.sessionKey, {
+        hook_event: hookMsg.hook_event,
+        hook_name: hookMsg.hook_name,
+      }))
+      return
+    }
   }
 
   if (msg.type === "assistant") {
@@ -178,6 +191,8 @@ export function armCcWatchdog(session: CcSessionAgent, token: string, opts: ArmW
     onTimeout: async () => {
       const s = getSession(session.sessionKey)
       if (!s?.activeQuery) return
+      // 先于 close 置位，供 completeCcRun 超时专分支识别
+      s.watchdogTimedOut = true
       pushUiLog("CC", "WARN", `[${session.sessionKey}] watchdog 超时，中止 Query`)
       try { s.activeQuery.close() } catch { /* best-effort */ }
     },

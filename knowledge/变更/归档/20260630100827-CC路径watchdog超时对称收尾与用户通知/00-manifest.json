@@ -1,0 +1,140 @@
+{
+  "change_id": "20260630100827-CC路径watchdog超时对称收尾与用户通知",
+  "name": "CC路径watchdog超时对称收尾与用户通知",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-06-30T10:08:27+0800",
+  "updated_at": "2026-06-30T10:36:28+0800",
+  "archived_at": "2026-06-30T10:36:28+0800",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "Bug",
+    "priority": "P1"
+  },
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260630100827-CC路径watchdog超时对称收尾与用户通知/00-manifest.json",
+      "kind": "change_doc",
+      "status": "revised"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630100827-CC路径watchdog超时对称收尾与用户通知/01-proposal.md",
+      "kind": "change_doc",
+      "status": "revised",
+      "note": "2026-06-30 纳入 F4-hook/latch/log/notify 子项、场景 D 与验收 7-8"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630100827-CC路径watchdog超时对称收尾与用户通知/02-design.md",
+      "kind": "change_doc",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630100827-CC路径watchdog超时对称收尾与用户通知/03-tasks.md",
+      "kind": "change_doc",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630100827-CC路径watchdog超时对称收尾与用户通知/04-review.md",
+      "kind": "change_doc",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630100827-CC路径watchdog超时对称收尾与用户通知/05-summary.md",
+      "kind": "change_doc",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630100827-CC路径watchdog超时对称收尾与用户通知/06-automation-test.md",
+      "kind": "change_doc",
+      "status": "added"
+    },
+    {
+      "path": "electron/cc-sdk-hooks.ts",
+      "kind": "code",
+      "status": "added"
+    },
+    {
+      "path": "electron/cc-watchdog-finalize.ts",
+      "kind": "code",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-cc-types.ts",
+      "kind": "code",
+      "status": "modified"
+    },
+    {
+      "path": "electron/agent-claude-sdk.ts",
+      "kind": "code",
+      "status": "modified"
+    },
+    {
+      "path": "electron/agent-cc-events.ts",
+      "kind": "code",
+      "status": "modified"
+    },
+    {
+      "path": "electron/agent-cc-stream.ts",
+      "kind": "code",
+      "status": "modified"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "kind": "code",
+      "status": "modified"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/01-概览.md",
+      "kind": "knowledge",
+      "status": "synced",
+      "note": "§八 CC/SDK watchdog 超时 IM 对称与 hook 可观测（§05·4·一）"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+      "kind": "knowledge",
+      "status": "synced",
+      "note": "cc-sdk-hooks / cc-watchdog-finalize 职责与 UI 日志字段约定（§05·4·一）"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "扩展 CcSessionAgent 超时标记字段",
+      "status": "done",
+      "files": ["electron/agent-cc-types.ts"],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "新建 cc-sdk-hooks.ts（hooks 工厂与 UI 日志）",
+      "status": "done",
+      "files": ["electron/cc-sdk-hooks.ts"],
+      "depends_on": []
+    },
+    {
+      "id": "T3",
+      "title": "buildQueryOptions 注入 SDK hooks",
+      "status": "done",
+      "files": ["electron/agent-claude-sdk.ts"],
+      "depends_on": ["T2"]
+    },
+    {
+      "id": "T4",
+      "title": "hook 流事件处理与 watchdog 超时标记",
+      "status": "done",
+      "files": ["electron/agent-cc-events.ts"],
+      "depends_on": ["T1", "T2"]
+    },
+    {
+      "id": "T5",
+      "title": "completeCcRun watchdog 超时对称收尾与 IM 通知",
+      "status": "done",
+      "files": ["electron/agent-cc-stream.ts", "electron/cc-watchdog-finalize.ts"],
+      "depends_on": ["T1", "T4"]
+    }
+  ],
+  "reviews": []
+}
