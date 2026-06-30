@@ -25,7 +25,7 @@
 - **执行引擎**：`agent-claude-sdk.ts` 使用 `@anthropic-ai/claude-agent-sdk` 的 `query()` API（非 spawn CLI）；HTTP 契约由 `agent-cc-http.ts` 暴露，handler 经依赖注入注册。
 - **Session 注册表**：`agent-cc-session-registry.ts` 维护 `CC_SESSIONS` Map 与 `getClaudeCodeSessionList`/`getCcSession`/`getCcActiveQuery` 查询导出；`agent-claude-sdk.ts` re-export 三函数以保持 `daemon-manager`/`session-dispatcher` import 路径不变。
 - **MCP 内联**：`cc-mcp-loader.ts` 读取 global/project `.cursor/mcp.json` 合并 OAuth（对称 `mcp-sdk-loader.ts`）；每次 `query()` 经 `appendInlineCcMcpToCcOptions` 重传 `mcpServers`（SDK 不持久化 inline 配置）。
-- **事件映射**：`agent-cc-events.ts` 遍历 `SDKMessage` async iterator（含 `includePartialMessages` stream_event）；Presentation 出站复用 `agent-cc-stream.ts`。
+- **事件映射**：`agent-cc-events.ts` 遍历 `SDKMessage` async iterator（含 `includePartialMessages` stream_event）；Presentation 出站复用 `agent-cc-stream.ts`。f41 流式下 `stream_event`/`text_delta` 与 `assistant`/`text` block 经 `ccTextFromPartialStream` 去重，仅一路 append 正文。
 - **二进制打包**：`ensureCcAgentBinaryPaths()` / `resolveCcAgentBinaryPath()` 解析 `@anthropic-ai/claude-agent-sdk-${platform}-${arch}` 内 `claude` 可执行文件；`electron-builder.yml` asarUnpack 解包平台包。
 - **resident 与 resume**：`CC_RESIDENT_AGENT`（默认开，`0` 关闭）Run 结束保留 Map 条目；`ccSessionId` 来自 SDK `system/init` / `result`，传入 `options.resume` 续跑上下文。
 - **Presentation 时序**：CC 路径对称 SDK 的 `PRESENTATION_ORDERING`（`presentationOrderingEligible` = 开关 + f41Stream + p2p）；tool/thinking 不抢 stream-text 首包。

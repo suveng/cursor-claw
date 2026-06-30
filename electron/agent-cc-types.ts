@@ -88,4 +88,9 @@ export interface CcSessionAgent {
    */
   lastMcpServersSnapshot?: Array<{ name: string; status: string; config?: unknown; scope?: string; tools?: unknown[] }>
   logAgg: { kind: "thinking" | "text" | null; buf: string }
+  /**
+   * 本轮 assistant 正文是否已由 stream_event/text_delta 写入 f41 流；
+   * 为 true 时跳过 assistant text block 的重复 append，assistant 收尾或 reset 清零。
+   */
+  ccTextFromPartialStream?: boolean
 }

@@ -41,8 +41,10 @@ function handleContentBlocks(
 ): void {
   for (const block of blocks) {
     if (!isUserMessage && block.type === "text" && block.text) {
-      if (session.f41Stream) appendCcAssistantStreamDelta(session, block.text)
-      else appendCcLog(session, "text", block.text)
+      // f41 流式：若 partial text_delta 已写入，跳过 assistant text block 避免正文重复
+      if (session.f41Stream) {
+        if (!session.ccTextFromPartialStream) appendCcAssistantStreamDelta(session, block.text)
+      } else appendCcLog(session, "text", block.text)
     } else if (!isUserMessage && block.type === "thinking" && (block.thinking || block.text)) {
       const delta = block.thinking ?? block.text ?? ""
       appendCcLog(session, "thinking", delta)
@@ -75,8 +77,11 @@ function handleStreamEvent(
   if (event.type !== "content_block_delta" || !event.delta) return
   const d = event.delta
   if (d.type === "text_delta" && d.text) {
-    if (session.f41Stream) appendCcAssistantStreamDelta(session, d.text)
-    else appendCcLog(session, "text", d.text)
+    if (session.f41Stream) {
+      // 标记本轮正文已由 partial 流写入，供 assistant text block 去重
+      session.ccTextFromPartialStream = true
+      appendCcAssistantStreamDelta(session, d.text)
+    } else appendCcLog(session, "text", d.text)
   } else if (d.type === "thinking_delta" && d.thinking) {
     appendCcLog(session, "thinking", d.thinking)
     markProcessEventSeen(session)
@@ -133,6 +138,8 @@ export function handleSdkMessage(
     const usageSlice = mapUsageToSlice(msg.message.usage as Parameters<typeof mapUsageToSlice>[0])
     if (usageSlice) updateContextUsageDisplay(session, usageSlice)
     if (msg.session_id) session.ccSessionId = msg.session_id
+    // assistant 轮次结束，清零 partial 去重闩，供下一轮使用
+    session.ccTextFromPartialStream = false
     return
   }
 

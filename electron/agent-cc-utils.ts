@@ -128,6 +128,7 @@ export function resetCcRunPresentationState(session: CcSessionAgent): void {
   session.seenProcessEvent = false
   session.presentationDeferStream = false
   session.thinkingOpen = false
+  session.ccTextFromPartialStream = false
   session.contextUsage = { ...ZERO_CONTEXT_USAGE }
   session.contextUsageFromRunTotal = undefined
   session.contextUsageFinalized = false
