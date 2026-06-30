@@ -1,51 +1,46 @@
 # Agent 调度
 
-> 负责 Cursor Agent 的多会话并行、启动/重连、远程指令与定时任务调度。
+> 多会话并行、启动/重连、远程指令与定时任务调度。
 
 ## 职责边界
 
-**负责**：会话模型（私聊/群聊/临时/定时/工作流）、Cursor SDK 与 Claude Code SDK 双引擎 IM/任务/工作流执行、CC `--resume` 续接、Daemon 转发调度、远程 `/` 指令、Cron 定时触发。
+**负责**：五类会话、Cursor/Claude/Codex **三引擎** IM/任务/工作流、续接、Daemon 调度、远程指令、Cron。
 
-**不负责**：消息通道连接（飞书/微信 WebSocket）、MCP 工具实现、工作流 YAML 编排细节（见工作流域）。
+**不负责**：消息通道连接、MCP 工具实现、工作流 YAML（见工作流域）。
 
 ## 文件清单
 
 | 编号 | 文件 | 内容 |
 |------|------|------|
-| 01 | [01-概览.md](./01-概览.md) | 模块总图、架构、术语、依赖 |
-| 02 | [02-多会话模型.md](./02-多会话模型.md) | 五类 ChatType、sessionKey、工作目录隔离 |
-| 03 | [03-启动与自动重连.md](./03-启动与自动重连.md) | SDK/CC 启动、resume、崩溃自愈 |
-| 04 | [04-远程指令.md](./04-远程指令.md) | 12+ 远程指令与权限模型 |
-| 05 | [05-定时任务.md](./05-定时任务.md) | Cron 调度、独立 Agent、文件热重载 |
-| 06 | [06-CursorSDK执行引擎.md](./06-CursorSDK执行引擎.md) | `@cursor/sdk` launch/dispatch、resident、MCP、agent-api |
-| 07 | [07-ClaudeCodeSDK执行引擎.md](./07-ClaudeCodeSDK执行引擎.md) | `@anthropic-ai/claude-agent-sdk` query/resume、cc-agent-api |
+| 01 | [01-概览.md](./01-概览.md) | 总图、架构、术语 |
+| 02 | [02-多会话模型.md](./02-多会话模型.md) | ChatType、sessionKey |
+| 03 | [03-启动与自动重连.md](./03-启动与自动重连.md) | 三引擎启动、resume |
+| 04 | [04-远程指令.md](./04-远程指令.md) | 远程指令 |
+| 05 | [05-定时任务.md](./05-定时任务.md) | Cron |
+| 06 | [06-CursorSDK执行引擎.md](./06-CursorSDK执行引擎.md) | Cursor SDK |
+| 07 | [07-ClaudeCodeSDK执行引擎.md](./07-ClaudeCodeSDK执行引擎.md) | Claude Agent SDK |
+| 08 | [08-CodexSDK执行引擎.md](./08-CodexSDK执行引擎.md) | Codex SDK |
 
 ## 推荐阅读路径
 
-1. **新人**：01 → 02 → 03
-2. **运维/飞书指令**：04 → 05
-3. **排查 IM 未 dispatch**：03 → 04（消息桥接 04）
-4. **SDK 排查**：06 → 07 → 03
+1. 新人：01 → 02 → 03
+2. 运维：04 → 05
+3. IM 排查：03 → 04
+4. SDK 排查：06 → 07 → 08 → 03
 
 ## 关键源码
 
 | 模块 | 路径 |
 |------|------|
-| 会话调度 | `electron/session-dispatcher.ts` |
-| Prompt 构建 | `electron/agent-launcher.ts`（`buildPrompt` 等，无 CLI spawn） |
-| Cursor SDK 启动 | `electron/agent-sdk.ts` |
-| CC SDK 启动 | `electron/agent-claude-sdk.ts`（入口）、`electron/agent-cc-types.ts`、`electron/agent-cc-utils.ts`、`electron/agent-cc-stream.ts`、`electron/agent-cc-events.ts`、`electron/agent-cc-http.ts` |
-| Daemon 编排 | `electron/daemon-manager.ts` |
-| 指令处理 | `electron/command-handler.ts` |
-| Cron（UI） | `electron/cron-scheduler.ts` |
-| Cron（Daemon） | `src/daemon-scheduled-tasks.ts` |
+| 调度 | `electron/session-dispatcher.ts`、`electron/agent-sdk.ts` |
+| Cursor | `electron/agent-sdk.ts` |
+| Claude | `electron/agent-claude-sdk.ts`、`electron/agent-cc-*.ts` |
+| Codex | `electron/agent-codex-sdk.ts`、`electron/agent-codex-*.ts`、`electron/codex-mcp-loader.ts` |
+| HTTP | `agent-cc-http.ts`（cc 端口）、`agent-codex-http.ts`（codex 端口） |
 | 配置 | `electron/config-store.ts` |
-| CC agent-api | `electron/agent-cc-http.ts`（端口 cc-agent-api-port.json） |
 
 ## 变更记录
 
-2026-06-30：新增 06 Cursor SDK、07 Claude Code SDK 执行引擎十段式文档（kb-sync lite）。
-2026-06-30：移除 Cursor CLI 依赖；IM/任务/工作流均经 session-dispatcher 路由 sdk/cc（archive 20260629232914）。
-2026-06-27：Daemon IM 编排、SDK-only、inject 废弃（archive 20260627162620）。
-2026-06-27：kb-sync 初始建立。
-2026-06-29：扩展 Claude Code SDK 执行引擎（archive 20260629164130）。
+2026-06-30：新增 08 Codex SDK；三引擎 `agent-codex-*`（archive 20260630104714）。
+2026-06-30：新增 06/07 执行引擎文档（kb-sync）。
+2026-06-29：扩展 Claude Code SDK（archive 20260629164130）。

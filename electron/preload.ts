@@ -3,7 +3,8 @@ import type { WorkflowDefinition, WorkflowInstance } from "../src/shared/workflo
 
 export interface AgentResource {
   id: string
-  type: "cli" | "sdk" | "claude-code"
+  // Codex 已接入；待 OpenCodeSDK 接入时按同模式加 "opencode"
+  type: "cli" | "sdk" | "claude-code" | "codex"
   name: string
   apiKey?: string
   email?: string
@@ -229,11 +230,11 @@ const api = {
   injectWorkspace: (): Promise<{ results: InjectResult[] }> => ipcRenderer.invoke("workspace:inject"),
   startDaemon: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("daemon:start"),
   stopAgent: (): Promise<{ ok: boolean }> => ipcRenderer.invoke("agent:stop"),
-  getSessionAgents: (): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" }[]> =>
+  getSessionAgents: (): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" | "codex" }[]> =>
     ipcRenderer.invoke("agent:sessions"),
   stopSessionAgent: (sessionKey: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("agent:stop-session", sessionKey),
   stopAllSessionAgents: (): Promise<{ ok: boolean }> => ipcRenderer.invoke("agent:stop-all-sessions"),
-  onSessionAgents: (cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" }[]) => void) => {
+  onSessionAgents: (cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" | "codex" }[]) => void) => {
     const handler = (_e: Electron.IpcRendererEvent, list: Parameters<typeof cb>[0]) => cb(list)
     ipcRenderer.on("agent:sessions", handler)
     return () => { ipcRenderer.removeListener("agent:sessions", handler) }
@@ -248,6 +249,8 @@ const api = {
   listSdkModels: (apiKey: string, currentModel?: string, currentParams?: string): Promise<{ ok: boolean; models: { id: string; label: string; params: string; current: boolean }[]; error?: string }> => ipcRenderer.invoke("sdk:list-models", apiKey, currentModel, currentParams),
   checkCcApiKey: (apiKey: string, baseUrl?: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("cc:check-api-key", apiKey, baseUrl),
   listCcModels: (): Promise<Array<{ id: string; label: string }>> => ipcRenderer.invoke("cc:list-models"),
+  /** 列出 Codex 可用模型（静态清单，无需 apiKey） */
+  listCodexModels: (): Promise<Array<{ id: string; label: string }>> => ipcRenderer.invoke("codex:list-models"),
   getScheduledTasks: (): Promise<ScheduledTask[]> => ipcRenderer.invoke("scheduled-tasks:get"),
   saveScheduledTasks: (tasks: ScheduledTask[]): Promise<{ ok: boolean }> => ipcRenderer.invoke("scheduled-tasks:save", tasks),
   validateCron: (expression: string): Promise<boolean> => ipcRenderer.invoke("scheduled-tasks:validate-cron", expression),

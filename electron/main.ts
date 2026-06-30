@@ -17,6 +17,7 @@ import {
   listSdkModels,
   checkClaudeCodeApiKey,
   CLAUDE_CODE_MODEL_LIST,
+  CODEX_MODEL_LIST,
 } from "./daemon-manager"
 import {
   getMcpServerList,
@@ -362,6 +363,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle("sdk:list-models", (_, apiKey: string, currentModel?: string, currentParams?: string) => listSdkModels(apiKey, currentModel, currentParams))
   ipcMain.handle("cc:check-api-key", (_, apiKey: string, baseUrl?: string) => checkClaudeCodeApiKey(apiKey, baseUrl))
   ipcMain.handle("cc:list-models", () => CLAUDE_CODE_MODEL_LIST)
+  ipcMain.handle("codex:list-models", () => CODEX_MODEL_LIST)
 }
 
 let isQuitting = false

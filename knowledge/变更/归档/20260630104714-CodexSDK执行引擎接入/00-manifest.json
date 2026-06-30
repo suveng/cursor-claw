@@ -1,0 +1,491 @@
+{
+  "change_id": "20260630104714-CodexSDK执行引擎接入",
+  "name": "CodexSDK执行引擎接入",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-06-30T10:47:14+0800",
+  "updated_at": "2026-06-30T22:00:00+0800",
+  "test_summary": "tsc --noEmit 通过；T-FIX-01~05 静态追溯 ✅；K1–K5 runtime 待人工",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "新功能",
+    "priority": "P1",
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / notifications 配置",
+    "reference_docs": [
+      {
+        "title": "Codex SDK 官方文档",
+        "url": "https://developers.openai.com/codex/sdk"
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "类型与配置扩展",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/shared/channel-types.ts",
+        "electron/preload.ts",
+        "src/renderer/env.d.ts",
+        "electron/config-store.ts"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "Codex HTTP server 与路由",
+      "status": "done",
+      "depends_on": ["T1", "T3"],
+      "files": [
+        "electron/agent-codex-http.ts",
+        "electron/agent-codex-sdk.ts",
+        "electron/session-dispatcher.ts",
+        "electron/preload.ts",
+        "electron/config-store.ts",
+        "electron/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "Codex 引擎适配器核心",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": [
+        "electron/agent-codex-types.ts",
+        "electron/agent-codex-events.ts",
+        "electron/agent-codex-stream.ts",
+        "electron/agent-codex-utils.ts",
+        "electron/agent-codex-sdk.ts"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "会话续接与生命周期",
+      "status": "done",
+      "depends_on": ["T3"],
+      "files": [
+        "electron/agent-codex-sdk.ts",
+        "electron/agent-codex-events.ts",
+        "electron/agent-codex-stream.ts"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "MCP 加载",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/codex-mcp-loader.ts"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "UI 层",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": [
+        "src/renderer/components/AgentResourceModals.tsx",
+        "src/renderer/components/ChannelModelSection.tsx",
+        "src/renderer/components/AgentPanel.tsx",
+        "src/renderer/components/AgentProfilePanels.tsx",
+        "src/renderer/components/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "模型清单",
+      "status": "done",
+      "depends_on": ["T3"],
+      "files": [
+        "electron/agent-codex-types.ts",
+        "electron/agent-codex-sdk.ts",
+        "electron/daemon-manager.ts",
+        "electron/main.ts",
+        "electron/preload.ts",
+        "src/renderer/env.d.ts",
+        "src/renderer/components/AgentResourceModals.tsx"
+      ]
+    },
+    {
+      "id": "T8",
+      "title": "错误归因映射",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/codex-failure-messages.ts"
+      ]
+    },
+    {
+      "id": "T-FIX-01",
+      "title": "IM Daemon launch 路径纳入 Codex 路由",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/agent-sdk.ts"
+      ]
+    },
+    {
+      "id": "T-FIX-02",
+      "title": "飞书 process gate import 别名修复",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/agent-codex-stream.ts"
+      ]
+    },
+    {
+      "id": "T-FIX-03",
+      "title": "session-dispatcher stop/list + daemon 运行态 + stopCodex 导出",
+      "status": "done",
+      "depends_on": ["T2", "T3", "T4"],
+      "files": [
+        "electron/agent-codex-session-registry.ts",
+        "electron/agent-codex-sdk.ts",
+        "electron/session-dispatcher.ts",
+        "electron/daemon-manager.ts",
+        "electron/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T-FIX-04",
+      "title": "Codex run 代际校验/日志脱敏/失败文案单点",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/agent-codex-stream.ts",
+        "electron/agent-codex-complete.ts",
+        "electron/agent-codex-sdk.ts",
+        "electron/agent-codex-events.ts",
+        "electron/agent-codex-watchdog.ts",
+        "electron/agent-codex-utils.ts",
+        "electron/codex-failure-messages.ts"
+      ]
+    },
+    {
+      "id": "T-FIX-05",
+      "title": "getAgentResource fallback 与 codex 通道 model 覆盖",
+      "status": "done",
+      "depends_on": ["T-FIX-03"],
+      "files": [
+        "electron/config-store.ts",
+        "electron/session-dispatcher.ts",
+        "electron/agent-sdk.ts",
+        "electron/agent-codex-http.ts"
+      ]
+    }
+  ],
+  "review_meta": {
+    "level": "full-review",
+    "rounds": [
+      { "id": "R1", "agent": "kb-reviewer#1", "focus": "路由+鉴权", "verdict": "fail", "at": "2026-06-30T15:20:00+0800" },
+      { "id": "R2", "agent": "kb-reviewer#2", "focus": "执行+流式", "verdict": "fail", "at": "2026-06-30T15:25:00+0800" },
+      { "id": "R3", "agent": "kb-reviewer#3", "focus": "设计偏差+Ponytail", "verdict": "conditional", "at": "2026-06-30T15:45:00+0800" },
+      { "id": "R4", "agent": "kb-reviewer#4", "focus": "多端一致性", "verdict": "fail", "at": "2026-06-30T15:30:00+0800" },
+      { "id": "R5", "agent": "kb-reviewer#5", "focus": "性能与安全", "verdict": "fail", "at": "2026-06-30T16:00:00+0800" },
+      { "id": "R6", "agent": "kb-reviewer#6", "focus": "Ponytail", "verdict": "pass_warn", "score": 64, "at": "2026-06-30T16:00:00+0800" },
+      { "id": "R7", "agent": "kb-reviewer", "focus": "T-FIX-01~05 复评", "verdict": "pass", "at": "2026-06-30T20:30:00+0800" }
+    ],
+    "merged_doc": "04-review.md",
+    "verdict": "pass",
+    "archive_ok": true,
+    "acceptance": "41/41",
+    "critical_count": 0,
+    "warning_ge_75_count": 0,
+    "at": "2026-06-30T20:30:00+0800"
+  },
+  "reviews": [
+    {
+      "id": "R-CRIT-01",
+      "severity": "critical",
+      "status": "fixed",
+      "file": "electron/agent-sdk.ts",
+      "summary": "resolveBoundAgentResourceType 不含 codex，IM Daemon 路径无法启动 Codex",
+      "task_id": "T-FIX-01",
+      "score": 96,
+      "source": "R1/R2",
+      "fixed_files": [
+        "electron/agent-sdk.ts"
+      ]
+    },
+    {
+      "id": "R-CRIT-02",
+      "severity": "critical",
+      "status": "fixed",
+      "file": "electron/agent-codex-stream.ts",
+      "summary": "feishuSuppressesProcessKind 未定义，飞书 process gate ReferenceError",
+      "task_id": "T-FIX-02",
+      "score": 88,
+      "source": "R2"
+    },
+    {
+      "id": "R-WARN-01",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/session-dispatcher.ts",
+      "summary": "stop/isRunning/getSessionAgentList 未覆盖 Codex，Dashboard 停止与列表不对称",
+      "task_id": "T-FIX-03",
+      "score": 92,
+      "source": "R4/R5"
+    },
+    {
+      "id": "R-WARN-02",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/agent-codex-stream.ts",
+      "summary": "completeCodexRun 无 run 代际校验，旧 run 收尾可覆盖新 run",
+      "task_id": "T-FIX-04",
+      "score": 85,
+      "source": "R2"
+    },
+    {
+      "id": "R-WARN-03",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/config-store.ts",
+      "summary": "getAgentResource Profile 删除后仍 fallback findFirstRunnableResource，违反 F6",
+      "task_id": "T-FIX-05",
+      "score": 85,
+      "source": "R3",
+      "fixed_files": [
+        "electron/config-store.ts",
+        "electron/agent-sdk.ts",
+        "electron/agent-codex-http.ts"
+      ]
+    },
+    {
+      "id": "R-WARN-04",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/agent-codex-sdk.ts",
+      "summary": "异常路径 ERROR 日志未脱敏，apiKey 可能进入 logBuffer/归档快照",
+      "task_id": "T-FIX-04",
+      "score": 80,
+      "source": "R1/R5"
+    },
+    {
+      "id": "R-WARN-05",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/session-dispatcher.ts",
+      "summary": "通道残留 model 覆盖 Codex Profile 模型",
+      "task_id": "T-FIX-05",
+      "score": 78,
+      "source": "R2",
+      "fixed_files": [
+        "electron/session-dispatcher.ts"
+      ]
+    },
+    {
+      "id": "R-WARN-06",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/agent-codex-sdk.ts",
+      "summary": "IM 失败通知链 formatCodexFailureMessage 双重格式化",
+      "task_id": "T-FIX-04",
+      "score": 77,
+      "source": "R2"
+    },
+    {
+      "id": "R-WARN-07",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/session-dispatcher.ts",
+      "summary": "launchAgent codex 分支缺 OpenCode rebase 注释",
+      "task_id": "T-FIX-03",
+      "score": 75,
+      "source": "R3"
+    }
+  ],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260630104714-CodexSDK执行引擎接入/04-review.md",
+      "kind": "change_doc",
+      "source": "review",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630104714-CodexSDK执行引擎接入/06-automation-test.md",
+      "kind": "change_doc",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630104714-CodexSDK执行引擎接入/00-manifest.json",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630104714-CodexSDK执行引擎接入/01-proposal.md",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630104714-CodexSDK执行引擎接入/02-design.md",
+      "kind": "change_doc",
+      "source": "design",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630104714-CodexSDK执行引擎接入/03-tasks.md",
+      "kind": "change_doc",
+      "source": "plan",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630104714-CodexSDK执行引擎接入/05-summary.md",
+      "kind": "change_doc",
+      "source": "archive",
+      "status": "added"
+    },
+    {
+      "path": "electron/codex-failure-messages.ts",
+      "kind": "code",
+      "source": "T8",
+      "status": "added"
+    },
+    {
+      "path": "electron/codex-mcp-loader.ts",
+      "kind": "code",
+      "source": "T5",
+      "status": "added"
+    },
+    {
+      "path": "src/shared/channel-types.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/preload.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/env.d.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/config-store.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-codex-types.ts",
+      "kind": "code",
+      "source": "T3",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-codex-events.ts",
+      "kind": "code",
+      "source": "T3",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-codex-stream.ts",
+      "kind": "code",
+      "source": "T3",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-codex-utils.ts",
+      "kind": "code",
+      "source": "T3",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-codex-sdk.ts",
+      "kind": "code",
+      "source": "T3",
+      "status": "added"
+    },
+    {
+      "path": "electron/ui-logger.ts",
+      "kind": "code",
+      "source": "T3",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "code",
+      "source": "T3",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/AgentResourceModals.tsx",
+      "kind": "code",
+      "source": "T6",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/ChannelModelSection.tsx",
+      "kind": "code",
+      "source": "T6",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/AgentPanel.tsx",
+      "kind": "code",
+      "source": "T6",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/AgentProfilePanels.tsx",
+      "kind": "code",
+      "source": "T6",
+      "status": "added"
+    },
+    {
+      "path": "src/renderer/components/AGENTS.md",
+      "kind": "code",
+      "source": "T6",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-codex-http.ts",
+      "kind": "code",
+      "source": "T2",
+      "status": "added"
+    },
+    {
+      "path": "electron/session-dispatcher.ts",
+      "kind": "code",
+      "source": "T2",
+      "status": "changed"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "kind": "code",
+      "source": "T2",
+      "status": "changed"
+    },
+    {
+      "path": "electron/daemon-manager.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/main.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-codex-session-registry.ts",
+      "kind": "code",
+      "source": "T-FIX-03",
+      "status": "added"
+    }
+  ]
+}

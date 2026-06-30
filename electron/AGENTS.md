@@ -32,6 +32,18 @@
 - **SDK hooks（CC）**：hook 逻辑放 `cc-sdk-hooks.ts`（`buildCcSdkHooks` / `formatCcHookUiLog`）；`buildQueryOptions` 合并 `hooks` + `includeHookEvents: true`；回调与 `hook_*` 流事件经 `markSessionActivity` 刷新时钟，UI 日志含 `hook_event=`，**禁止** hook 原文 IM notify。
 - **watchdog 超时（CC）**：**idle 与 absolute 解耦** — idle 默认 `CC_IDLE_TIMEOUT_MS`/`SDK_IDLE_TIMEOUT_MS`（300s）；absolute 默认 `CC_ABSOLUTE_TIMEOUT_MS`/`CC_RUN_WATCHDOG_MS`/`SDK_RUN_WATCHDOG_MS`/`PLATFORM_RUN_LIMIT_MS`（7min），**不得**再等于 idle 默认。与 SDK 共用 `NEVER_CANCEL_ON_DURATION`（默认 true）：`watchRunGuard.timeoutMs` 传 `Number.MAX_SAFE_INTEGER`，idle 仍走 `onTick`+`lastActivityAt`；关闭 never-cancel 时 absolute 硬 cap **仅**在 `onTick` 分支（`runStartedAt`），不经 guard L73 单一 timeout。`armCcWatchdog.onTimeout` 先置 `watchdogTimedOut` 再 close Query；`completeCcRun` 超时分支走 `cc-watchdog-finalize.ts`，复用 `formatUserSdkFailureMessage({ isTimeoutFailure: true })`，**跳过** `failedCooldowns`；主动 `stopClaudeCodeSession` 不得置 `watchdogTimedOut`。
 
+## Codex Agent SDK 模块边界
+
+- **执行引擎**：`agent-codex-sdk.ts` 入口编排 `launchCodexAgent`/`dispatchToCodexAgent`（`new Codex` + `startThread` + `runStreamed`）；复杂逻辑下沉 `agent-codex-events` / `agent-codex-stream` / `agent-codex-utils`；**单文件 ≤300 行**。
+- **Session 注册表**：`agent-codex-session-registry.ts` 维护 `CODEX_SESSIONS` Map 与 `getCodexSessionList`/`isCodexSessionRunning`/`stopCodexSession`/`stopAllCodexSessions`；`agent-codex-sdk.ts` re-export 以保持 `daemon-manager`/`session-dispatcher` import 路径不变（对称 `agent-cc-session-registry.ts`）。
+- **类型 SSOT**：`agent-codex-types.ts` 导出 `CodexSessionAgent`/`CodexLaunchOptions`；`codex-mcp-loader` import 该 `CodexLaunchOptions`，勿重复定义。
+- **CLI 二进制**：`checkCodexCliAvailable`/`resolveCodexCliPath` 解析 `@openai/codex` optional 平台包 `vendor/*/bin/codex`；launch 前检测，缺失返回「未检测到 Codex CLI，请先安装」。
+- **事件映射**：`agent-codex-events.ts` 处理 8 类 `ThreadEvent`（含 SDK `type:"error"` 与设计稿 `thread.error` 兼容）；未识别事件/ThreadItem 子类型 `WARN` 不崩溃。
+- **流式出站**：`agent-codex-stream.ts` 对称 CC（400ms 节流、`streamPostChain` 串行、`completeCodexRun` footer）；`ui-logger.SessionSource` 含 `"codex"`。
+- **失败文案**：`codex-failure-messages.ts` 纯函数模块；用户可见 IM 文案经 `formatCodexFailureMessage(error)`；apiKey 脱敏经 `maskCodexApiKey`；**禁止** `OPENAI_API_KEY`/apiKey 明文进入文案、UI 日志或崩溃归档快照。`agent-codex-utils` re-export `maskCodexApiKey`，勿重复实现。
+- **MCP 内联**：`codex-mcp-loader.ts` 读 Codex CLI 原生 `config.toml`（`~/.codex/config.toml` global + `{ws}/.codex/config.toml` project），**不读** `.cursor/mcp.json` / `.mcp.json`。优先级 project > global；`loadCodexMcpServers` / `appendInlineMcpToCodexOptions` 每次 launch 重传 `mcpServers`（仿 CC/SDK 路径）。stdio resolve/cwd 约定与 `cc-mcp-loader` 一致。TOML 解析为文件内最小实现，**禁止**为此加 npm 依赖。
+- **HTTP 桥接**：`agent-codex-http.ts` 独立 server（仿 `agent-cc-http.ts`）；`initSessionDispatcher` 调 `ensureCodexHttpServer()`；端口 `userData/codex-agent-api-port.json`（写入失败 WARN）；路由 `POST /api/codex/agent/launch|dispatch`；launch/dispatch handler 由 `agent-codex-sdk.ts` 末尾 `registerCodex*Handler` 注入；`session-dispatcher.launchAgent` 在 `resource.type === "codex"` 时 POST 本地端口。
+
 ## 模块边界
 
 - `proxy-env`：子进程/Daemon 启动时的 HTTP(S) 代理 env 注入；**不** spawn Cursor CLI。
@@ -55,6 +67,7 @@
 ## 通道配置字段
 
 - `MessageChannel` 增删字段须同步：`src/shared/channel-types.ts`、`electron/preload.ts`、`src/renderer/env.d.ts`（`ChannelConfig`）。
+- `AgentResource.type` 三处同步（`channel-types` / `preload` / `env.d.ts`）；`engineType` 两处同步（`preload` / `env.d.ts`）。新增引擎类型时同步扩展 `findFirstRunnableResource` 兜底链与 `config-store` 侧 `new*ResourceId()`；已删除 Codex 绑定（`isCodexResourceId`）时 `getAgentResource` **不** fallback 其他 Profile。
 - 旧通道读时兜底写在 `config-store.getChannels`，与 `ChannelPanel` reload / `emptyChannel` 保持一致。
 - **SDK error 可观测性**：`handleSdkEvent` 在 `tool_call` 时写入 `session.lastTool`；`run.status === "error"` 时 UI 日志单行 `运行错误详情:` 含 `sessionKey`、`agentId`、`durationMs`、`lastTool`、`run.result`、`errorCode`、`waitResult` 等结构化字段。
 - **保活失败文案（F3.2）**：超时类由 `isRunTimeoutFailure` 判定后 `formatUserSdkFailureMessage` 输出「会话因等待超时已退出…」（含 F3.2 shell:running + duration≥20min、平台长时 ≥7min）；`isTimeoutFailure` 分支**优先于** CANCELLED 固定「任务已取消」句。`notifySdkFailure` 用 `run`/`runStartedAt` 解析 duration。平台长时 `CANCELLED/ERROR/EXPIRED` 经 finalizer 即时 notify；短 ERROR 走 `completeSdkRun`。非超时 tool/上下文失败走 `sdk-failure-messages` 归因。
@@ -80,3 +93,14 @@
 - **preload 暴露**：`contextBridge` 的 `api` 对象内 `getMcpStatusMap` 之后 `getAgentMcpStatus: (sessionKey, force?, engineType?, workspaceDir?) => ipcRenderer.invoke("agent:mcp-status", sessionKey, force, engineType, workspaceDir)`；返回 `Promise<AgentMcpStatusResult>`，`AgentMcpStatusResult` 在 preload 内 `export interface` 本地声明（与 `McpServerEntry` 同模式），字段与 `electron/session-mcp-status` 对齐（`servers`/`statusMap`/`source`）。
 - **env.d.ts 签名**：`ElectronAPI.getAgentMcpStatus(sessionKey, force?, engineType?, workspaceDir?): Promise<AgentMcpStatusResult>`；`AgentMcpStatusResult` 经 `/// <reference path="./types/mcp.d.ts" />` 引入。
 - **保留项**：`mcp:list-for-workspace` / `mcp:status-map` IPC 与 preload `listMcpForWorkspace` / `getMcpStatusMap` **保留不动**——IM `/mcp` CRUD 与 Settings 仍用；仅 `SessionMcpPanel` CC/SDK 路径不再直调（见 src/AGENTS.md SessionMcpPanel dispatch）。
+
+## CC MCP 审批门控函数（cc-mcp-loader.ts）
+
+- **命名约定**：审批门控函数 `readCcProjectApproval`/`filterApprovedProjectMcp`/`loadApprovedInlineCcMcpServers`；前缀 `Cc` 表 Claude Code 路径，`Approved` 表经审批门控过滤，与全量函数 `loadInlineCcMcpServers`（展示取数依赖，**保留全量不删**）成对存在。注入入口（`appendInlineMcpToCcOptions`）改调过滤后函数，展示取数仍调全量函数。
+- **`~/.claude.json` 读取容错规矩**：读 `~/.claude.json` 任何字段（含 `projects[ws].enabledMcpjsonServers`/`disabledMcpjsonServers`/`enableAllProjectMcpServers`）须沿用 `readClaudeJsonMcpServers` 容错策略——文件缺失/解析失败/projects 缺失/ws 空/字段非数组 → 容错为空数组/`false`；数组字段用 `Array.isArray` 校验后再 `as string[]`，布尔字段用 `=== true` 收敛。统一 `try/catch` 兜底返回缺省值，不抛错。
+- **`filterApprovedProjectMcp` 签名约定**：须传 `workspaceDir` 第三参数用于读 `{ws}/.mcp.json` servers 键集合区分 project scope（`mergeMcpJsonEntries` 中 project 覆盖 user/local，project 条目即 `.mcp.json` 键集合）；缺失则无法满足"user/local 不过滤 + project 均未命中弃"。复用 `readMcpServersBlock` 读 `.mcp.json`，不新建 scope 标注抽象。
+
+## MCP 启用状态类型语义（mcp-types.ts / mcp.d.ts）
+
+- `McpServerEntry.enabled?: boolean` 字段须附中文注释明三态语义：`false`=审批未启用/被禁用（project scope 未在白名单或显式 disabled，未注入运行）；`true`=审批启用或 user/local scope（不经审批）；`undefined`=历史数据，向后兼容按 true 处理。
+- `electron/mcp-types.ts`（主进程侧）与 `src/renderer/types/mcp.d.ts`（渲染层 ambient）两处定义须保持注释与语义一致；不新增枚举字段表达 disabled，展示由 `enabled:false` + `statusMap["disabled"]` 双通道承担。

@@ -2,7 +2,7 @@ import * as path from "node:path"
 import * as fs from "node:fs"
 import { app } from "electron"
 import {
-  getConfig, getChannel, getAgentResource, resolveChannelForSession,
+  getConfig, getChannel, getAgentResource, isCodexResourceId, resolveChannelForSession,
   resolveChannelModel, effectiveWorkspaceDir, mainChatScopeKey,
   type MessageChannel, type ModelScenario,
 } from "./config-store"
@@ -22,6 +22,7 @@ import {
   isClaudeCodeSessionRunning, stopClaudeCodeSession, stopAllClaudeCodeSessions,
   getClaudeCodeSessionList, ensureClaudeCodeHttpServer, getCcAgentApiPort,
 } from "./agent-claude-sdk"
+import { ensureCodexHttpServer, getCodexAgentApiPort, isCodexSessionRunning, stopCodexSession, stopAllCodexSessions, getCodexSessionList } from "./agent-codex-sdk"
 
 // ── readLockFile 短 TTL 缓存 ─────────────────────────────
 let _lockCache: { value: ReturnType<typeof readLockFile>; ts: number } | null = null
@@ -56,17 +57,19 @@ async function notifyChat(sessionKey: string, text: string, stopProgress = false
 // ── SDK-only 运行时 ───────────────────────────────────────
 
 export function isSessionAgentRunning(key: string): boolean {
-  return isSdkSessionRunning(key) || isClaudeCodeSessionRunning(key)
+  return isSdkSessionRunning(key) || isClaudeCodeSessionRunning(key) || isCodexSessionRunning(key)
 }
 
 export function stopSessionAgent(key: string): void {
   if (isSdkSessionRunning(key)) stopSdkSession(key)
   else if (isClaudeCodeSessionRunning(key)) stopClaudeCodeSession(key)
+  else if (isCodexSessionRunning(key)) stopCodexSession(key)
 }
 
 export function stopAllSessionAgents(): void {
   stopAllSdkSessions()
   stopAllClaudeCodeSessions()
+  stopAllCodexSessions()
 }
 
 // ── Session 状态 ──────────────────────────────────────────
@@ -251,8 +254,15 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
   const useMain = p.useMainWorkspace ?? (chatType === "p2p")
 
   const channel: MessageChannel | undefined = getChannel(p.channelId) ?? resolveChannelForSession(sessionKey)
-  const resource = getAgentResource(channel?.agentResourceId)
-  if (resource.type !== "sdk" && resource.type !== "claude-code") {
+  const boundId = channel?.agentResourceId
+  const resource = getAgentResource(boundId)
+  if (!resource) {
+    if (boundId && isCodexResourceId(boundId)) {
+      return { ok: false, error: "通道绑定的 Codex Profile 已删除，请在设置中重新选择" }
+    }
+    return { ok: false, error: "请配置 SDK 资源（设置 → Agent）" }
+  }
+  if (resource.type !== "sdk" && resource.type !== "claude-code" && resource.type !== "codex") {
     return { ok: false, error: "请配置 SDK 资源（设置 → Agent）" }
   }
   if (!resource.apiKey?.trim()) {
@@ -282,6 +292,17 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
   if (p.modelOverride?.trim()) {
     model = p.modelOverride.trim()
     modelParams = p.modelParamsOverride ?? ""
+  } else if (resource.type === "codex") {
+    // Codex：以 Profile model 为准，忽略通道级残留 model（与 CC HTTP launch 语义对等）
+    if (resource.model?.trim()) {
+      model = resource.model.trim()
+      modelParams = ""
+    } else {
+      const scenario: ModelScenario = useMain || isOwnTask ? "primary" : "others"
+      const resolved = resolveChannelModel(channel, scenario)
+      model = resolved.model || "gpt-5"
+      modelParams = resolved.modelParams
+    }
   } else {
     const scenario: ModelScenario = useMain || isOwnTask ? "primary" : "others"
     const resolved = resolveChannelModel(channel, scenario)
@@ -313,16 +334,26 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
-  } else {
-    // resource.type === "claude-code"
-    const ccPort = getCcAgentApiPort()
-    if (!ccPort) return { ok: false, error: "Claude Agent 引擎未启动" }
+  }
+  // Codex 引擎：独立 HTTP server；待 OpenCodeSDK 变更 20260630105159 接入时按同模式加 "opencode" 分支
+  if (resource.type === "codex") {
+    const codexPort = getCodexAgentApiPort()
+    if (!codexPort) return { ok: false, error: "Codex Agent 引擎未启动" }
     try {
-      const res = await httpPost(`http://127.0.0.1:${ccPort}/api/cc/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
+      const res = await httpPost(`http://127.0.0.1:${codexPort}/api/codex/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
       return { ok: !!res?.ok, error: res?.error }
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
+  }
+  // resource.type === "claude-code"
+  const ccPort = getCcAgentApiPort()
+  if (!ccPort) return { ok: false, error: "Claude Agent 引擎未启动" }
+  try {
+    const res = await httpPost(`http://127.0.0.1:${ccPort}/api/cc/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
+    return { ok: !!res?.ok, error: res?.error }
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
@@ -387,7 +418,12 @@ export function getSessionAgentList() {
     const chatName = s.chatName || chatNameCache.get(chatId)
     return { ...s, chatName, engineType: "claude-code" as const }
   })
-  return [...sdkList, ...ccList]
+  const codexList = getCodexSessionList().map((s) => {
+    const chatId = s.sessionKey.includes("::") ? s.sessionKey.split("::")[0] : s.sessionKey
+    const chatName = s.chatName || chatNameCache.get(chatId) || (s.senderOpenId ? chatNameCache.get(s.senderOpenId) : undefined)
+    return { ...s, chatName, engineType: "codex" as const }
+  })
+  return [...sdkList, ...ccList, ...codexList]
 }
 
 // ponytail: T7 调度迁入 Daemon；保留空实现供旧调用方兼容
@@ -580,4 +616,5 @@ export async function handleChatCommand(tokens: string[], port: number, messageI
 export function initSessionDispatcher(): void {
   setChatNameResolver((chatId) => chatNameCache.get(chatId))
   ensureClaudeCodeHttpServer()
+  ensureCodexHttpServer()
 }

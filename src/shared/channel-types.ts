@@ -1,10 +1,11 @@
 // ── 多消息通道共享类型与工具 ─────────────────────────────
 // Electron 主进程与 Daemon 子进程共用。
 
-/** Agent 资源：N 个 SDK Key + N 个 Claude Code Profile */
+/** Agent 资源：N 个 SDK Key + N 个 Claude Code Profile + N 个 Codex Profile */
 export interface AgentResource {
-  id: string;            // "sdk_<hex>" | "cc_<hex>"
-  type: "sdk" | "claude-code";
+  id: string;            // "sdk_<hex>" | "cc_<hex>" | "codex_<hex>"
+  // 待 OpenCodeSDK 接入时按同模式加 "opencode"
+  type: "sdk" | "claude-code" | "codex";
   name: string;
   apiKey?: string;       // 仅 SDK
   /** 校验成功后缓存的账号邮箱（仅展示用） */

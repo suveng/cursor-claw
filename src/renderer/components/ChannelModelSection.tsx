@@ -7,7 +7,7 @@ const inputCls = "w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2
 interface ModelOption { id: string; label: string; params: string }
 
 interface Props {
-  /** 打开弹窗时的通道快照，用于 CC → Cursor 切回时恢复持久化模型字段 */
+  /** 打开弹窗时的通道快照，用于 Profile → Cursor 切回时恢复持久化模型字段 */
   channel: ChannelConfig
   draft: ChannelConfig
   set: (p: Partial<ChannelConfig>) => void
@@ -15,10 +15,16 @@ interface Props {
   showAlert: (title: string, message: string) => Promise<void>
 }
 
-/** optgroup 标签：按 Agent 资源类型分组展示 */
+/** Profile 型资源：模型由 Profile 管理，通道层不拉列表 */
+function isProfileResource(type?: AgentResource["type"]): boolean {
+  return type === "claude-code" || type === "codex"
+}
+
+/** optgroup 标签：按 Agent 资源类型分组展示（OpenCodeSDK rebase 先行落点，见 groupedTypes） */
 const RESOURCE_GROUP_LABELS: Record<AgentResource["type"], string> = {
   sdk: "Cursor SDK",
   "claude-code": "Claude Code Profile",
+  codex: "Codex Profile",
 }
 
 const modelKey = (id: string, params: string) => id + (params ? "\0" + params : "")
@@ -29,18 +35,24 @@ const parseModelKey = (key: string): { id: string; params: string } => {
 
 /**
  * 通道编辑弹窗 — Agent 资源与模型区块。
- * Cursor SDK：通道级主/其他人模型 + 获取列表；Claude Code Profile：只读说明，不拉列表。
+ * Cursor SDK：通道级主/其他人模型 + 获取列表；Profile（CC/Codex）：只读说明，不拉列表。
  */
 export default function ChannelModelSection({ channel, draft, set, resources, showAlert }: Props) {
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
 
-  const resource = resources.find((r) => r.id === draft.agentResourceId) ?? resources[0]
-  // 类型派生：驱动 UI 分支（CE-2）
+  const boundResource = draft.agentResourceId
+    ? resources.find((r) => r.id === draft.agentResourceId)
+    : undefined
+  /** Profile 删除后不 fallback 到其他资源，仅提示重选 */
+  const resourceMissing = !!draft.agentResourceId && !boundResource
+  const resource = boundResource
+
   const isCcProfile = resource?.type === "claude-code"
+  const isCodexProfile = resource?.type === "codex"
   const isSdkChannel = resource?.type === "sdk"
 
-  // 持久化模型字段快照，供 CC → Cursor 切回时回显（CE-8）
+  // 持久化模型字段快照，供 Profile → Cursor 切回时回显
   const persistedModels = useRef({
     model: channel.model,
     modelParams: channel.modelParams,
@@ -48,9 +60,9 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
     othersModelParams: channel.othersModelParams,
   })
 
-  /** 拉取 Cursor 模型列表；CC Profile 不触发任何列表 IPC（CE-6） */
+  /** 拉取 Cursor 模型列表；Profile 不触发任何列表 IPC */
   const fetchModels = useCallback(async () => {
-    if (resource?.type === "claude-code") return
+    if (isProfileResource(resource?.type)) return
     setLoadingModels(true)
     try {
       if (resource?.type === "sdk") {
@@ -63,15 +75,14 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
     }
   }, [resource, draft.model, draft.modelParams, showAlert])
 
-  // 切换 Agent 资源时清空列表缓存（CE-7，已有逻辑保留）
   useEffect(() => {
     setModelOptions([])
   }, [draft.agentResourceId])
 
-  /** 切换资源：切至 CC 清空通道模型 draft；从 CC 切回 Cursor 恢复打开弹窗时的持久化值（CE-8） */
+  /** 切换资源：切至 Profile 清空通道模型 draft；从 Profile 切回 Cursor 恢复打开弹窗时的持久化值 */
   const handleResourceChange = (newId: string) => {
     const newResource = resources.find((r) => r.id === newId)
-    if (newResource?.type === "claude-code") {
+    if (isProfileResource(newResource?.type)) {
       set({
         agentResourceId: newId,
         model: "",
@@ -79,7 +90,7 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
         othersModel: "",
         othersModelParams: "",
       })
-    } else if (resource?.type === "claude-code") {
+    } else if (isProfileResource(resource?.type)) {
       const p = persistedModels.current
       set({
         agentResourceId: newId,
@@ -93,14 +104,13 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
     }
   }
 
-  // 按 type 分组资源，供 optgroup 渲染（CE-9 / F4）
-  const groupedTypes: AgentResource["type"][] = ["sdk", "claude-code"]
+  // 按 type 分组资源；待 OpenCodeSDK 变更 20260630105159 接入时按同模式加 "opencode"
+  const groupedTypes: AgentResource["type"][] = ["sdk", "claude-code", "codex"]
 
   return (
     <div className="space-y-3 rounded-lg border border-gray-800 p-3">
       <div className="flex items-center gap-2">
         <h4 className="text-xs font-medium text-gray-400">Agent 资源与模型</h4>
-        {/* Cursor 通道才展示「获取模型列表」；CC 不渲染按钮（CE-4 / F2） */}
         {isSdkChannel && (
           <button
             onClick={() => void fetchModels()}
@@ -116,6 +126,9 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
       <div>
         <label className="mb-1 block text-xs text-gray-500">Agent 资源</label>
         <select value={draft.agentResourceId} onChange={(e) => handleResourceChange(e.target.value)} className={inputCls}>
+          {resourceMissing && (
+            <option value={draft.agentResourceId}>（资源已删除，请重新选择）</option>
+          )}
           {groupedTypes.map((type) => {
             const items = resources.filter((r) => r.type === type)
             if (items.length === 0) return null
@@ -130,12 +143,14 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
             )
           })}
         </select>
+        {resourceMissing && (
+          <p className="mt-1 text-xs text-amber-500">⚠ 绑定的 Agent 资源已不存在，请重新选择 Profile，保存前不会自动切换其他资源。</p>
+        )}
         {resource?.type === "sdk" && (
           <p className="mt-1 text-xs text-amber-500/80">⚠ SDK 不支持单独设置代理，请根据网络环境选择模型或使用 TUN 模式。</p>
         )}
       </div>
 
-      {/* Claude Code：Profile 层模型说明，无通道级模型控件（CE-5 / F2） */}
       {isCcProfile && resource && (
         <div className="space-y-1.5 rounded-lg border border-gray-700/50 bg-gray-800/30 px-3 py-2.5">
           <p className="text-xs text-gray-400">
@@ -152,7 +167,22 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
         </div>
       )}
 
-      {/* Cursor SDK：通道级主模型与其他人模型 */}
+      {isCodexProfile && resource && (
+        <div className="space-y-1.5 rounded-lg border border-gray-700/50 bg-gray-800/30 px-3 py-2.5">
+          <p className="text-xs text-gray-400">
+            模型由 Profile「{resource.name}」统一管理，通道层无需再选模型。
+          </p>
+          {resource.model ? (
+            <p className="text-xs text-gray-500">
+              默认模型：
+              <span className="ml-1 rounded bg-gray-800 px-1 py-0.5 font-mono text-[10px] text-gray-300">{resource.model}</span>
+            </p>
+          ) : (
+            <p className="text-xs text-gray-600">Profile 未配置默认模型，执行时使用 Codex SDK 内置默认。</p>
+          )}
+        </div>
+      )}
+
       {isSdkChannel && (
         <>
           <div>

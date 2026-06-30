@@ -20,6 +20,7 @@ import { pushLog, pushUiLog, broadcastLog, getLogBuffer, clearLogBuffer, escapeL
 import { applyProxyEnv } from "./proxy-env"
 import { getSdkSessionCount, getSdkSessionList, checkSdkApiKey, listSdkModels, ensureAgentSdkHttpServer } from "./agent-sdk"
 import { getClaudeCodeSessionList } from "./agent-claude-sdk"
+import { getCodexSessionList } from "./agent-codex-sdk"
 import {
   setDaemonPort,
   injectWorkspaceToDir, injectWorkspaceMcpAndRules, clearInjectionCache,
@@ -47,17 +48,18 @@ export { applyProxyEnv } from "./proxy-env"
 export { getLogBuffer } from "./ui-logger"
 export { checkSdkApiKey, listSdkModels } from "./agent-sdk"
 export { checkClaudeCodeApiKey, CLAUDE_CODE_MODEL_LIST } from "./agent-claude-sdk"
+export { CODEX_MODEL_LIST } from "./agent-codex-sdk"
 export { injectWorkspaceMcpAndRules, injectWorkspaceToDir, clearInjectionCache } from "./workspace-injector"
 export { getQueueMessages, clearMessageQueue, deleteQueueMessage } from "./session-dispatcher"
 
 
-/** 是否有活跃 SDK 或 Claude Code 会话（不含已移除的 CLI sessionAgents） */
+/** 是否有活跃 SDK、Claude Code 或 Codex 会话（不含已移除的 CLI sessionAgents） */
 function isAgentRunning(): boolean {
-  return getSdkSessionCount() > 0 || getClaudeCodeSessionList().length > 0
+  return getSdkSessionCount() > 0 || getClaudeCodeSessionList().length > 0 || getCodexSessionList().length > 0
 }
 
 function getRunningSessionCount(): number {
-  return getSdkSessionCount() + getClaudeCodeSessionList().length
+  return getSdkSessionCount() + getClaudeCodeSessionList().length + getCodexSessionList().length
 }
 
 function getSessionAgentCount(): number {
@@ -68,7 +70,7 @@ function stopAgent(): void {
   stopAllSessionAgents()
 }
 
-/** 定时任务 / 临时会话运行态（SDK + CC 合并） */
+/** 定时任务 / 临时会话运行态（SDK + CC + Codex 合并） */
 function getIndependentTaskStatuses(): Record<string, { running: boolean; pid?: number; startedAt?: number }> {
   const out: Record<string, { running: boolean; pid?: number; startedAt?: number }> = {}
   for (const s of getSdkSessionList()) {
@@ -79,6 +81,11 @@ function getIndependentTaskStatuses(): Record<string, { running: boolean; pid?: 
   for (const s of getClaudeCodeSessionList()) {
     if (s.chatType === "task" || s.chatType === "temp") {
       out[s.sessionKey] = { running: true, pid: s.pid, startedAt: s.startedAt }
+    }
+  }
+  for (const s of getCodexSessionList()) {
+    if (s.chatType === "task" || s.chatType === "temp") {
+      out[s.sessionKey] = { running: true, startedAt: s.startedAt }
     }
   }
   return out

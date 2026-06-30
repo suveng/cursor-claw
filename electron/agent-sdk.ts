@@ -5,7 +5,7 @@ import { existsSync, writeFileSync, mkdirSync } from "node:fs"
 import { createRequire } from "node:module"
 import { app } from "electron"
 import { readLockFile, httpPost, reportSessionAgentPhase } from "./daemon-client"
-import { getChannel, getAgentResource, resolveChannelForSession, resolveChannelModel, effectiveWorkspaceDir, type MessageChannel, type ModelScenario } from "./config-store"
+import { getChannel, getAgentResource, isCodexResourceId, resolveChannelForSession, resolveChannelModel, effectiveWorkspaceDir, type MessageChannel, type ModelScenario } from "./config-store"
 import { parseChatKey } from "../src/shared/channel-types"
 import {
   isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind,
@@ -42,6 +42,8 @@ import {
 } from "./finalize-sdk-run"
 import { launchCcAgentFromHttp } from "./agent-cc-http"
 import { dispatchToClaudeCodeAgent } from "./agent-claude-sdk"
+import { launchCodexAgentFromHttp } from "./agent-codex-http"
+import { dispatchToCodexAgent } from "./agent-codex-sdk"
 
 export interface SdkSessionAgent {
   sessionKey: string
@@ -1418,20 +1420,35 @@ function parseInboundMessageIds(body: Record<string, unknown>): string[] | undef
 const LEGACY_CLI_BIND_ERROR =
   "通道仍绑定已废弃的 Cursor CLI，请在设置中将 Agent 资源改为 SDK 或 Claude Code Profile"
 
+/** Codex Profile 已删除、通道仍保留 codex_ 绑定时提示重新选择（F6） */
+const CODEX_PROFILE_MISSING_ERROR =
+  "通道绑定的 Codex Profile 已删除，请在设置中重新选择"
+
+type BoundAgentRoute = "sdk" | "claude-code" | "codex" | "cli" | "codex-missing"
+
 /** 解析通道绑定的 Agent 资源类型；legacy CLI 须先于 getAgentResource fallback 拦截 */
 function resolveBoundAgentResourceType(
   sessionKey: string,
   channelId?: string,
-): "sdk" | "claude-code" | "cli" {
+): BoundAgentRoute {
   const channel = getChannel(channelId) ?? resolveChannelForSession(sessionKey)
   const boundId = channel?.agentResourceId
   if (boundId === "cli") return "cli"
+  // Codex 绑定已删除时 getAgentResource 不 fallback，须显式拦截勿误路由 sdk
+  if (boundId && isCodexResourceId(boundId)) {
+    const codexResource = getAgentResource(boundId)
+    if (!codexResource) return "codex-missing"
+    if ((codexResource as { type?: string }).type === "cli") return "cli"
+    return "codex"
+  }
   const resource = getAgentResource(boundId)
-  if ((resource as { type?: string }).type === "cli") return "cli"
-  return resource.type === "claude-code" ? "claude-code" : "sdk"
+  if ((resource as { type?: string } | undefined)?.type === "cli") return "cli"
+  if (resource?.type === "claude-code") return "claude-code"
+  if (resource?.type === "codex") return "codex"
+  return "sdk"
 }
 
-/** Daemon 统一 dispatch：按通道资源类型委托 SDK 或 Claude Code 长驻实例 */
+/** Daemon 统一 dispatch：按通道资源类型委托 SDK / Claude Code / Codex 长驻实例 */
 async function dispatchAgentFromHttp(
   sessionKey: string,
   taskText: string,
@@ -1439,7 +1456,9 @@ async function dispatchAgentFromHttp(
 ): Promise<{ ok: boolean; error?: string }> {
   const route = resolveBoundAgentResourceType(sessionKey)
   if (route === "cli") return { ok: false, error: LEGACY_CLI_BIND_ERROR }
+  if (route === "codex-missing") return { ok: false, error: CODEX_PROFILE_MISSING_ERROR }
   if (route === "claude-code") return dispatchToClaudeCodeAgent(sessionKey, taskText, messageIds)
+  if (route === "codex") return dispatchToCodexAgent(sessionKey, taskText, messageIds)
   return dispatchToSdkAgent(sessionKey, taskText, messageIds)
 }
 
@@ -1464,12 +1483,14 @@ export async function launchSdkAgentFromHttp(body: Record<string, unknown>): Pro
 
   const route = resolveBoundAgentResourceType(sessionKey, channelId)
   if (route === "cli") return { ok: false, error: LEGACY_CLI_BIND_ERROR }
+  if (route === "codex-missing") return { ok: false, error: CODEX_PROFILE_MISSING_ERROR }
   if (route === "claude-code") return launchCcAgentFromHttp(body)
+  if (route === "codex") return launchCodexAgentFromHttp(body)
 
   const channel = getChannel(channelId) ?? resolveChannelForSession(sessionKey)
   const resource = getAgentResource(channel?.agentResourceId)
   if (resource.type !== "sdk") {
-    return { ok: false, error: "请配置 SDK 或 Claude Code 资源（设置 → Agent）" }
+    return { ok: false, error: "请配置 SDK、Claude Code 或 Codex 资源（设置 → Agent）" }
   }
 
   const isOwnTask = chatType === "task" || chatType === "temp" || chatType === "workflow"

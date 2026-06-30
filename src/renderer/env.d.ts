@@ -9,8 +9,9 @@ import type { WorkflowDefinition, WorkflowInstance } from "../shared/workflow-ty
 
 interface AgentResource {
   id: string
-  /** sdk=Cursor SDK Key；claude-code=Claude Code Profile */
-  type: "sdk" | "claude-code"
+  /** sdk=Cursor SDK Key；claude-code=Claude Code Profile；codex=Codex Profile */
+  // 待 OpenCodeSDK 接入时按同模式加 "opencode"
+  type: "sdk" | "claude-code" | "codex"
   name: string
   apiKey?: string
   email?: string
@@ -188,10 +189,10 @@ interface ElectronAPI {
   startDaemon(): Promise<{ ok: boolean; error?: string }>
   stopDaemon(): Promise<void>
   stopAgent(): Promise<{ ok: boolean }>
-  getSessionAgents(): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" }[]>
+  getSessionAgents(): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" | "codex" }[]>
   stopSessionAgent(sessionKey: string): Promise<{ ok: boolean }>
   stopAllSessionAgents(): Promise<{ ok: boolean }>
-  onSessionAgents(cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" }[]) => void): () => void
+  onSessionAgents(cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" | "codex" }[]) => void): () => void
   getDaemonStatus(): Promise<DaemonStatus>
   getLogBuffer(): Promise<string[]>
   getQueueMessages(): Promise<{ index: number; fileId: string; preview: string; sessionKey?: string; chatType?: string; timestamp?: number; senderOpenId?: string }[]>
@@ -203,6 +204,8 @@ interface ElectronAPI {
   checkCcApiKey(apiKey: string, baseUrl?: string): Promise<{ ok: boolean; error?: string }>
   /** 列出 Claude Code 可用模型（静态列表，无需 apiKey） */
   listCcModels(): Promise<Array<{ id: string; label: string }>>
+  /** 列出 Codex 可用模型（静态清单，无需 apiKey） */
+  listCodexModels(): Promise<Array<{ id: string; label: string }>>
   getScheduledTasks(): Promise<ScheduledTask[]>
   saveScheduledTasks(tasks: ScheduledTask[]): Promise<{ ok: boolean }>
   validateCron(expression: string): Promise<boolean>
