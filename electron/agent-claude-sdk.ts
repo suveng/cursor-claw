@@ -27,6 +27,7 @@ import { buildCcSdkHooks } from "./cc-sdk-hooks"
 import { notifySessionChat, clearStreamPostTimer, broadcastCcSessionStatus, completeCcRun } from "./agent-cc-stream"
 import { armCcWatchdog, streamCcSdkMessages } from "./agent-cc-events"
 import { registerCcLaunchHandler, registerCcDispatchHandler } from "./agent-cc-http"
+import { PLATFORM_RUN_LIMIT_MS } from "./finalize-sdk-run"
 
 export type { PresentationEvent, PresentationKind } from "./agent-sdk"
 export type { ClaudeCodeLaunchOptions, CcSessionAgent } from "./agent-cc-types"
@@ -40,8 +41,24 @@ const CC_FAILED_COOLDOWNS = new Map<string, number>()
 const FAIL_COOLDOWN_MS = 30_000
 const NOTIFY_PROCESSING = "Agent 处理中…"
 const WATCHDOG_TICK_MS = 800
+/** 与 SDK 共用 NEVER_CANCEL_ON_DURATION；默认 true 不按总时长硬杀 */
+const NEVER_CANCEL_ON_DURATION = (() => {
+  const raw = (process.env.NEVER_CANCEL_ON_DURATION ?? process.env.never_cancel_on_duration ?? "true").trim().toLowerCase()
+  return raw !== "0" && raw !== "false"
+})()
 const WATCHDOG_IDLE_TIMEOUT_MS = Number(process.env.CC_IDLE_TIMEOUT_MS || process.env.SDK_IDLE_TIMEOUT_MS || 300_000)
-const WATCHDOG_ABSOLUTE_TIMEOUT_MS = WATCHDOG_IDLE_TIMEOUT_MS
+const CC_LEGACY_ABSOLUTE_TIMEOUT_MS = Number(
+  process.env.CC_ABSOLUTE_TIMEOUT_MS
+  || process.env.CC_RUN_WATCHDOG_MS
+  || process.env.SDK_RUN_WATCHDOG_MS
+  || PLATFORM_RUN_LIMIT_MS,
+)
+/** 绝对运行时长 cap，与 idle 解耦；仅 never-cancel 关闭时在 onTick 生效 */
+function resolveCcSafeTimeoutMs(raw: number, fallback: number): number {
+  if (Number.isFinite(raw) && raw > 0) return raw
+  return fallback
+}
+const WATCHDOG_ABSOLUTE_TIMEOUT_MS = resolveCcSafeTimeoutMs(CC_LEGACY_ABSOLUTE_TIMEOUT_MS, PLATFORM_RUN_LIMIT_MS)
 
 const completeCcRunOpts = {
   deleteSession: (key: string) => CC_SESSIONS.delete(key),
@@ -244,13 +261,15 @@ export function stopAllClaudeCodeSessions(): void {
   CC_PENDING_LAUNCHES.clear()
 }
 
-export function getClaudeCodeSessionList(): Array<{ sessionKey: string; chatType: string; startedAt: number; chatName?: string; pid: number }> {
+export function getClaudeCodeSessionList(): Array<{ sessionKey: string; chatType: string; startedAt: number; chatName?: string; pid: number; workspaceDir?: string }> {
   return [...CC_SESSIONS.values()].map((s) => ({
     sessionKey: s.sessionKey,
     chatType: s.chatType as string,
     startedAt: s.startedAt,
     chatName: resolveSessionChatName(s.sessionKey, s.chatName, s.senderOpenId),
     pid: 0,
+    // CC 会话工作区：供 Dashboard MCP 面板绑定 project mcp.json
+    workspaceDir: s.workspaceDir,
   }))
 }
 
@@ -259,6 +278,7 @@ function makeWatchdogOpts() {
     idleTimeoutMs: WATCHDOG_IDLE_TIMEOUT_MS,
     tickMs: WATCHDOG_TICK_MS,
     absoluteTimeoutMs: WATCHDOG_ABSOLUTE_TIMEOUT_MS,
+    neverCancelOnDuration: NEVER_CANCEL_ON_DURATION,
     getSession: (key: string) => CC_SESSIONS.get(key),
     setWatchdogState,
   }

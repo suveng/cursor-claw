@@ -29,7 +29,7 @@
 - **resident 与 resume**：`CC_RESIDENT_AGENT`（默认开，`0` 关闭）Run 结束保留 Map 条目；`ccSessionId` 来自 SDK `system/init` / `result`，传入 `options.resume` 续跑上下文。
 - **Presentation 时序**：CC 路径对称 SDK 的 `PRESENTATION_ORDERING`（`presentationOrderingEligible` = 开关 + f41Stream + p2p）；tool/thinking 不抢 stream-text 首包。
 - **SDK hooks（CC）**：hook 逻辑放 `cc-sdk-hooks.ts`（`buildCcSdkHooks` / `formatCcHookUiLog`）；`buildQueryOptions` 合并 `hooks` + `includeHookEvents: true`；回调与 `hook_*` 流事件经 `markSessionActivity` 刷新时钟，UI 日志含 `hook_event=`，**禁止** hook 原文 IM notify。
-- **watchdog 超时（CC）**：`armCcWatchdog.onTimeout` 先置 `watchdogTimedOut` 再 close Query；`completeCcRun` 超时分支走 `cc-watchdog-finalize.ts`，复用 `formatUserSdkFailureMessage({ isTimeoutFailure: true })`，**跳过** `failedCooldowns`；主动 `stopClaudeCodeSession` 不得置 `watchdogTimedOut`。
+- **watchdog 超时（CC）**：**idle 与 absolute 解耦** — idle 默认 `CC_IDLE_TIMEOUT_MS`/`SDK_IDLE_TIMEOUT_MS`（300s）；absolute 默认 `CC_ABSOLUTE_TIMEOUT_MS`/`CC_RUN_WATCHDOG_MS`/`SDK_RUN_WATCHDOG_MS`/`PLATFORM_RUN_LIMIT_MS`（7min），**不得**再等于 idle 默认。与 SDK 共用 `NEVER_CANCEL_ON_DURATION`（默认 true）：`watchRunGuard.timeoutMs` 传 `Number.MAX_SAFE_INTEGER`，idle 仍走 `onTick`+`lastActivityAt`；关闭 never-cancel 时 absolute 硬 cap **仅**在 `onTick` 分支（`runStartedAt`），不经 guard L73 单一 timeout。`armCcWatchdog.onTimeout` 先置 `watchdogTimedOut` 再 close Query；`completeCcRun` 超时分支走 `cc-watchdog-finalize.ts`，复用 `formatUserSdkFailureMessage({ isTimeoutFailure: true })`，**跳过** `failedCooldowns`；主动 `stopClaudeCodeSession` 不得置 `watchdogTimedOut`。
 
 ## 模块边界
 

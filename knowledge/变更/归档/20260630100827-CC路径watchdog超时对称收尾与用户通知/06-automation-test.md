@@ -1,17 +1,17 @@
 # CC 路径 watchdog 超时对称收尾与用户通知 - 验收记录
 
 > **变更 ID**：`20260630100827-CC路径watchdog超时对称收尾与用户通知`
-> **阶段**：`/kb-test` 静态+编译 ✅；`04-review` ✅；台架 K1–K9 ⏳（**archive accepted debt**，不阻塞归档）
-> **输入**：`01-proposal.md`、`02-design.md` §八·（二）、`03-tasks.md`（T1–T5 均 `done`）、`04-review.md`（通过）、`05-summary.md`
-> **manifest**：`stage=reviewed`（本文不推进 stage；`archived` 由 `/kb-archive` 迁移）
+> **阶段**：`/kb-test` 静态+编译 ✅；`04-review` ✅；**第 1 轮验收打回**（`08-verify-issue`）→ **T6 已落地**；台架 K1–K10 ⏳（含 K6/K10 打回复测）
+> **输入**：`01-proposal.md`、`02-design.md` §八·（二）、`03-tasks.md`（T1–T6 均 `done`）、`04-review.md`、`05-summary.md`、`08-verify-issue.md`（第 1 轮）
+> **manifest**：`stage=archived_with_debt`（T6 静态 ✅；K6/K10 台架 debt；由 `/kb-archive` 迁移）
 
 ## 1、测试策略与范围
 
 | 维度 | 说明 |
 |------|------|
 | **层级** | **静态契约**（源码符号/分支/行数对照 02/03）+ **编译冒烟**（builder：`npm run build:mcp`、`npx electron-vite build`）+ **台架/IM 联调**（空闲/绝对超时、hook 静默防误杀、双路径对称、Stop/非超时回归）；**不新增**单元测试/集成测试 |
-| **目标** | 覆盖 `01` 验收 1–10、`02` §八·（二）6 条工程补充项、`03` T1–T5 各条验收标准 |
-| **通过口径** | **archive 前**：静态契约 + 编译冒烟 + `04-review` 均已 ✅。**accepted debt**：K1–K9 台架/IM 联调不阻塞 `/kb-archive`，留作归档后 debt；01·1–5 核心 IM 与 01·6–7 hook 误杀须在台架补跑后闭环（可设 `CC_IDLE_TIMEOUT_MS` 缩短 idle 窗口） |
+| **目标** | 覆盖 `01` 验收 1–10、`02` §八·（二）6 条工程补充项、`03` T1–T6 各条验收标准（**T6** 对齐 08 第 1 轮打回） |
+| **通过口径** | **第 2 轮验收前**：T6 静态 ✅；**K6/K10 台架必跑**（08 打回复测）。其余 K1–K5/K7–K9 可与打回复测并行或归档后 debt |
 | **与 review 分工** | `/kb-review` 偏实现与规范；本文负责验收追溯、台架清单与执行记录 |
 
 ## 2、局限与未自动化原因
@@ -35,7 +35,7 @@
 | **01·3** | 超时后「处理中/流式占位」结束 | 台架 K1/K3 | 联调 | ⏳ 台架 |
 | **01·4** | 超时后同会话发新消息，无需 Stop/Reset | **台架 K4（核心）** | 联调 | ⏳ **必测待跑** |
 | **01·5** | CC 与 SDK 路径超时用户感知对称（抽样） | 台架 K5 | 联调 | ⏳ 台架 |
-| **01·6** | hook/工具活动下合理窗口内不误杀 idle | 台架 K6 | 联调 | ⏳ **必测待跑** |
+| **01·6** | hook/工具活动下合理窗口内不误杀 idle | 静态 + 台架 K6/K10 | 代码 / 联调 | ✅ 静态 T6；⏳ **K6/K10 复测待跑** |
 | **01·7** | hook 触发期间 `lastActivityAt` 持续刷新 | 静态 + 台架 K6/K7 | 代码 / 联调 | ✅ 静态；⏳ 台架 |
 | **01·8** | UI 日志 CC 前缀含 `hook_event` 等；**无** hook 原文推 IM | 静态 + 台架 K7 | 代码 / 日志 | ✅ 静态；⏳ 台架 |
 | **01·9** | 主动 Stop 无回归；不误走超时文案 | 静态 + 台架 K8 | 代码 / 手工 | ✅ 静态；⏳ 手工 |
@@ -51,6 +51,9 @@
 | **T3** | `buildQueryOptions` 注入 hooks | 静态 | 源码 | ✅ 静态 |
 | **T4** | hook 流 subtype；`onTimeout` 置位后 close | 静态 | 源码 | ✅ 静态 |
 | **T5** | `finalizeCcRunOnWatchdogTimeout`；跳过 cooldown | 静态 | 源码 | ✅ 静态 |
+| **T6** | idle/absolute 解耦；`NEVER_CANCEL_ON_DURATION` 默认 true → guard L73 不硬杀 | 静态 + 台架 K10/K6 | 代码 / 联调 | ✅ 静态；⏳ **台架待跑** |
+| **T6·08打回** | hook 持续活动 >5min 不因 guard `timeoutMs` 绝对分支强杀 | 台架 **K10** | 联调 | ⏳ **逻辑对齐 SDK，待 E2E** |
+| **T6·idle** | 无 hook/assistant 活动仍 `CC_IDLE_TIMEOUT_MS` idle 超时 | 台架 **K6 复测** | 联调 | ⏳ **待用户台架** |
 | **行数约束** | 改动文件均 ≤300 行 | wc | 命令 | ✅ 通过 |
 
 ## 4、场景摘要
@@ -87,9 +90,29 @@
 | Stop 路径 | `stopClaudeCodeSession` | 不置 `watchdogTimedOut`；直接 abort/删 session | ✅ |
 | HTTP 契约 | `agent-cc-http.ts` | 本变更无 diff | ✅（静态） |
 | 行数 | 改动 6 文件 wc -l | 均 ≤300 | ✅（61/246/292/17/277/86） |
-| TS 类型检查 | `npx tsc --noEmit` | exit 0 | ✅ 04-review |
+| TS 类型检查 | `npx tsc --noEmit` | exit 0 | ✅ 04-review；✅ T6 builder 复跑 |
 | MCP 编译 | `npm run build:mcp` | exit 0 | ✅ builder |
 | Electron 构建 | `npx electron-vite build` | exit 0 | ✅ builder |
+
+### 4.3 第 1 轮验收打回修复（T6）
+
+> **背景**：`08-verify-issue` 第 1 轮 — hook 活动下 Run 仍约 5min 被 `agent-run-guard` L73–75 绝对时长硬杀（`timeoutMs=absoluteTimeoutMs` 与 idle 同值 300s）。kb-builder 已落地 T6：CC 对齐 SDK `NEVER_CANCEL_ON_DURATION`（默认 true）；`armCcWatchdog` 在 never-cancel 时 `timeoutMs=Number.MAX_SAFE_INTEGER`；absolute 独立 env（`CC_ABSOLUTE_TIMEOUT_MS` 等，默认 7min，**≠ idle**）。
+
+| 场景 ID | 前置 | 步骤摘要 | 期望 | 关联 | 状态 |
+|---------|------|----------|------|------|------|
+| **K10 hook+guard L73（T6 专项）** | Claude Profile；`NEVER_CANCEL_ON_DURATION` 默认或未设；含 subagent/多步 tool 长跑 | 持续 hook/工具活动 **>5min**（或缩短 idle env 后等效窗口，但 **满 5min 总时长**） | Run **不**因 guard L73 `startedAt` 绝对分支终止；UI **无**「watchdog 超时」WARN（除非 idle 真触发） | 08 打回、`01·6/7`、场景 D、T6 | ⏳ **逻辑对齐 SDK，待 E2E** |
+| **K6 复测 idle 仍超时** | 同上；可选 `CC_IDLE_TIMEOUT_MS=60000` | **抑制** hook 与 assistant 输出，等待 ≥ idle 阈值 | 仍走 idle 分支 → draining → timeout 专收尾；IM 一条超时提示 | `01·6`（负例）、T6 idle 路径 | ⏳ **待用户台架** |
+
+**编号说明**：§4.1 已占用 **K8**（主动 Stop 回归）；T6 打回专项 hook+guard 场景续编为 **K10**（等价于打回描述之 hook 持续活动验收）。
+
+**静态已验（T6）**：
+
+| 检查 | 落点 | 期望 | 结果 |
+|------|------|------|------|
+| never-cancel 常量 | `agent-claude-sdk.ts` | 与 SDK 同源 env；默认 true | ✅ |
+| absolute 与 idle 解耦 | `agent-claude-sdk.ts` | `WATCHDOG_ABSOLUTE_TIMEOUT_MS` ≠ idle 默认；独立 env 链 | ✅ |
+| guard timeoutMs | `agent-cc-events.ts` `armCcWatchdog` | never-cancel → `Number.MAX_SAFE_INTEGER`；关闭时在 onTick 判 absolute | ✅ |
+| TS 类型检查 | `npx tsc --noEmit` | exit 0 | ✅ builder |
 
 ## 5、脚本位置与环境
 
@@ -115,6 +138,7 @@
 | 2026-06-30 | 本地 dev | 静态 §4.2（T1–T5 符号/分支/行数） | 通过 | kb-test |
 | 2026-06-30 | 本地 dev | `npx tsc --noEmit` | 通过 | 04-review |
 | 2026-06-30 | — | archive 决策 | `accepted_debt` | 静态+编译完成；K1–K9 不阻塞归档 |
+| 2026-06-30 | — | **T6 归档决策** | `accepted_debt` | T6 静态闭环；K6/K10 台架 debt 不阻塞 mv |
 | 2026-06-30 | — | K1 空闲超时收尾 | 待执行 | **台架 debt** |
 | 2026-06-30 | — | K2 绝对时长超时 | 待执行 | 台架 debt |
 | 2026-06-30 | — | **K3 IM 超时文案** | 待执行 | 台架 debt |
@@ -124,17 +148,23 @@
 | 2026-06-30 | — | K7 hook UI 日志 | 待执行 | 台架 debt |
 | 2026-06-30 | — | K8 主动 Stop 回归 | 待执行 | 手工 debt |
 | 2026-06-30 | — | K9 非超时 error 回归 | 待执行 | 联调 debt |
+| 2026-06-30 | 本地 dev | `npx tsc --noEmit`（T6 修复后） | 通过 | builder；exit 0 |
+| 2026-06-30 | 本地 dev | 静态 §4.3（T6 never-cancel / absolute 解耦） | 通过 | kb-recorder |
+| 2026-06-30 | — | **K10** hook+guard L73 >5min 不误杀 | 待执行 | **逻辑对齐 SDK，待 E2E** |
+| 2026-06-30 | — | **K6 复测** idle 无活动仍超时 | 待执行 | **待用户台架** |
 
 ## 8、归档结论
 
 | 项 | 结论 |
 |----|------|
-| **04-review** | ✅ 通过（无阻断项；见 `04-review.md` §9） |
-| **静态契约** | ✅ T1–T5、§8.2·1/3/4/6、行数约束（§3 追溯表、§4.2） |
-| **编译冒烟** | ✅ `npx tsc --noEmit`、`npm run build:mcp`、`npx electron-vite build`（§7） |
-| **台架 K1–K9** | ⏳ **accepted debt** — 不阻塞 `/kb-archive`；须在 Electron + Daemon + IM 环境后续补跑（§4.1） |
-| **manifest stage** | 维持 `reviewed`（本文不写入 `archived` / `tested`） |
+| **04-review** | ✅ 通过（T1–T5；见 `04-review.md` §9） |
+| **08 第 1 轮** | ❌ 打回（hook+absolute 未解耦）→ **T6 已修复**（静态 ✅） |
+| **静态契约** | ✅ T1–T6、§8.2·1/3/4/6、行数约束（§3、§4.2–4.3） |
+| **编译冒烟** | ✅ `npx tsc --noEmit`（含 T6 复跑）、`npm run build:mcp`、`npx electron-vite build`（§7） |
+| **台架 K6/K10（打回复测）** | ⏳ **阻塞第 2 轮验收** — K10（guard L73 不误杀）、K6（idle 仍超时）须 Electron + Daemon 补跑 |
+| **台架 K1–K5/K7–K9** | ⏳ debt — 与 T6 正交；可并行或归档后补跑 |
+| **manifest stage** | `archived_with_debt`（T6 静态闭环；K1–K10 台架 debt，见 05 §5） |
 
-**债务说明**：K1–K9 覆盖 01·1–8 运行时 IM 行为、§8.2·2/5 与 F5 同会话续聊；依赖全链联调，本期无 `auto_test/` 脚本。归档后建议优先 **K3/K4**（超时文案 + 续聊）与 **K6**（hook 静默不误杀）；若 K7 流路径缺 `tool_name` 导致验收 8 失败，见 `04-review.md` §8 T-FIX-01。
+**债务说明**：第 1 轮打回根因已静态闭环（T6）；**K10** 验证 hook 持续活动不因 guard L73 硬杀；**K6 复测**验证 idle 负例仍超时。其余 K1–K9 覆盖 01·1–8 运行时 IM 行为、§8.2·2/5 与 F5 同会话续聊。
 
-**归档准入**：静态 + 编译验收完成 → **可进入 `/kb-archive`**；台架 debt 留变更目录追溯，不抬升 stage。
+**归档准入**：**accepted_debt** — 静态 + T6 编译已就绪；K6/K10 及 K1–K9 台架不阻塞 `/kb-archive` 迁移（由 kb-release 执行 mv/commit）。

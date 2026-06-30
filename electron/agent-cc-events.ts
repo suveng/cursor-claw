@@ -165,26 +165,42 @@ export interface ArmWatchdogOptions {
   idleTimeoutMs: number
   tickMs: number
   absoluteTimeoutMs: number
+  /** 默认 true：watchRunGuard 不设总时长硬 cap，idle 仍走 onTick */
+  neverCancelOnDuration: boolean
   getSession: (sessionKey: string) => CcSessionAgent | undefined
   setWatchdogState: (session: CcSessionAgent, next: "running" | "draining" | "cancelling", reason: string) => void
 }
 
 /** 空闲超时看门狗；超时中止 activeQuery */
 export function armCcWatchdog(session: CcSessionAgent, token: string, opts: ArmWatchdogOptions): void {
-  const { idleTimeoutMs, tickMs, absoluteTimeoutMs, getSession, setWatchdogState } = opts
+  const { idleTimeoutMs, tickMs, absoluteTimeoutMs, neverCancelOnDuration, getSession, setWatchdogState } = opts
   void watchRunGuard({
-    sessionKey: session.sessionKey, token, timeoutMs: absoluteTimeoutMs, tickMs,
+    sessionKey: session.sessionKey,
+    token,
+    // 与 SDK 对齐：never-cancel 时不让 L73 总时长硬杀，idle/absolute 均在 onTick 判定
+    timeoutMs: neverCancelOnDuration ? Number.MAX_SAFE_INTEGER : absoluteTimeoutMs,
+    tickMs,
     onTick: () => {
       const s = getSession(session.sessionKey)
       if (!s || s.runGuardToken !== token) return "cancelled"
       if (!s.activeQuery) return "completed"
+      const now = Date.now()
       if (s.watchdogState === "running") {
-        const idleMs = Date.now() - s.lastActivityAt
+        const idleMs = now - s.lastActivityAt
         if (idleMs >= idleTimeoutMs) { setWatchdogState(s, "draining", `idle ${idleMs}ms`); return undefined }
       }
       if (s.watchdogState === "draining") {
-        const drainingMs = Date.now() - s.watchdogStateAt
+        const drainingMs = now - s.watchdogStateAt
         if (drainingMs > 15_000) { setWatchdogState(s, "cancelling", "drain_grace_exceeded"); return "timeout" }
+      }
+      // 显式关闭 never-cancel 时，绝对运行时长仅在 onTick 触发（对称 SDK armRunWatchdog）
+      if (
+        !neverCancelOnDuration &&
+        s.runStartedAt != null &&
+        now - s.runStartedAt >= absoluteTimeoutMs
+      ) {
+        setWatchdogState(s, "cancelling", "duration_limit")
+        return "timeout"
       }
       return undefined
     },

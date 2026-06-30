@@ -20,7 +20,7 @@ Electron 主进程：窗口/托盘、IPC、Daemon spawn/轮询、MCP/Rules/Skill
 
 Renderer → preload IPC → 主进程 spawn Daemon → `daemon:status-update` 回推。关闭窗口：ask/minimize/quit（`window:close-confirm`）。
 
-**CC Run**（Daemon→`cc-agent-api`→`query()`）：`startCcQuery` 并行 `buildQueryOptions`（hooks）、`armCcWatchdog`、`streamCcSdkMessages`。hooks 回调与 `hook_started`/`hook_progress`/`hook_response` 均 `markSessionActivity`。watchdog `onTimeout` 先置 `watchdogTimedOut` 再 `close()` Query；`completeCcRun` 超时走 `finalizeCcRunOnWatchdogTimeout`（IM+`stop_progress`，`errorNotified` 闩），与 error **互斥**（跳过 `setFailedCooldown`；非超时 error 仍写 30s cooldown）。
+**CC Run**（Daemon→`cc-agent-api`→`query()`）：`startCcQuery` 并行 `buildQueryOptions`（`cc-sdk-hooks.ts`）、`armCcWatchdog`、`streamCcSdkMessages`。hooks 回调与 `hook_*` 流均 `markSessionActivity`。`armCcWatchdog`：`NEVER_CANCEL_ON_DURATION` 默认 true 时 `timeoutMs=Number.MAX_SAFE_INTEGER`，idle（默认 300s）/absolute（默认 7min，≠idle）均在 `onTick` 判定；`onTimeout` 先 `watchdogTimedOut=true` 再 `close()`。超时 `completeCcRun`→`cc-watchdog-finalize.ts`（IM+`stop_progress`），与 error 互斥（跳过 `setFailedCooldown`）。
 
 ## 五、接口
 
@@ -50,7 +50,7 @@ Renderer → preload IPC → 主进程 spawn Daemon → `daemon:status-update` �
 
 **失败归档**：`archiveAgentFailureLogs` best-effort 挂接 notify/finalizer；`crashAnalysisDir` 配置时写 logBuffer±30→`electron-log.txt`+`meta.json`；不阻断 notify。
 
-**CC 可观测**：`cc-sdk-hooks.ts`—`buildCcSdkHooks`/`formatCcHookUiLog`（SubagentStart/PreToolUse/PostToolUse，回调 `markActivity`+UI 日志）；`cc-watchdog-finalize.ts`—`finalizeCcRunOnWatchdogTimeout`（对称 SDK finalizer，不写 cooldown）；`agent-cc-events.ts`—`hook_*` 流 subtype + `armCcWatchdog`。UI 字段：`hook_event=` 必有；`hook_name`/`agent_type`/`tool_name` 可选（流路径仅前两者）。禁止 hook 原文 IM。
+**CC 模块**：`cc-sdk-hooks.ts` hooks 工厂+UI 日志；`cc-watchdog-finalize.ts` 超时 IM（对称 SDK finalizer，不写 cooldown）；`agent-cc-events.ts` hook 流+`armCcWatchdog`。env：`CC_IDLE_TIMEOUT_MS`（idle）、`CC_ABSOLUTE_TIMEOUT_MS` 等（absolute）；`NEVER_CANCEL_ON_DURATION` 与 SDK 共用。UI：`hook_event=` 必有；禁止 hook 原文 IM。
 
 ## 八、推送
 
@@ -62,7 +62,7 @@ Renderer → preload IPC → 主进程 spawn Daemon → `daemon:status-update` �
 
 ## 十、变更记录
 
-2026-06-30：§二/§四/§七 CC hooks、watchdog 超时对称收尾（archive 20260630100827）。
+2026-06-30：§二/§四/§七 CC Run hooks、watchdog idle/absolute 解耦与超时对称收尾（archive 20260630100827）。
 2026-06-30：补充 `cc:*` IPC；Claude Agent Run 经 cc-agent-api（archive 20260630002838）。
 2026-06-30：MCP 改 mcp.json 探测；删 `cli:*`/`models:list`（archive 20260629232914）。
 2026-06-28：§七 补充 `archiveAgentFailureLogs` 挂接与产物约定。
