@@ -1,7 +1,7 @@
 {
   "name": "ClaudeAgent-MCP审批门控与启用展示",
   "flow": "standard",
-  "stage": "proposed",
+  "stage": "designed",
   "source": "kb-propose",
   "tasks": [],
   "reviews": [],
@@ -18,9 +18,15 @@
       "kind": "change_doc",
       "source": "apply",
       "status": "planned"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260630140113-ClaudeAgent-MCP审批门控与启用展示/02-design.md",
+      "kind": "change_doc",
+      "source": "apply",
+      "status": "planned"
     }
   ],
-  "updated_at": "2026-06-30T14:08:57+0800",
+  "updated_at": "2026-06-30T14:18:19+0800",
   "figma_confirmed": true,
   "figma_decision": "auto-none",
   "external": {
