@@ -50,6 +50,8 @@ CodeGraph: `readClaudeJsonMcpServers`/`mergeMcpJsonEntries`/`loadInlineCcMcpServ
 
 无 → T2, T3
 
+> **状态**：✅ 已实现 — `cc-mcp-loader.ts` 新增 `readCcProjectApproval`/`filterApprovedProjectMcp`/`loadApprovedInlineCcMcpServers` 三函数（161→256 行），`filterApprovedProjectMcp` 新增 `workspaceDir` 第三参数用于读 `.mcp.json` 区分 project scope；`loadInlineCcMcpServers` 全量保留供展示。
+
 ## T2: 注入入口对接
 
 ### 背景
@@ -76,6 +78,8 @@ CodeGraph: `appendInlineMcpToCcOptions`/`buildQueryOptions`；必读 `electron/a
 ### 依赖
 
 T1 → 无
+
+> **状态**：✅ 已实现（方案 A 修正，死代码消除） — `agent-claude-sdk.ts` `buildQueryOptions` 仍调 `appendInlineMcpToCcOptions`（仅加注释），`cc-mcp-loader.ts:250-258` `appendInlineMcpToCcOptions` 函数体改调 `loadApprovedInlineCcMcpServers`（方案 A 内部改调，签名不变），注入数对齐审批后实际加载数；292 行，tsc 通过。注：apply 阶段首版曾按硬约束「不改 cc-mcp-loader.ts」改在 `buildQueryOptions` 调用方绕过 `appendInlineMcpToCcOptions` 致死代码，后续切换为方案 A 在 `cc-mcp-loader.ts` 内部改调，死代码已消除。
 
 ## T3: 取数层 disabled 标记
 
@@ -104,6 +108,8 @@ CodeGraph: `toEntry`/`getSessionMcpStatus`/`mapCcStatusToUi`；必读 `electron/
 
 T1 → T4
 
+> **状态**：✅ 已实现 — `session-mcp-status.ts`（186→296 行）`toEntry` 增 `approved?` 入参置 `enabled`；新增 `readProjectMcpNames`/`buildApprovedMap`/`appendDisabledPending`/`buildDiskStatusMap`，CC 三态路径读 `readCcProjectApproval` 标记 project scope，runtime/snapshot 补全 Pending approval 的 disabled 条目，SDK 路径不变。
+
 ## T4: 展示层 enable/disable 标签
 
 ### 背景
@@ -130,3 +136,5 @@ CodeGraph: `SessionMcpPanel`/`statusLabel`；必读 `SessionMcpPanel.tsx`、`src
 ### 依赖
 
 T3 → 无
+
+> **状态**：✅ 已实现 — `mcp-types.ts`/`mcp.d.ts` 的 `McpServerEntry.enabled` 加三态语义中文注释（false=审批未启用/被禁用，true=审批启用或 user/local，undefined 向后兼容）；`SessionMcpPanel.tsx`（208→215 行）据 `s.enabled===false` 加容器 `opacity-60` 灰化、名字色阶降级、与 statusLabel 协同去重的「未启用」标签；tsc 通过，三文件 26/27/215 行均 <300。

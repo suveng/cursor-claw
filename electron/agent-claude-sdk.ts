@@ -91,6 +91,7 @@ function buildQueryOptions(session: CcSessionAgent) {
     strictMcpConfig: true,
     ...(session.ccSessionId ? { resume: session.ccSessionId } : {}),
   }
+  // 注入经审批门控过滤后集合（appendInlineMcpToCcOptions 内部调 loadApprovedInlineCcMcpServers）
   const withMcp = appendInlineMcpToCcOptions(base, session.workspaceDir)
   // 注入后打 UI 日志，供排查 inline server 数量与 strictMcpConfig 联动
   const inlineCount = withMcp.mcpServers ? Object.keys(withMcp.mcpServers).length : 0

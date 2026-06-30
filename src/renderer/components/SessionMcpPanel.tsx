@@ -149,9 +149,13 @@ export default function SessionMcpPanel({
             const isReady = rawStatus === "ready" || rawStatus === "enabled"
             const statusColor = !rawStatus ? "text-gray-600" : isReady ? "text-green-400" : rawStatus === "disabled" ? "text-gray-500" : rawStatus === "needs_login" ? "text-amber-400" : "text-red-400"
             const statusLabel = !rawStatus ? "—" : isReady ? "ready" : rawStatus === "disabled" ? "disabled" : rawStatus === "needs_login" ? "需授权" : rawStatus
+            // 审批未启用：enabled===false 表示审批门控未放行（project scope 未在白名单/被禁用），未注入运行
+            const approvalDisabled = s.enabled === false
+            // 「未启用」标签：审批未启用且 runtime status 未标 disabled 时补显，避免与 statusLabel 重复
+            const showApprovalDisabledTag = approvalDisabled && statusLabel !== "disabled"
 
             return (
-              <div key={s.name} className="rounded border border-gray-700/50 overflow-hidden">
+              <div key={s.name} className={`rounded border border-gray-700/50 overflow-hidden${approvalDisabled ? " opacity-60" : ""}`}>
                 <div className="flex items-center justify-between px-2.5 py-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <button onClick={() => void toggleExpand(s.name)} className="shrink-0 text-gray-500 hover:text-gray-300">
@@ -162,8 +166,11 @@ export default function SessionMcpPanel({
                       : <Terminal size={12} className="text-gray-500" />}
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="truncate text-xs font-medium text-gray-300">{s.name}</span>
+                        <span className={`truncate text-xs font-medium ${approvalDisabled ? "text-gray-500" : "text-gray-300"}`}>{s.name}</span>
                         <span className="rounded bg-gray-800 px-1 py-0.5 text-[9px] text-gray-500">{s.source === "global" ? "全局" : "项目"}</span>
+                        {!statusLoading && showApprovalDisabledTag && (
+                          <span className="rounded bg-gray-800/80 px-1 py-0.5 text-[9px] text-gray-500">未启用</span>
+                        )}
                         {!statusLoading && <span className={`text-[9px] ${statusColor}`}>{statusLabel}</span>}
                       </div>
                       <p className="truncate text-[10px] text-gray-600">{s.type === "url" ? s.url : `${s.command} ${(s.args ?? []).join(" ")}`}</p>

@@ -58,7 +58,8 @@ flowchart TD
 ## 四、接口设计
 
 - `readCcProjectApproval(workspaceDir): { enabled: string[]; disabled: string[]; enableAll: boolean }`（新增，`cc-mcp-loader.ts`，读 `~/.claude.json` projects[ws]，缺失容错为空/false）
-- `filterApprovedProjectMcp(merged, approval): Record<string, RawMcpEntry>`（新增，按白/黑/全批准过滤 project scope；user/local 不过滤）
+- `filterApprovedProjectMcp(merged, approval, workspaceDir): Record<string, RawMcpEntry>`（新增，按白/黑/全批准过滤 project scope；user/local 不过滤）
+  - **设计偏差记录**（archive 回填）：原设计签名为 `filterApprovedProjectMcp(merged, approval)` 两参数，实际实现新增第三参数 `workspaceDir`。原因：须读 `{ws}/.mcp.json` servers 键集合区分 project scope（`mergeMcpJsonEntries` 中 project 覆盖 user/local，project 条目即 `.mcp.json` 键集合），否则无法满足 §六步骤2「project scope 均未命中弃 + user/local 不过滤」验收。属合理设计修正，已在 `electron/AGENTS.md` `## CC MCP 审批门控函数` 沉淀「须传 `workspaceDir` 第三参数用于读 `{ws}/.mcp.json` servers 键集合区分 project scope」。
 - `loadApprovedInlineCcMcpServers(workspaceDir): Record<string, McpServerConfig>`（新增，过滤后供注入；`loadInlineCcMcpServers` 保留全量供展示）
 - `appendInlineMcpToCcOptions` 改用 `loadApprovedInlineCcMcpServers`
 - `toEntry(name, cfg, source, approved?): McpServerEntry`（签名增可选 `approved`，置 `enabled`；向后兼容）

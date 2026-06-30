@@ -151,10 +151,108 @@ export function loadInlineCcMcpServers(workspaceDir: string): Record<string, Mcp
   return result
 }
 
+/**
+ * 读 ~/.claude.json projects[ws] 的 project scope 审批状态（交互审批落地）。
+ * - enabledMcpjsonServers：白名单（用户 approve 的 .mcp.json server）
+ * - disabledMcpjsonServers：黑名单（用户 reject 的）
+ * - enableAllProjectMcpServers：全批准
+ * 缺失容错为空数组/false（沿用 readClaudeJsonMcpServers 容错策略）。
+ *
+ * ponytail: 只读 ~/.claude.json projects[ws]（交互审批落地），不读 settings 源
+ *   （~/.claude/settings.json/managed/.claude/settings.local.json）的预置审批配置——
+ *   strictMcpConfig:true 下 SDK 忽略原生审批门控，本注入层复刻"用户交互审批意图"，
+ *   settings 源预置审批对 inline 注入无直接语义；升级路径：需对齐 settings 源审批时
+ *   扩大读取范围合并同名字段（02 §八·（一）风险1 已记录）。
+ */
+export function readCcProjectApproval(workspaceDir: string): {
+  enabled: string[]
+  disabled: string[]
+  enableAll: boolean
+} {
+  try {
+    const claudeJsonPath = path.join(os.homedir(), ".claude.json")
+    if (!fs.existsSync(claudeJsonPath)) return { enabled: [], disabled: [], enableAll: false }
+    const cfg = JSON.parse(fs.readFileSync(claudeJsonPath, "utf-8")) as Record<string, unknown>
+    const ws = workspaceDir.trim()
+    if (!ws) return { enabled: [], disabled: [], enableAll: false }
+    const projects = (cfg.projects as Record<string, Record<string, unknown>> | undefined) ?? {}
+    const proj = projects[ws] ?? {}
+    const enabled = proj.enabledMcpjsonServers
+    const disabled = proj.disabledMcpjsonServers
+    return {
+      enabled: Array.isArray(enabled) ? (enabled as string[]) : [],
+      disabled: Array.isArray(disabled) ? (disabled as string[]) : [],
+      enableAll: proj.enableAllProjectMcpServers === true,
+    }
+  } catch {
+    return { enabled: [], disabled: [], enableAll: false }
+  }
+}
+
+/**
+ * 按 project scope 审批门控过滤合并后的 MCP 条目。
+ * - project scope（来自 {ws}/.mcp.json）条目：enableAll→全留；否则 disabled 命中→弃、
+ *   enabled 命中→留、均未命中→弃（Pending approval 不加载，对齐 Claude Code 原生语义）
+ * - user/local scope（来自 ~/.claude.json）条目：不过滤，始终保留
+ * project scope 判定：name ∈ {ws}/.mcp.json servers 键集合（mergeMcpJsonEntries 中 project
+ *   覆盖 user/local，同名取 project 整条，故 project 条目即 .mcp.json 键集合）。
+ *
+ * ponytail: 内部读 .mcp.json 拿 project names 与 mergeMcpJsonEntries 重复一次读盘——
+ *   避免新建 scope 标注抽象层；.mcp.json 小文件重复读可接受。升级路径：若需消除重复读盘，
+ *   可让 mergeMcpJsonEntries 返回带 scope 标注的条目结构（YAGNI，首版不做）。
+ *
+ * 注：02 §四签名为 (merged, approval)，实现新增 workspaceDir 第三参数用于读 .mcp.json
+ *   区分 project scope，否则无法满足"user/local 不过滤 + project 均未命中弃"验收。
+ */
+export function filterApprovedProjectMcp(
+  merged: Record<string, RawMcpEntry>,
+  approval: { enabled: string[]; disabled: string[]; enableAll: boolean },
+  workspaceDir: string,
+): Record<string, RawMcpEntry> {
+  const ws = workspaceDir.trim()
+  const projectNames = ws ? new Set(Object.keys(readMcpServersBlock(path.join(ws, ".mcp.json")))) : new Set<string>()
+  if (approval.enableAll) return { ...merged }
+  const result: Record<string, RawMcpEntry> = {}
+  for (const [name, raw] of Object.entries(merged)) {
+    if (!projectNames.has(name)) {
+      // user/local scope 不过滤
+      result[name] = raw
+      continue
+    }
+    // project scope 按审批过滤：disabled 弃、enabled 留、均未命中弃（Pending approval 不加载）
+    if (approval.disabled.includes(name)) continue
+    if (approval.enabled.includes(name)) result[name] = raw
+  }
+  return result
+}
+
+/**
+ * 加载经 project scope 审批门控过滤后的 inline MCP 表（供注入）。
+ * 流程：mergeMcpJsonEntries 全量合并 → readCcProjectApproval 读审批 → filterApprovedProjectMcp
+ *   过滤 project scope → 转 McpServerConfig（复用 toStdioInlineConfig/toHttpInlineConfig）。
+ * 与 loadInlineCcMcpServers 区别：后者全量供展示（T3/T4 取数依赖），本函数过滤后供注入。
+ */
+export function loadApprovedInlineCcMcpServers(workspaceDir: string): Record<string, McpServerConfig> {
+  const merged = filterApprovedProjectMcp(
+    mergeMcpJsonEntries(workspaceDir),
+    readCcProjectApproval(workspaceDir),
+    workspaceDir,
+  )
+  const authStore = readMcpAuthStore(workspaceDir)
+  const result: Record<string, McpServerConfig> = {}
+  for (const [name, raw] of Object.entries(merged)) {
+    const cfg = raw.url ? toHttpInlineConfig(raw, name, authStore) : toStdioInlineConfig(raw, workspaceDir)
+    if (cfg) result[name] = cfg
+  }
+  return result
+}
+
 /** 合并 mcpServers 至 query options；resident 模式每次 query 须重传 */
 export function appendInlineMcpToCcOptions<T extends { mcpServers?: Record<string, McpServerConfig> }>(
   options: T,
   workspaceDir?: string,
 ): T {
-  return { ...options, mcpServers: loadInlineCcMcpServers(workspaceDir ?? "") }
+  // 改用审批门控过滤后集合，对齐 Claude Code 实际加载（与 Dashboard enabled 数一致）；
+  // loadInlineCcMcpServers 保留全量供展示取数，不在此注入。
+  return { ...options, mcpServers: loadApprovedInlineCcMcpServers(workspaceDir ?? "") }
 }
