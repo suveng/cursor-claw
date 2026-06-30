@@ -53,6 +53,7 @@
 
 ## 模块边界
 
+- `main-window.ts`：`BrowserWindow` 创建与 renderer 加载（dev `loadURL` / 打包 `loadFile`、`did-fail-load` fallback）；`main.ts` 仅注入退出状态并注册 IPC。
 - `proxy-env`：子进程/Daemon 启动时的 HTTP(S) 代理 env 注入；**不** spawn Cursor CLI。
 - `agent-launcher`：仅 `ChatType` / `buildPrompt` / `resolveSessionChatName` 等 SDK·CC 共享符号；`buildPrompt` 仅透传 `taskMessage`，不注入 rules 或元数据包装；**无** CLI spawn。
 - `session-dispatcher`：任务/工作流/`/chat` 经 Daemon `POST /api/agent/launch` 启动；**不**扫描 IM 队列（T7 迁入 Daemon）；**launch 前不得**调用 `workspace-injector` 写盘。

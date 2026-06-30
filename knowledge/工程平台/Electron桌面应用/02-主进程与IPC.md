@@ -2,7 +2,7 @@
 
 ## 一、能力范围
 
-Electron 主进程：窗口/托盘、IPC、Daemon spawn/轮询、MCP/Rules/Skills、飞书/微信绑定、Agent 失败日志归档（`crash-log-archiver.ts`）；不负责 Daemon HTTP 路由。
+Electron 主进程：窗口/托盘（`main-window.ts` `createWindow`）、IPC、Daemon spawn/轮询、MCP/Rules/Skills、飞书/微信绑定、Agent 失败日志归档（`crash-log-archiver.ts`）；不负责 Daemon HTTP 路由。
 
 ## 二、设计决策与取舍
 
@@ -19,6 +19,8 @@ Electron 主进程：窗口/托盘、IPC、Daemon spawn/轮询、MCP/Rules/Skill
 ## 四、客户端流程
 
 Renderer → preload IPC → 主进程 spawn Daemon → `daemon:status-update` 回推。关闭窗口：ask/minimize/quit（`window:close-confirm`）。
+
+**Renderer 加载**（`main-window.ts`）：`app.isPackaged === true` 时始终 `loadFile` 本地 `renderer/index.html`，忽略 shell 残留 `ELECTRON_RENDERER_URL`；仅 dev 且存在 `ELECTRON_RENDERER_URL` 时 `loadURL`，`did-fail-load` 时 fallback `loadFile`。
 
 **CC Run**：Daemon→`cc-agent-api`→`query()`；`startCcQuery` 并行 hooks/watchdog/stream，超时经 `cc-watchdog-finalize` IM。
 
@@ -66,5 +68,6 @@ Renderer → preload IPC → 主进程 spawn Daemon → `daemon:status-update` �
 
 ## 十、变更记录
 
+2026-06-30：§四 补 renderer 加载策略（`main-window.ts`：打包 loadFile、dev loadURL+fallback）。
 2026-06-30：§五 IPC 增 `agent:mcp-status`（CC/SDK 展示统一入口，类型抽 `types/mcp.d.ts`）；MCP IPC 增 `mcp:list-for-workspace`+`workspaceDir`、`agent:sessions` 增 `engineType`/`workspaceDir`；CC Run 解耦、补 `cc:*` IPC；MCP 改 mcp.json、删 `cli:*`/`models:list`。
 2026-06-28：§七 补 `archiveAgentFailureLogs` 挂接与产物约定；2026-06-27 kb-sync 初始建立。

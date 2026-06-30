@@ -1,6 +1,6 @@
 {
   "name": "cursor-claw",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Cursor Claw - 飞书 & 微信 × Cursor AI 协作桌面应用",
   "keywords": [
     "mcp",
@@ -26,6 +26,7 @@
     "build:bundle": "node scripts/bundle-daemon.cjs",
     "dev:mcp": "tsx src/index.ts",
     "dev": "npm run build && electron-vite dev -- --profile=dev",
+    "dev:multi": "electron-vite dev --",
     "dev:fresh-setup": "node scripts/dev-fresh-setup.cjs",
     "build": "npm run clean && npm run build:mcp && npm run build:bundle && electron-vite build",
     "preview": "electron-vite preview",

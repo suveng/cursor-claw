@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from "electron"
+import { app, BrowserWindow, ipcMain, dialog } from "electron"
 import * as path from "node:path"
 import * as fs from "node:fs"
 import * as os from "node:os"
@@ -36,52 +36,13 @@ import { injectWorkspace } from "./workspace-injector"
 import { initTray, destroyTray } from "./tray"
 import { initAppUpdater } from "./updater"
 import { broadcastLog } from "./ui-logger"
+import { createWindow, mainWindow, setCloseConfirmDialogOpen } from "./main-window"
 
 const profileArg = process.argv.find((a) => a.startsWith("--profile="))
 const profileName = profileArg?.split("=")[1] || ""
 if (profileName) {
   const baseDir = path.dirname(app.getPath("userData"))
   app.setPath("userData", path.join(baseDir, `cursor-claw-${profileName}`))
-}
-
-let mainWindow: BrowserWindow | null = null
-let closeConfirmDialogOpen = false
-
-function installWindowCloseHandler(win: BrowserWindow): void {
-  win.on("close", (e) => {
-    if (isQuitting) {
-      return
-    }
-
-    const pref = getConfig().closeWindowAction
-
-    if (pref === "minimize") {
-      e.preventDefault()
-      win.hide()
-      return
-    }
-
-    if (pref === "quit") {
-      isQuitting = true
-      return
-    }
-
-    e.preventDefault()
-    if (closeConfirmDialogOpen) {
-      return
-    }
-    closeConfirmDialogOpen = true
-    win.webContents.send("window:close-confirm")
-  })
-}
-
-function resolveIcon(): string {
-  const dir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), "resources")
-  if (process.platform === "win32") {
-    const ico = path.join(dir, "icon.ico")
-    if (fs.existsSync(ico)) return ico
-  }
-  return path.join(dir, "icon.png")
 }
 
 /** 同步开机自启系统设置到配置值（开发模式跳过，避免把 electron.exe 注册为自启） */
@@ -95,51 +56,6 @@ function applyLoginItemSetting(enabled: boolean): void {
   } catch (e) {
     console.error("[main] 设置开机自启失败:", e)
   }
-}
-
-function createWindow(): void {
-  const iconPath = resolveIcon()
-
-  mainWindow = new BrowserWindow({
-    width: 900,
-    height: 680,
-    minWidth: 780,
-    minHeight: 560,
-    title: profileName ? `Cursor Claw [${profileName}]` : "Cursor Claw",
-    icon: iconPath,
-    autoHideMenuBar: true,
-    frame: false,
-    webPreferences: {
-      preload: path.join(__dirname, "../preload/index.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-    show: false,
-  })
-
-  mainWindow.on("ready-to-show", () => {
-    mainWindow?.show()
-  })
-
-  installWindowCloseHandler(mainWindow)
-
-  mainWindow.on("maximize", () => mainWindow?.webContents.send("window:maximized-change", true))
-  mainWindow.on("unmaximize", () => mainWindow?.webContents.send("window:maximized-change", false))
-
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
-    return { action: "deny" }
-  })
-
-  if (process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
-  } else {
-    mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"))
-  }
-
-  mainWindow.webContents.on("did-fail-load", (_e, code, desc) => {
-    console.error("[main] did-fail-load:", code, desc)
-  })
 }
 
 function registerIpcHandlers(): void {
@@ -167,7 +83,7 @@ function registerIpcHandlers(): void {
     "window:close-confirm-result",
     (_, payload: { action: "minimize" | "quit" | "cancel"; remember: boolean }) => {
       const win = mainWindow
-      closeConfirmDialogOpen = false
+      setCloseConfirmDialogOpen(false)
       if (!win || win.isDestroyed()) {
         return
       }
@@ -391,7 +307,13 @@ app.on("before-quit", () => {
 app.whenReady().then(() => {
   registerIpcHandlers()
   applyLoginItemSetting(getConfig().autoStart)
-  createWindow()
+  createWindow({
+    profileName,
+    getIsQuitting: () => isQuitting,
+    setIsQuitting: (v) => {
+      isQuitting = v
+    },
+  })
   initAppUpdater(() => mainWindow)
   initTray()
   initDaemonManager()
@@ -405,7 +327,13 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
+    createWindow({
+      profileName,
+      getIsQuitting: () => isQuitting,
+      setIsQuitting: (v) => {
+        isQuitting = v
+      },
+    })
   } else {
     mainWindow?.show()
   }
