@@ -28,31 +28,17 @@ export interface LaunchMeta {
   chatType?: string
 }
 
-/** 统一构建 Agent 启动 Prompt（SDK / Claude Code 共用；仅任务内容与会话元数据，不含工作流前缀） */
+/**
+ * 构建 Agent 启动 Prompt（SDK / Claude Code 共用）。
+ * 仅透传用户任务文本，不注入 rules、分隔线或 session 元数据包装。
+ */
 export function buildPrompt(
-  meta?: LaunchMeta,
+  _meta?: LaunchMeta,
   taskMessage?: string,
-  sessionKey?: string,
+  _sessionKey?: string,
   // 保留参数以兼容既有调用方；workspace 路由仍由 session-dispatcher / SDK 负责
   _useMainWorkspace?: boolean,
 ): string {
-  const prompts: string[] = []
-
-  if (taskMessage) {
-    prompts.push("---")
-    prompts.push("任务内容:")
-    prompts.push(taskMessage)
-  }
-
-  // 仅有元数据时不加 leading ---；有任务内容时在元数据前插入分隔线
-  if (prompts.length > 0) {
-    prompts.push("---")
-  }
-  prompts.push("会话元数据:")
-  if (sessionKey) {
-    prompts.push(`[session_key=${sessionKey}]`)
-  }
-  prompts.push(`[chat_type=${meta?.chatType}]`)
-
-  return prompts.join("\n")
+  const text = taskMessage?.trim()
+  return text ? taskMessage! : ""
 }
