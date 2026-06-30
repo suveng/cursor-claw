@@ -132,12 +132,13 @@ export function saveConfig(partial: Partial<AppConfig>): void {
 
 // ── 通道 / 资源 工具 ──────────────────────────────────────
 
-/** 首个可运行资源：优先 SDK，其次 Claude Code，最后 Codex；待 OpenCodeSDK 接入时按同模式加 "opencode" */
+/** 首个可运行资源：优先 SDK → Claude Code → Codex → OpenCode */
 function findFirstRunnableResource(resources: AgentResource[]): AgentResource | undefined {
   return (
     resources.find((r) => r.type === "sdk")
     ?? resources.find((r) => r.type === "claude-code")
     ?? resources.find((r) => r.type === "codex")
+    ?? resources.find((r) => r.type === "opencode")
   )
 }
 
@@ -174,6 +175,16 @@ export function newCodexResourceId(): string {
 /** 判断资源 id 是否为 Codex Profile（用于已删除绑定的 F6 拦截，勿 fallback 其他 Profile） */
 export function isCodexResourceId(id: string): boolean {
   return id.startsWith("codex_")
+}
+
+/** 新建 OpenCode Profile 资源 id，格式 opencode_<8位hex> */
+export function newOpencodeResourceId(): string {
+  return `opencode_${randomBytes(4).toString("hex")}`
+}
+
+/** 判断资源 id 是否为 OpenCode Profile（F6 删除拦截） */
+export function isOpencodeResourceId(id: string): boolean {
+  return id.startsWith("opencode_")
 }
 
 export function getChannels(): MessageChannel[] {
@@ -213,8 +224,8 @@ export function getAgentResource(id?: string): AgentResource | undefined {
   if (!id) return fallback
   const bound = resources.find((r) => r.id === id)
   if (bound) return bound
-  // Codex Profile 已删除：不 fallback 到其他 codex Profile（F6）；sdk/cc 仍走首个可运行资源
-  if (isCodexResourceId(id)) return undefined
+  // Codex / OpenCode Profile 已删除：不 fallback（F6）；sdk/cc 仍走首个可运行资源
+  if (isCodexResourceId(id) || isOpencodeResourceId(id)) return undefined
   return fallback
 }
 

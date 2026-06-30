@@ -17,14 +17,15 @@ interface Props {
 
 /** Profile 型资源：模型由 Profile 管理，通道层不拉列表 */
 function isProfileResource(type?: AgentResource["type"]): boolean {
-  return type === "claude-code" || type === "codex"
+  return type === "claude-code" || type === "codex" || type === "opencode"
 }
 
-/** optgroup 标签：按 Agent 资源类型分组展示（OpenCodeSDK rebase 先行落点，见 groupedTypes） */
+/** optgroup 标签：按 Agent 资源类型分组展示 */
 const RESOURCE_GROUP_LABELS: Record<AgentResource["type"], string> = {
   sdk: "Cursor SDK",
   "claude-code": "Claude Code Profile",
   codex: "Codex Profile",
+  opencode: "OpenCode Profile",
 }
 
 const modelKey = (id: string, params: string) => id + (params ? "\0" + params : "")
@@ -50,6 +51,7 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
 
   const isCcProfile = resource?.type === "claude-code"
   const isCodexProfile = resource?.type === "codex"
+  const isOpencodeProfile = resource?.type === "opencode"
   const isSdkChannel = resource?.type === "sdk"
 
   // 持久化模型字段快照，供 Profile → Cursor 切回时回显
@@ -104,8 +106,7 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
     }
   }
 
-  // 按 type 分组资源；待 OpenCodeSDK 变更 20260630105159 接入时按同模式加 "opencode"
-  const groupedTypes: AgentResource["type"][] = ["sdk", "claude-code", "codex"]
+  const groupedTypes: AgentResource["type"][] = ["sdk", "claude-code", "codex", "opencode"]
 
   return (
     <div className="space-y-3 rounded-lg border border-gray-800 p-3">
@@ -178,7 +179,23 @@ export default function ChannelModelSection({ channel, draft, set, resources, sh
               <span className="ml-1 rounded bg-gray-800 px-1 py-0.5 font-mono text-[10px] text-gray-300">{resource.model}</span>
             </p>
           ) : (
-            <p className="text-xs text-gray-600">Profile 未配置默认模型，执行时使用 Codex SDK 内置默认。</p>
+            <p className="text-xs text-gray-600">Profile 未配置默认模型，执行时使用 OpenCode SDK 内置默认。</p>
+          )}
+        </div>
+      )}
+
+      {isOpencodeProfile && resource && (
+        <div className="space-y-1.5 rounded-lg border border-gray-700/50 bg-gray-800/30 px-3 py-2.5">
+          <p className="text-xs text-gray-400">
+            模型与部署由 Profile「{resource.name}」统一管理（{resource.deployMode === "external" ? "外部" : "内嵌"}模式）。
+          </p>
+          {resource.model ? (
+            <p className="text-xs text-gray-500">
+              默认模型：
+              <span className="ml-1 rounded bg-gray-800 px-1 py-0.5 font-mono text-[10px] text-gray-300">{resource.model}</span>
+            </p>
+          ) : (
+            <p className="text-xs text-gray-600">Profile 未配置默认模型，执行时使用 OpenCode 推荐默认。</p>
           )}
         </div>
       )}

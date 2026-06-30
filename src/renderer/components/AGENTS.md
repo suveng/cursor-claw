@@ -3,13 +3,13 @@
 ## Agent 资源 UI 拆分
 
 - `AgentPanel.tsx`：仅 Cursor SDK Key 列表与弹窗（<300 行）。
-- `AgentProfilePanels.tsx`：Claude Code / Codex Profile 列表与弹窗；持久化时保留既有 SDK 资源。
-- `AgentResourceModals.tsx`：`SdkEditModal` / `CcEditModal` / `CodexEditModal` 弹窗组件；Codex 模型字段经 `listCodexModels` IPC 消费硬编码 `CODEX_MODEL_LIST`，支持「自定义模型 ID」覆盖。
+- `AgentProfilePanels.tsx`：Claude Code / Codex Profile 列表与弹窗；OpenCode 区块见 `AgentOpencodeProfileSection.tsx`；持久化时保留既有 SDK 资源。
+- `AgentResourceModals.tsx`：`SdkEditModal` / `CcEditModal` / `CodexEditModal` / `OpenCodeEditModal` 弹窗组件。
 
 ## 通道模型区块
 
 - `ChannelModelSection.tsx`：`RESOURCE_GROUP_LABELS` 与 `groupedTypes` 须覆盖全部 `AgentResource.type`；并列 OpenCodeSDK 变更 rebase 时按同模式扩展。
-- Profile 型资源（`claude-code` / `codex`）：通道层不拉模型列表；绑定资源已删除时提示重选，勿 fallback 到其他资源。
+- Profile 型资源（`claude-code` / `codex` / `opencode`）：通道层不拉模型列表；绑定资源已删除时提示重选，勿 fallback 到其他资源。
 
 ## 通用
 

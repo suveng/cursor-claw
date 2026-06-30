@@ -9,11 +9,14 @@ import type { WorkflowDefinition, WorkflowInstance } from "../shared/workflow-ty
 
 interface AgentResource {
   id: string
-  /** sdk=Cursor SDK Key；claude-code=Claude Code Profile；codex=Codex Profile */
-  // 待 OpenCodeSDK 接入时按同模式加 "opencode"
-  type: "sdk" | "claude-code" | "codex"
+  /** sdk=Cursor SDK Key；claude-code/cc/codex/opencode=各引擎 Profile */
+  type: "sdk" | "claude-code" | "codex" | "opencode"
   name: string
   apiKey?: string
+  deployMode?: "embedded" | "external"
+  opencodeHostname?: string
+  opencodePort?: number
+  providerId?: string
   email?: string
   /** 自定义 Anthropic 端点（仅 claude-code）；空值 = 使用 Anthropic 默认端点 */
   baseUrl?: string
@@ -189,10 +192,10 @@ interface ElectronAPI {
   startDaemon(): Promise<{ ok: boolean; error?: string }>
   stopDaemon(): Promise<void>
   stopAgent(): Promise<{ ok: boolean }>
-  getSessionAgents(): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" | "codex" }[]>
+  getSessionAgents(): Promise<{ sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" | "codex" | "opencode" }[]>
   stopSessionAgent(sessionKey: string): Promise<{ ok: boolean }>
   stopAllSessionAgents(): Promise<{ ok: boolean }>
-  onSessionAgents(cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" | "codex" }[]) => void): () => void
+  onSessionAgents(cb: (list: { sessionKey: string; pid: number; startedAt: number; chatType: string; lastActivityAt: number; chatName?: string; workspaceDir?: string; engineType: "sdk" | "claude-code" | "codex" | "opencode" }[]) => void): () => void
   getDaemonStatus(): Promise<DaemonStatus>
   getLogBuffer(): Promise<string[]>
   getQueueMessages(): Promise<{ index: number; fileId: string; preview: string; sessionKey?: string; chatType?: string; timestamp?: number; senderOpenId?: string }[]>

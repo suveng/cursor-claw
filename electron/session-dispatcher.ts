@@ -2,7 +2,7 @@ import * as path from "node:path"
 import * as fs from "node:fs"
 import { app } from "electron"
 import {
-  getConfig, getChannel, getAgentResource, isCodexResourceId, resolveChannelForSession,
+  getConfig, getChannel, getAgentResource, isCodexResourceId, isOpencodeResourceId, resolveChannelForSession,
   resolveChannelModel, effectiveWorkspaceDir, mainChatScopeKey,
   type MessageChannel, type ModelScenario,
 } from "./config-store"
@@ -23,6 +23,10 @@ import {
   getClaudeCodeSessionList, ensureClaudeCodeHttpServer, getCcAgentApiPort,
 } from "./agent-claude-sdk"
 import { ensureCodexHttpServer, getCodexAgentApiPort, isCodexSessionRunning, stopCodexSession, stopAllCodexSessions, getCodexSessionList } from "./agent-codex-sdk"
+import {
+  ensureOpencodeHttpServer, getOpencodeAgentApiPort,
+  isOpencodeSessionRunning, stopOpencodeSession, stopAllOpencodeSessions, getOpencodeSessionList,
+} from "./agent-opencode-sdk"
 
 // ── readLockFile 短 TTL 缓存 ─────────────────────────────
 let _lockCache: { value: ReturnType<typeof readLockFile>; ts: number } | null = null
@@ -57,19 +61,21 @@ async function notifyChat(sessionKey: string, text: string, stopProgress = false
 // ── SDK-only 运行时 ───────────────────────────────────────
 
 export function isSessionAgentRunning(key: string): boolean {
-  return isSdkSessionRunning(key) || isClaudeCodeSessionRunning(key) || isCodexSessionRunning(key)
+  return isSdkSessionRunning(key) || isClaudeCodeSessionRunning(key) || isCodexSessionRunning(key) || isOpencodeSessionRunning(key)
 }
 
 export function stopSessionAgent(key: string): void {
   if (isSdkSessionRunning(key)) stopSdkSession(key)
   else if (isClaudeCodeSessionRunning(key)) stopClaudeCodeSession(key)
   else if (isCodexSessionRunning(key)) stopCodexSession(key)
+  else if (isOpencodeSessionRunning(key)) stopOpencodeSession(key)
 }
 
 export function stopAllSessionAgents(): void {
   stopAllSdkSessions()
   stopAllClaudeCodeSessions()
   stopAllCodexSessions()
+  stopAllOpencodeSessions()
 }
 
 // ── Session 状态 ──────────────────────────────────────────
@@ -260,13 +266,19 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
     if (boundId && isCodexResourceId(boundId)) {
       return { ok: false, error: "通道绑定的 Codex Profile 已删除，请在设置中重新选择" }
     }
+    if (boundId && isOpencodeResourceId(boundId)) {
+      return { ok: false, error: "通道绑定的 OpenCode Profile 已删除，请在设置中重新选择" }
+    }
     return { ok: false, error: "请配置 SDK 资源（设置 → Agent）" }
   }
-  if (resource.type !== "sdk" && resource.type !== "claude-code" && resource.type !== "codex") {
+  if (resource.type !== "sdk" && resource.type !== "claude-code" && resource.type !== "codex" && resource.type !== "opencode") {
     return { ok: false, error: "请配置 SDK 资源（设置 → Agent）" }
   }
   if (!resource.apiKey?.trim()) {
     return { ok: false, error: "通道绑定的资源未配置 API Key（设置 → Agent）" }
+  }
+  if (resource.type === "opencode" && !resource.providerId?.trim()) {
+    return { ok: false, error: "通道绑定的 OpenCode Profile 未配置 Provider ID（设置 → Agent）" }
   }
 
   const isOwnTask = chatType === "task" || chatType === "temp" || chatType === "workflow"
@@ -293,7 +305,7 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
     model = p.modelOverride.trim()
     modelParams = p.modelParamsOverride ?? ""
   } else if (resource.type === "codex") {
-    // Codex：以 Profile model 为准，忽略通道级残留 model（与 CC HTTP launch 语义对等）
+    // Codex：以 Profile model 为准
     if (resource.model?.trim()) {
       model = resource.model.trim()
       modelParams = ""
@@ -303,6 +315,9 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
       model = resolved.model || "gpt-5"
       modelParams = resolved.modelParams
     }
+  } else if (resource.type === "opencode") {
+    model = resource.model?.trim() || ""
+    modelParams = ""
   } else {
     const scenario: ModelScenario = useMain || isOwnTask ? "primary" : "others"
     const resolved = resolveChannelModel(channel, scenario)
@@ -335,12 +350,22 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
   }
-  // Codex 引擎：独立 HTTP server；待 OpenCodeSDK 变更 20260630105159 接入时按同模式加 "opencode" 分支
+  // Codex 引擎：独立 HTTP server
   if (resource.type === "codex") {
     const codexPort = getCodexAgentApiPort()
     if (!codexPort) return { ok: false, error: "Codex Agent 引擎未启动" }
     try {
       const res = await httpPost(`http://127.0.0.1:${codexPort}/api/codex/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
+      return { ok: !!res?.ok, error: res?.error }
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+  if (resource.type === "opencode") {
+    const opencodePort = getOpencodeAgentApiPort()
+    if (!opencodePort) return { ok: false, error: "OpenCode Agent 引擎未启动" }
+    try {
+      const res = await httpPost(`http://127.0.0.1:${opencodePort}/api/opencode/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
       return { ok: !!res?.ok, error: res?.error }
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
@@ -423,7 +448,12 @@ export function getSessionAgentList() {
     const chatName = s.chatName || chatNameCache.get(chatId) || (s.senderOpenId ? chatNameCache.get(s.senderOpenId) : undefined)
     return { ...s, chatName, engineType: "codex" as const }
   })
-  return [...sdkList, ...ccList, ...codexList]
+  const opencodeList = getOpencodeSessionList().map((s) => {
+    const chatId = s.sessionKey.includes("::") ? s.sessionKey.split("::")[0] : s.sessionKey
+    const chatName = s.chatName || chatNameCache.get(chatId) || (s.senderOpenId ? chatNameCache.get(s.senderOpenId) : undefined)
+    return { ...s, chatName, engineType: "opencode" as const }
+  })
+  return [...sdkList, ...ccList, ...codexList, ...opencodeList]
 }
 
 // ponytail: T7 调度迁入 Daemon；保留空实现供旧调用方兼容
@@ -617,4 +647,5 @@ export function initSessionDispatcher(): void {
   setChatNameResolver((chatId) => chatNameCache.get(chatId))
   ensureClaudeCodeHttpServer()
   ensureCodexHttpServer()
+  ensureOpencodeHttpServer()
 }

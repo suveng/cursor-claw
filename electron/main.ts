@@ -19,6 +19,7 @@ import {
   CLAUDE_CODE_MODEL_LIST,
   CODEX_MODEL_LIST,
 } from "./daemon-manager"
+import { closeAllEmbeddedOpencodeServers } from "./agent-opencode-utils"
 import {
   getMcpServerList,
   getMcpServerListForWorkspace,
@@ -383,6 +384,8 @@ process.on("unhandledRejection", (reason) => {
 
 app.on("before-quit", () => {
   isQuitting = true
+  // best-effort 关闭内嵌 OpenCode server，避免 resident 缓存进程残留
+  closeAllEmbeddedOpencodeServers()
 })
 
 app.whenReady().then(() => {

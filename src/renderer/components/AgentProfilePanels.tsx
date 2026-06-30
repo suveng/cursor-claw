@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Plus, Pencil, Trash2, KeyRound } from "lucide-react"
 import useInlineModal from "./useInlineModal"
 import { CcEditModal, CodexEditModal } from "./AgentResourceModals"
+import AgentOpencodeProfileSection from "./AgentOpencodeProfileSection"
 
 /** 生成 Claude Code Profile 本地 id（与主进程 newClaudeCodeResourceId 格式一致） */
 function newCcResourceId(): string {
@@ -26,6 +27,7 @@ interface Props {
 export default function AgentProfilePanels({ channels }: Props) {
   const [ccResources, setCcResources] = useState<AgentResource[]>([])
   const [codexResources, setCodexResources] = useState<AgentResource[]>([])
+  const [opencodeResources, setOpencodeResources] = useState<AgentResource[]>([])
 
   const [editingCc, setEditingCc] = useState<AgentResource | null>(null)
   const [isNewCc, setIsNewCc] = useState(false)
@@ -44,17 +46,19 @@ export default function AgentProfilePanels({ channels }: Props) {
     const all = cfg.agentResources ?? []
     setCcResources(all.filter((r) => r.type === "claude-code"))
     setCodexResources(all.filter((r) => r.type === "codex"))
+    setOpencodeResources(all.filter((r) => r.type === "opencode"))
   }, [])
 
   useEffect(() => { void reload() }, [reload])
 
   /** 持久化 Profile 列表，保留既有 SDK 资源 */
-  const persistProfiles = async (ccList: AgentResource[], codexList: AgentResource[]) => {
+  const persistProfiles = async (ccList: AgentResource[], codexList: AgentResource[], opencodeList: AgentResource[]) => {
     const cfg = await window.electronAPI.getConfig()
     const sdkList = (cfg.agentResources ?? []).filter((r) => r.type === "sdk")
     setCcResources(ccList)
     setCodexResources(codexList)
-    await window.electronAPI.saveConfig({ agentResources: [...sdkList, ...ccList, ...codexList] })
+    setOpencodeResources(opencodeList)
+    await window.electronAPI.saveConfig({ agentResources: [...sdkList, ...ccList, ...codexList, ...opencodeList] })
   }
 
   const guardDelete = async (r: AgentResource): Promise<boolean> => {
@@ -85,7 +89,7 @@ export default function AgentProfilePanels({ channels }: Props) {
 
   const handleCcDelete = async (r: AgentResource) => {
     if (!await guardDelete(r)) return
-    await persistProfiles(ccResources.filter((x) => x.id !== r.id), codexResources)
+    await persistProfiles(ccResources.filter((x) => x.id !== r.id), codexResources, opencodeResources)
   }
 
   const handleCcVerify = async () => {
@@ -111,7 +115,7 @@ export default function AgentProfilePanels({ channels }: Props) {
     }
     const exists = ccResources.some((r) => r.id === next.id)
     const nextCc = exists ? ccResources.map((r) => (r.id === next.id ? next : r)) : [...ccResources, next]
-    await persistProfiles(nextCc, codexResources)
+    await persistProfiles(nextCc, codexResources, opencodeResources)
     setEditingCc(null)
   }
 
@@ -131,7 +135,7 @@ export default function AgentProfilePanels({ channels }: Props) {
 
   const handleCodexDelete = async (r: AgentResource) => {
     if (!await guardDelete(r)) return
-    await persistProfiles(ccResources, codexResources.filter((x) => x.id !== r.id))
+    await persistProfiles(ccResources, codexResources.filter((x) => x.id !== r.id), opencodeResources)
   }
 
   const handleCodexSave = async () => {
@@ -145,7 +149,7 @@ export default function AgentProfilePanels({ channels }: Props) {
     }
     const exists = codexResources.some((r) => r.id === next.id)
     const nextCodex = exists ? codexResources.map((r) => (r.id === next.id ? next : r)) : [...codexResources, next]
-    await persistProfiles(ccResources, nextCodex)
+    await persistProfiles(ccResources, nextCodex, opencodeResources)
     setEditingCodex(null)
   }
 
@@ -212,6 +216,12 @@ export default function AgentProfilePanels({ channels }: Props) {
           {codexResources.length === 0 && <p className="py-4 text-center text-xs text-gray-600">暂无 Codex Profile</p>}
         </div>
       </section>
+
+      <AgentOpencodeProfileSection
+        channels={channels}
+        resources={opencodeResources}
+        onPersist={(list) => persistProfiles(ccResources, codexResources, list)}
+      />
 
       {editingCc && (
         <CcEditModal

@@ -1,13 +1,20 @@
 // ── 多消息通道共享类型与工具 ─────────────────────────────
 // Electron 主进程与 Daemon 子进程共用。
 
-/** Agent 资源：N 个 SDK Key + N 个 Claude Code Profile + N 个 Codex Profile */
+/** Agent 资源：N 个 SDK Key + N 个 Claude Code / Codex / OpenCode Profile */
 export interface AgentResource {
-  id: string;            // "sdk_<hex>" | "cc_<hex>" | "codex_<hex>"
-  // 待 OpenCodeSDK 接入时按同模式加 "opencode"
-  type: "sdk" | "claude-code" | "codex";
+  id: string;            // "sdk_<hex>" | "cc_<hex>" | "codex_<hex>" | "opencode_<hex>"
+  type: "sdk" | "claude-code" | "codex" | "opencode";
   name: string;
-  apiKey?: string;       // 仅 SDK
+  apiKey?: string;       // SDK / Profile 凭证
+  /** 部署模式（仅 opencode）：内嵌启动本地 server 或连接外部实例 */
+  deployMode?: "embedded" | "external";
+  /** 内嵌 OpenCode server 主机名（仅 opencode + embedded） */
+  opencodeHostname?: string;
+  /** 内嵌 OpenCode server 端口（仅 opencode + embedded） */
+  opencodePort?: number;
+  /** Provider ID（仅 opencode），如 anthropic */
+  providerId?: string;
   /** 校验成功后缓存的账号邮箱（仅展示用） */
   email?: string;
   /** 自定义 Anthropic 端点（仅 claude-code）；空值 = 使用 Anthropic 默认端点 */

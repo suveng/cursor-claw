@@ -1,6 +1,6 @@
 /** MCP 面板按 engineType 差异化展示策略 */
 
-export type McpEngineType = "sdk" | "claude-code" | "codex"
+export type McpEngineType = "sdk" | "claude-code" | "codex" | "opencode"
 
 export interface McpViewConfig {
   /** 区块标题 */
@@ -35,12 +35,21 @@ export function getMcpViewConfig(engineType: McpEngineType): McpViewConfig {
             : `暂无 MCP 配置。可编辑 ~/.claude.json 或 ${ws}/.mcp.json。`,
       }
     case "codex":
-    default:
       return {
         title: "MCP",
         supported: false,
         unsupportedMessage: "该引擎 MCP 查看尚未支持",
         emptyHint: () => "",
       }
+    case "opencode":
+      return {
+        title: "OpenCode 内联 MCP",
+        supported: true,
+        emptyHint: (ws, usingFallback) =>
+          usingFallback
+            ? `暂无 MCP 配置。可编辑 ~/.config/opencode/opencode.json，或在主工作区 ${ws}/opencode.json 添加。`
+            : `暂无 MCP 配置。可编辑 ~/.config/opencode/opencode.json 或 ${ws}/opencode.json。`,
+      }
+    default:
   }
 }

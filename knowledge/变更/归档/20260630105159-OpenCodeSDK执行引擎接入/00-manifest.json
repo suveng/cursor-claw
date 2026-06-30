@@ -1,0 +1,441 @@
+{
+  "change_id": "20260630105159-OpenCodeSDK执行引擎接入",
+  "name": "OpenCodeSDK执行引擎接入",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-06-30T10:51:59+0800",
+  "updated_at": "2026-06-30T17:10:28+0800",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "新功能",
+    "priority": "P1",
+    "reference_doc_urls": [
+      "https://opencode.ai/docs/sdk/"
+    ],
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / notifications 配置"
+  },
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/agent-opencode-sdk.ts",
+      "summary": "未调用 resolveContextLimitForSession，maybeRotateOpencodeSessionContext 因 contextLimitTokens 缺失永不触发，01 验收 6 未满足",
+      "task_id": "T-FIX-01",
+      "resolution": "launch/dispatch 仿 Codex 调用 resolveOpencodeContextLimit 写入 session.contextLimitTokens"
+    },
+    {
+      "id": "R2",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/main.ts",
+      "summary": "应用退出未在 before-quit 调用 closeAllEmbeddedOpencodeServers，内嵌 OpenCode 进程可能残留",
+      "task_id": "T-FIX-02",
+      "resolution": "before-quit 挂钩 closeAllEmbeddedOpencodeServers()"
+    },
+    {
+      "id": "R3",
+      "severity": "info",
+      "status": "open",
+      "file": "electron/agent-opencode-utils.ts",
+      "summary": "presentationOrderingEligible 导出未接入 stream，YAGNI 残留（可选清理，不阻断）"
+    }
+  ],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260630105159-OpenCodeSDK执行引擎接入/00-manifest.json",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630105159-OpenCodeSDK执行引擎接入/01-proposal.md",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630105159-OpenCodeSDK执行引擎接入/02-design.md",
+      "kind": "change_doc",
+      "source": "kb-design",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630105159-OpenCodeSDK执行引擎接入/03-tasks.md",
+      "kind": "change_doc",
+      "source": "kb-plan",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630105159-OpenCodeSDK执行引擎接入/04-review.md",
+      "kind": "change_doc",
+      "source": "kb-review",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630105159-OpenCodeSDK执行引擎接入/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "kb-test",
+      "status": "added"
+    },
+    {
+      "path": "package.json",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "package-lock.json",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "src/shared/channel-types.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "electron/preload.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "src/renderer/env.d.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "electron/config-store.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "electron/opencode-mcp-loader.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/opencode-failure-messages.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-opencode-types.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-opencode-utils.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-opencode-events.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-opencode-stream.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-opencode-session-registry.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-opencode-watchdog.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-opencode-complete.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-opencode-sdk.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/agent-opencode-http.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/session-dispatcher.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "electron/agent-sdk.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "electron/daemon-manager.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "electron/ui-logger.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "src/renderer/components/AgentResourceModals.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "src/renderer/components/ChannelModelSection.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "src/renderer/components/AgentProfilePanels.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "src/renderer/components/AgentOpencodeProfileSection.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "src/renderer/lib/mcp-view-strategy.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "electron/main.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "kind": "agents",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "src/renderer/components/AGENTS.md",
+      "kind": "agents",
+      "source": "kb-apply",
+      "status": "modified"
+    },
+    {
+      "path": "knowledge/变更/归档/20260630105159-OpenCodeSDK执行引擎接入/05-summary.md",
+      "kind": "change_doc",
+      "source": "kb-archive",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/09-OpenCodeSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "modified"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "modified"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/02-多会话模型.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "modified"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "modified"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/08-CodexSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "modified"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "依赖与类型配置扩展",
+      "status": "done",
+      "files": [
+        "package.json",
+        "src/shared/channel-types.ts",
+        "electron/preload.ts",
+        "src/renderer/env.d.ts",
+        "electron/config-store.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T5",
+      "title": "MCP 配置加载",
+      "status": "done",
+      "files": [
+        "electron/opencode-mcp-loader.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T8",
+      "title": "失败归因与脱敏",
+      "status": "done",
+      "files": [
+        "electron/opencode-failure-messages.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T3",
+      "title": "类型定义与 Client 解析工具",
+      "status": "done",
+      "files": [
+        "electron/agent-opencode-types.ts",
+        "electron/agent-opencode-utils.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "SSE 事件映射与流式出站",
+      "status": "done",
+      "files": [
+        "electron/agent-opencode-events.ts",
+        "electron/agent-opencode-stream.ts"
+      ],
+      "depends_on": [
+        "T3"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "会话注册、看门狗与 Run 收尾",
+      "status": "done",
+      "files": [
+        "electron/agent-opencode-session-registry.ts",
+        "electron/agent-opencode-watchdog.ts",
+        "electron/agent-opencode-complete.ts"
+      ],
+      "depends_on": [
+        "T3"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "SDK 入口编排与生命周期",
+      "status": "done",
+      "files": [
+        "electron/agent-opencode-sdk.ts"
+      ],
+      "depends_on": [
+        "T3",
+        "T4",
+        "T5",
+        "T6",
+        "T8"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "HTTP Server、路由与运行态注册",
+      "status": "done",
+      "files": [
+        "electron/agent-opencode-http.ts",
+        "electron/session-dispatcher.ts",
+        "electron/agent-sdk.ts",
+        "electron/daemon-manager.ts",
+        "electron/ui-logger.ts"
+      ],
+      "depends_on": [
+        "T1",
+        "T7"
+      ]
+    },
+    {
+      "id": "T9",
+      "title": "配置 UI 与 MCP 展示策略",
+      "status": "done",
+      "files": [
+        "src/renderer/components/AgentResourceModals.tsx",
+        "src/renderer/components/ChannelModelSection.tsx",
+        "src/renderer/components/AgentProfilePanels.tsx",
+        "src/renderer/components/AgentOpencodeProfileSection.tsx",
+        "src/renderer/lib/mcp-view-strategy.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T-FIX-01",
+      "title": "OpenCode 上下文上限解析",
+      "status": "done",
+      "files": [
+        "electron/agent-opencode-sdk.ts"
+      ],
+      "depends_on": [
+        "T7"
+      ]
+    },
+    {
+      "id": "T-FIX-02",
+      "title": "应用退出内嵌 OpenCode 清理",
+      "status": "done",
+      "files": [
+        "electron/main.ts"
+      ],
+      "depends_on": [
+        "T2"
+      ]
+    }
+  ],
+  "archived_at": "2026-06-30T17:10:28+0800"
+}

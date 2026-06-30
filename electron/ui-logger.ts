@@ -100,7 +100,7 @@ export function flushAgentStreamChunk(
   }
 }
 
-export type SessionSource = "cli" | "sdk" | "claude-code" | "codex"
+export type SessionSource = "cli" | "sdk" | "claude-code" | "codex" | "opencode"
 
 type SessionEntry = { sessionKey: string; pid: number; startedAt: number; lastActivityAt: number; chatType: string; chatName?: string; workspaceDir?: string; source?: SessionSource }
 

@@ -55,7 +55,7 @@ RunGuard+`armCodexWatchdog`；事件未知类型 WARN；`codex-failure-messages`
 
 ## 九、已知限制与 TODO
 
-Dashboard MCP 对 codex 仅占位；须本机 Codex CLI；OpenCodeSDK 变更需 rebase 共享落点。
+Dashboard MCP 对 codex 仅占位；须本机 Codex CLI。与 [09 OpenCode SDK](./09-OpenCodeSDK执行引擎.md) 并列第四引擎，共享 `launchAgent`/`agent-sdk` 路由落点。
 
 ## 十、变更记录
 

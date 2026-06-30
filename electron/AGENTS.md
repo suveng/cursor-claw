@@ -44,6 +44,13 @@
 - **MCP 内联**：`codex-mcp-loader.ts` 读 Codex CLI 原生 `config.toml`（`~/.codex/config.toml` global + `{ws}/.codex/config.toml` project），**不读** `.cursor/mcp.json` / `.mcp.json`。优先级 project > global；`loadCodexMcpServers` / `appendInlineMcpToCodexOptions` 每次 launch 重传 `mcpServers`（仿 CC/SDK 路径）。stdio resolve/cwd 约定与 `cc-mcp-loader` 一致。TOML 解析为文件内最小实现，**禁止**为此加 npm 依赖。
 - **HTTP 桥接**：`agent-codex-http.ts` 独立 server（仿 `agent-cc-http.ts`）；`initSessionDispatcher` 调 `ensureCodexHttpServer()`；端口 `userData/codex-agent-api-port.json`（写入失败 WARN）；路由 `POST /api/codex/agent/launch|dispatch`；launch/dispatch handler 由 `agent-codex-sdk.ts` 末尾 `registerCodex*Handler` 注入；`session-dispatcher.launchAgent` 在 `resource.type === "codex"` 时 POST 本地端口。
 
+## OpenCode Agent SDK 模块边界
+
+- **文件命名**：`agent-opencode-*.ts` / `opencode-*.ts` 对称 Codex 拆分；入口 `agent-opencode-sdk.ts` **≤300 行**，复杂逻辑下沉 events/stream/utils/complete/session-registry。
+- **HTTP**：`agent-opencode-http.ts`；端口 `userData/opencode-agent-api-port.json`；路由 `POST /api/opencode/agent/launch|dispatch`；`initSessionDispatcher` 调 `ensureOpencodeHttpServer()`。
+- **内嵌 server**：`resolveOpencodeClient` 按 Profile id 缓存；`stopAllOpencodeSessions` 调 `closeAllEmbeddedOpencodeServers()`。
+- **ui-logger.SessionSource** 含 `"opencode"`。
+
 ## 模块边界
 
 - `proxy-env`：子进程/Daemon 启动时的 HTTP(S) 代理 env 注入；**不** spawn Cursor CLI。

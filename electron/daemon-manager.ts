@@ -21,6 +21,7 @@ import { applyProxyEnv } from "./proxy-env"
 import { getSdkSessionCount, getSdkSessionList, checkSdkApiKey, listSdkModels, ensureAgentSdkHttpServer } from "./agent-sdk"
 import { getClaudeCodeSessionList } from "./agent-claude-sdk"
 import { getCodexSessionList } from "./agent-codex-sdk"
+import { getOpencodeSessionList } from "./agent-opencode-sdk"
 import {
   setDaemonPort,
   injectWorkspaceToDir, injectWorkspaceMcpAndRules, clearInjectionCache,
@@ -53,13 +54,15 @@ export { injectWorkspaceMcpAndRules, injectWorkspaceToDir, clearInjectionCache }
 export { getQueueMessages, clearMessageQueue, deleteQueueMessage } from "./session-dispatcher"
 
 
-/** 是否有活跃 SDK、Claude Code 或 Codex 会话（不含已移除的 CLI sessionAgents） */
+/** 是否有活跃 SDK、Claude Code、Codex 或 OpenCode 会话 */
 function isAgentRunning(): boolean {
-  return getSdkSessionCount() > 0 || getClaudeCodeSessionList().length > 0 || getCodexSessionList().length > 0
+  return getSdkSessionCount() > 0 || getClaudeCodeSessionList().length > 0
+    || getCodexSessionList().length > 0 || getOpencodeSessionList().length > 0
 }
 
 function getRunningSessionCount(): number {
-  return getSdkSessionCount() + getClaudeCodeSessionList().length + getCodexSessionList().length
+  return getSdkSessionCount() + getClaudeCodeSessionList().length
+    + getCodexSessionList().length + getOpencodeSessionList().length
 }
 
 function getSessionAgentCount(): number {
@@ -84,6 +87,11 @@ function getIndependentTaskStatuses(): Record<string, { running: boolean; pid?: 
     }
   }
   for (const s of getCodexSessionList()) {
+    if (s.chatType === "task" || s.chatType === "temp") {
+      out[s.sessionKey] = { running: true, startedAt: s.startedAt }
+    }
+  }
+  for (const s of getOpencodeSessionList()) {
     if (s.chatType === "task" || s.chatType === "temp") {
       out[s.sessionKey] = { running: true, startedAt: s.startedAt }
     }

@@ -194,3 +194,77 @@ export function CodexEditModal(props: {
     </div>
   )
 }
+
+/** OpenCode Profile 新建/编辑弹窗 */
+export function OpenCodeEditModal(props: {
+  editing: AgentResource
+  isNew: boolean
+  showKey: boolean
+  onClose: () => void
+  onChange: (next: AgentResource) => void
+  onToggleShowKey: () => void
+  onSave: () => void
+}) {
+  const { editing, isNew, showKey, onClose, onChange, onToggleShowKey, onSave } = props
+  const deployMode = editing.deployMode ?? "embedded"
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
+          <h3 className="text-sm font-semibold text-gray-200">{isNew ? "添加 OpenCode Profile" : "编辑 OpenCode Profile"}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={16} /></button>
+        </div>
+        <div className="space-y-3 px-6 py-4">
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">名称</label>
+            <input type="text" value={editing.name} onChange={(e) => onChange({ ...editing, name: e.target.value })} className={inputCls} placeholder="如：个人号 / 工作号" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">部署模式</label>
+            <select value={deployMode} onChange={(e) => onChange({ ...editing, deployMode: e.target.value as "embedded" | "external" })} className={inputCls}>
+              <option value="embedded">内嵌（自动启动本地 OpenCode 服务）</option>
+              <option value="external">外部（连接已有 OpenCode 服务）</option>
+            </select>
+          </div>
+          {deployMode === "embedded" ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">Hostname</label>
+                <input type="text" value={editing.opencodeHostname ?? "127.0.0.1"} onChange={(e) => onChange({ ...editing, opencodeHostname: e.target.value })} className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">Port</label>
+                <input type="number" value={editing.opencodePort ?? 4096} onChange={(e) => onChange({ ...editing, opencodePort: Number(e.target.value) || 4096 })} className={inputCls} />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="mb-1 block text-xs text-gray-500">Base URL</label>
+              <input type="text" value={editing.baseUrl ?? ""} onChange={(e) => onChange({ ...editing, baseUrl: e.target.value })} className={inputCls} placeholder="http://localhost:4096" />
+            </div>
+          )}
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">Provider ID</label>
+            <input type="text" value={editing.providerId ?? ""} onChange={(e) => onChange({ ...editing, providerId: e.target.value })} className={inputCls} placeholder="anthropic" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">API Key</label>
+            <div className="relative">
+              <input type={showKey ? "text" : "password"} value={editing.apiKey ?? ""} onChange={(e) => onChange({ ...editing, apiKey: e.target.value })} className={inputCls + " pr-9"} />
+              <button type="button" onClick={onToggleShowKey} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">{showKey ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">默认模型（选填，provider/model）</label>
+            <input type="text" value={editing.model ?? ""} onChange={(e) => onChange({ ...editing, model: e.target.value })} className={inputCls} placeholder="anthropic/claude-3-5-sonnet-20241022" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
+          <button onClick={onClose} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>
+          <button onClick={() => void onSave()} disabled={!editing.name.trim() || !editing.apiKey?.trim() || !editing.providerId?.trim()} className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-40">保存</button>
+        </div>
+      </div>
+    </div>
+  )
+}
