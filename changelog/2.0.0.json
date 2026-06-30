@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "date": "2026-06-30",
+  "changes": [
+    "完全移除 Cursor CLI 依赖，应用不再需要安装 Cursor 命令行工具；MCP 管理与模型列表改走 SDK/HTTP 探测，旧 CLI 绑定会自动迁移。",
+    "Claude Agent 执行引擎升级为 Claude Agent SDK，替代原 CLI spawn 路径，支持流式呈现、会话续接与内联 MCP 注入。",
+    "新增 Codex 与 OpenCode 两种执行引擎，可在 Dashboard 配置独立 Profile，经 IM、任务面板与工作流统一调度。",
+    "MCP 服务器列表、状态探测、OAuth 授权与工具预览从 Settings 迁至 Dashboard 活跃会话详情，按工作区与引擎类型绑定展示。",
+    "Claude Agent 路径支持 MCP 项目级审批门控，Dashboard 可区分已启用与未启用的 MCP 服务器。",
+    "Claude Agent 看门狗超时收尾与 Cursor SDK 路径对齐：超时后推送友好 IM 通知并停止进度，不再写入失败冷却。",
+    "修复飞书 IM 通道下 Claude Agent 流式回复正文整段重复的问题。"
+  ]
+}
