@@ -3,15 +3,24 @@
 ## Agent 资源 UI 拆分
 
 - `AgentPanel.tsx`：仅 Cursor SDK Key 列表与弹窗（<300 行）。
-- `SettingsMcpPanel.tsx`：Settings MCP Tab（global/project CRUD、OAuth、插件说明区）；单文件 ≤300 行。
+- `SettingsMcpPanel.tsx`：仅为过渡 re-export 包装；Settings 页 MCP Tab 经 `SettingsEngineShell` 直挂 `SettingsMcpEngineBlock`，勿再扩展此文件。
 - `SettingsSkillsPanel.tsx`：Settings Skills Tab（上项目级、下用户级双区块）；props `{ workspaceDir }`；CRUD 末位传 `scope`；expand key 前缀 `${scope}/`；无工作区时项目级 `disabled`；拆分为 `SkillTreeBlock.tsx`（树列表）与 `SkillEditModals.tsx`（弹窗）；主面板 ≤300 行。
 - `AgentProfilePanels.tsx`：Claude Code / Codex Profile 列表与弹窗；OpenCode 区块见 `AgentOpencodeProfileSection.tsx`；持久化时保留既有 SDK 资源。
 - `AgentResourceModals.tsx`：`SdkEditModal` / `CcEditModal` / `CodexEditModal` / `OpenCodeEditModal` 弹窗组件。
 
 ## 通道模型区块
 
-- `ChannelModelSection.tsx`：`RESOURCE_GROUP_LABELS` 与 `groupedTypes` 须覆盖全部 `AgentResource.type`；并列 OpenCodeSDK 变更 rebase 时按同模式扩展。
+- `ChannelModelSection.tsx`：`groupedTypes` 须覆盖全部 `AgentResource.type`；`RESOURCE_GROUP_LABELS` SSOT 在 `src/shared/channel-types.ts`，从此 import，禁止组件内重复定义。
 - Profile 型资源（`claude-code` / `codex` / `opencode`）：通道层不拉模型列表；绑定资源已删除时提示重选，勿 fallback 到其他资源。
+
+## 设置页引擎感知分块（Rules / Skills / MCP）
+
+- `SettingsEngineShell.tsx`：三 Tab 共用外壳；`allBoundTypes` 为全量绑定、`boundTypes` 为 Tab 可见子集；`channelContextLoaded` 未完成前不渲染空态；无通道/绑定失效/无适用引擎时分档琥珀引导。
+- `SettingsRulesPanel.tsx`：SDK 项目级 Rules CRUD（`.cursor/rules/`）；由 `Settings.tsx` 仅在 `sdk ∈ boundTypes` 时经 Shell 挂载。
+- `SettingsSkillsPanel.tsx`：SDK 项目级 Skills 管理；挂载条件同 Rules，仅 `sdk ∈ boundTypes`。
+- `SettingsMcpEngineBlock.tsx`：按 `engineType` switch 渲染各引擎 MCP 块（SDK CRUD / CC 只读 / Codex·OpenCode 占位）。
+- `SettingsMcpSdkSection.tsx`：SDK MCP CRUD 实现细节；由 `SettingsMcpEngineBlock` 在 `engineType === "sdk"` 时调用；`SettingsMcpPanel.tsx` 仅为过渡 re-export，Settings 页应经 Shell 直挂 `SettingsMcpEngineBlock`。
+- `Settings.tsx`：`rules`/`skills`/`mcp`/`tasks` tab 共用 `loadChannelContext()`；Rules/Skills 传 `allBoundTypes`（全量）+ `boundTypes`（SDK 子集）；`channelContextLoaded` 防首次空态闪烁。
 
 ## 通用
 

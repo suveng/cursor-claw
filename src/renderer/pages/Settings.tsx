@@ -84,6 +84,8 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
   const [firstFeishuAppId, setFirstFeishuAppId] = useState("")
   const [taskChannels, setTaskChannels] = useState<ChannelConfig[]>([])
   const [agentResources, setAgentResources] = useState<AgentResource[]>([])
+  /** rules/skills/mcp 通道上下文是否已加载（避免首次进入空态闪烁） */
+  const [channelContextLoaded, setChannelContextLoaded] = useState(false)
   const { showAlert, ModalPortal } = useInlineModal()
 
   const [appVersion, setAppVersion] = useState("")
@@ -122,6 +124,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
       setTaskChannels(cfg.channels ?? [])
       setAgentResources(cfg.agentResources ?? [])
       setWorkspaceDir(cfg.workspaceDir)
+      setChannelContextLoaded(true)
     })
   }, [])
 
@@ -524,43 +527,20 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
             {tab === "agent" && <AgentPanel />}
 
             {/* ═══ Rules ═══ */}
-            {tab === "rules" && (<>
-              <section className="space-y-3">
-                <div className="rounded-lg border border-gray-700/60 bg-gray-900/40 px-3 py-2.5 text-xs">
-                  <p className="font-medium text-gray-300">项目级规则 · 主工作区</p>
-                  {workspaceDir.trim() ? (
-                    <>
-                      <p className="mt-1 font-mono text-[11px] text-gray-500 break-all">{workspaceDir}</p>
-                      <p className="mt-1.5 text-gray-600 leading-relaxed">
-                        规则写入主工作区 <span className="text-gray-500">.cursor/rules/</span>。
-                        SDK 会话的 cwd 可能来自通道或任务工作区；与主工作区不同时，此处修改不会作用于该会话。
-                      </p>
-                    </>
-                  ) : (
-                    <p className="mt-1 text-amber-500/90">请先在「通用」中配置主工作区后才能编辑规则。</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-medium text-gray-300">Cursor Rules</h3>
-                  <button onClick={refreshRules} disabled={!workspaceDir.trim()} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white disabled:opacity-40"><RefreshCw size={12} />刷新</button>
-                  <div className="flex-1" />
-                  <button onClick={openRuleAdd} disabled={!workspaceDir.trim()} className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-40"><Plus size={12} />新增</button>
-                </div>
-                <p className="text-xs text-gray-600">管理主工作区 <span className="text-gray-500">.cursor/rules/</span> 下的规则文件</p>
-                <div className="space-y-2">
-                  {rules.map((r) => (
-                    <div key={r.name} className="flex items-center justify-between rounded-lg border border-gray-700 px-4 py-3">
-                      <div className="min-w-0"><p className="truncate text-sm font-medium">{r.name}</p><p className="truncate text-xs text-gray-500">{r.content.slice(0, 80)}{r.content.length > 80 ? "..." : ""}</p></div>
-                      <div className="ml-3 flex shrink-0 items-center gap-2">
-                        <button onClick={() => openRuleEdit(r)} className="rounded p-1 text-gray-500 transition hover:bg-gray-800 hover:text-white"><Pencil size={13} /></button>
-                        <button onClick={() => handleRuleDelete(r.name)} className="rounded p-1 text-gray-500 transition hover:bg-gray-800 hover:text-red-400"><Trash2 size={13} /></button>
-                      </div>
-                    </div>
-                  ))}
-                  {rules.length === 0 && <p className="py-4 text-center text-xs text-gray-600">暂无 Rule 文件</p>}
-                </div>
-              </section>
-            </>)}
+            {tab === "rules" && (
+              <SettingsEngineShell
+                tab="rules"
+                allBoundTypes={boundTypes}
+                boundTypes={[...sdkBoundTypes]}
+                channels={taskChannels}
+                agentResources={agentResources}
+                workspaceDir={workspaceDir}
+                channelContextLoaded={channelContextLoaded}
+                renderEnginePanel={(engineType) =>
+                  engineType === "sdk" ? <SettingsRulesPanel workspaceDir={workspaceDir} /> : null
+                }
+              />
+            )}
 
             {/* ═══ Tasks ═══ */}
             {tab === "tasks" && (<>
@@ -605,10 +585,36 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
             </>)}
 
             {/* ═══ Skills ═══ */}
-            {tab === "skills" && <SettingsSkillsPanel workspaceDir={workspaceDir} />}
+            {tab === "skills" && (
+              <SettingsEngineShell
+                tab="skills"
+                allBoundTypes={boundTypes}
+                boundTypes={[...sdkBoundTypes]}
+                channels={taskChannels}
+                agentResources={agentResources}
+                workspaceDir={workspaceDir}
+                channelContextLoaded={channelContextLoaded}
+                renderEnginePanel={(engineType) =>
+                  engineType === "sdk" ? <SettingsSkillsPanel workspaceDir={workspaceDir} /> : null
+                }
+              />
+            )}
 
             {/* ═══ MCP ═══ */}
-            {tab === "mcp" && <SettingsMcpPanel workspaceDir={workspaceDir} />}
+            {tab === "mcp" && (
+              <SettingsEngineShell
+                tab="mcp"
+                allBoundTypes={boundTypes}
+                boundTypes={boundTypes}
+                channels={taskChannels}
+                agentResources={agentResources}
+                workspaceDir={workspaceDir}
+                channelContextLoaded={channelContextLoaded}
+                renderEnginePanel={(engineType) => (
+                  <SettingsMcpEngineBlock engineType={engineType} workspaceDir={workspaceDir} />
+                )}
+              />
+            )}
 
             {/* ═══ Workflows ═══ */}
             {tab === "workflows" && <WorkflowPanel />}
@@ -621,7 +627,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                   <p className="text-sm text-gray-400">按以下顺序完成配置：</p>
                   <ol className="list-decimal space-y-1 pl-5 text-xs text-gray-500">
                     <li><button onClick={() => setTab("general")} className="text-blue-400 hover:underline">通用</button> — 选择主工作目录</li>
-                    <li><button onClick={() => setTab("agent")} className="text-blue-400 hover:underline">Agent</button> — 添加 Cursor SDK Key 或 Claude Agent Profile</li>
+                    <li><button onClick={() => setTab("agent")} className="text-blue-400 hover:underline">Agent</button> — 配置 Agent 资源（Cursor SDK / Claude Code / Codex / OpenCode）</li>
                     <li><button onClick={() => setTab("channel")} className="text-blue-400 hover:underline">消息通道</button> — 接入飞书 / 微信，绑定 Agent 资源与模型</li>
                   </ol>
                   <p className="text-xs text-gray-600">完成后回到主页启动 Daemon 即可使用。以下为飞书手动建应用时需要的权限与事件配置参考。</p>
@@ -775,26 +781,6 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
           </div>
         </div>
       </div>
-
-      {/* ═══ Rule Edit Modal ═══ */}
-      {ruleEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="flex w-full max-w-lg flex-col rounded-xl border border-gray-700 bg-gray-900 shadow-2xl" style={{ maxHeight: "80vh" }}>
-            <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
-              <h3 className="text-sm font-semibold text-gray-200">{ruleEditOriginalName ? "编辑 Rule" : "新增 Rule"}</h3>
-              <button onClick={() => setRuleEditing(null)} className="text-gray-500 hover:text-white"><X size={16} /></button>
-            </div>
-            <div className="flex-1 space-y-3 overflow-y-auto px-6 py-4">
-              <div><label className="mb-1 block text-xs text-gray-500">文件名</label><input type="text" value={ruleEditing.name} onChange={(e) => setRuleEditing({ ...ruleEditing, name: e.target.value })} className={inputCls} placeholder="my-rule.mdc" /></div>
-              <div><label className="mb-1 block text-xs text-gray-500">内容</label><textarea value={ruleEditing.content} onChange={(e) => setRuleEditing({ ...ruleEditing, content: e.target.value })} rows={16} className={inputCls + " font-mono text-xs leading-relaxed"} placeholder={"---\ndescription: My rule\nglobs: **/*.ts\nalwaysApply: false\n---\n\n# Rule content"} /></div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
-              <button onClick={() => setRuleEditing(null)} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>
-              <button onClick={handleRuleSave} disabled={!ruleEditing.name.trim()} className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-40">保存</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ═══ Task Edit Modal ═══ */}
       {taskEditing && (

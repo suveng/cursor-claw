@@ -114,3 +114,61 @@ export function channelIdFromSessionKey(sessionKey: string): string | undefined 
   const chatKey = idx > 0 ? sessionKey.slice(0, idx) : sessionKey;
   return parseChatKey(chatKey).channelId;
 }
+
+// ── Agent 引擎类型与通道绑定推导 ──────────────────────
+
+/** 四类可绑定 Agent 引擎 */
+export type AgentEngineType = AgentResource["type"];
+
+/** optgroup / 资源分组标签 SSOT（与 Agent 标签页命名一致） */
+export const RESOURCE_GROUP_LABELS: Record<AgentEngineType, string> = {
+  sdk: "Cursor SDK",
+  "claude-code": "Claude Code Profile",
+  codex: "Codex Profile",
+  opencode: "OpenCode Profile",
+};
+
+/** Settings 引擎分块说明文案 */
+export const ENGINE_BLOCK_SUBTITLES: Partial<Record<AgentEngineType, string>> = {
+  sdk: "规则 / Skills / MCP 配置入口",
+  "claude-code": "Claude Agent MCP 配置（只读查看）",
+  codex: "Codex MCP（暂不支持在设置中管理）",
+  opencode: "OpenCode MCP 配置（首版只读说明）",
+};
+
+/** 引擎展示固定顺序 */
+const ENGINE_DISPLAY_ORDER: AgentEngineType[] = ["sdk", "claude-code", "codex", "opencode"];
+
+/** 解析通道绑定的引擎类型；资源 id 失效时返回 undefined */
+function resolveChannelEngineType(
+  channel: MessageChannel,
+  agentResources: AgentResource[],
+): AgentEngineType | undefined {
+  if (!channel.agentResourceId) return undefined;
+  return agentResources.find((r) => r.id === channel.agentResourceId)?.type;
+}
+
+/**
+ * 由通道绑定推导应展示的引擎类型列表。
+ * enabled 与否均计入；绑定失效跳过；去重后按 sdk→claude-code→codex→opencode 返回。
+ */
+export function deriveBoundEngineTypes(
+  channels: MessageChannel[],
+  agentResources: AgentResource[],
+): AgentEngineType[] {
+  const bound = new Set<AgentEngineType>();
+  for (const ch of channels) {
+    const type = resolveChannelEngineType(ch, agentResources);
+    if (type) bound.add(type);
+  }
+  return ENGINE_DISPLAY_ORDER.filter((t) => bound.has(t));
+}
+
+/** 列出绑定指定引擎的通道（保持 channels 数组顺序，供 Settings 副标题） */
+export function channelsBoundToEngineType(
+  engineType: AgentEngineType,
+  channels: MessageChannel[],
+  agentResources: AgentResource[],
+): MessageChannel[] {
+  return channels.filter((ch) => resolveChannelEngineType(ch, agentResources) === engineType);
+}

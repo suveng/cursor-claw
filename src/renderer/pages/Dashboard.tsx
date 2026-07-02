@@ -60,11 +60,15 @@ export default function Dashboard({ onSettings, active }: Props) {
       ? !!(c.larkAppId?.trim() && c.larkAppSecret?.trim())
       : !!c.wechatToken?.trim()))
     const resources = cfg.agentResources ?? []
-    const hasSdkKey = resources.some((r) => r.type === "sdk" && r.apiKey?.trim())
-    const hasCcProfile = resources.some((r) => r.type === "claude-code" && r.apiKey?.trim())
+    // 四引擎任一有效 apiKey 即视为 Agent 资源已配置
+    const agentReady = resources.some(
+      (r) =>
+        (r.type === "sdk" || r.type === "claude-code" || r.type === "codex" || r.type === "opencode") &&
+        !!r.apiKey?.trim(),
+    )
     setOnboard({
       workspaceReady: !!cfg.workspaceDir?.trim(),
-      agentReady: hasSdkKey || hasCcProfile,
+      agentReady,
       channelReady,
     })
     setFallbackWorkspaceDir(cfg.workspaceDir?.trim() ?? "")
@@ -452,7 +456,7 @@ export default function Dashboard({ onSettings, active }: Props) {
             {(() => {
               const items = [
                 { done: onboard.workspaceReady, icon: FolderOpen, label: "选择主工作目录", desc: "Agent 在此目录中工作", tab: "general" },
-                { done: onboard.agentReady, icon: Bot, label: "配置 Agent 资源", desc: "添加 Cursor SDK Key 或 Claude Code Profile", tab: "agent" },
+                { done: onboard.agentReady, icon: Bot, label: "配置 Agent 资源", desc: "Cursor SDK / Claude Code / Codex / OpenCode", tab: "agent" },
                 { done: onboard.channelReady, icon: MessageSquare, label: "添加消息通道", desc: "接入飞书或微信并绑定 Agent 资源", tab: "channel" },
               ]
               const nextIdx = items.findIndex((it) => !it.done)

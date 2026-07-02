@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Loader2, RefreshCw } from "lucide-react"
+import { RESOURCE_GROUP_LABELS } from "../../shared/channel-types"
 import SearchableSelect from "./SearchableSelect"
 
 const inputCls = "w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
@@ -18,14 +19,6 @@ interface Props {
 /** Profile 型资源：模型由 Profile 管理，通道层不拉列表 */
 function isProfileResource(type?: AgentResource["type"]): boolean {
   return type === "claude-code" || type === "codex" || type === "opencode"
-}
-
-/** optgroup 标签：按 Agent 资源类型分组展示 */
-const RESOURCE_GROUP_LABELS: Record<AgentResource["type"], string> = {
-  sdk: "Cursor SDK",
-  "claude-code": "Claude Code Profile",
-  codex: "Codex Profile",
-  opencode: "OpenCode Profile",
 }
 
 const modelKey = (id: string, params: string) => id + (params ? "\0" + params : "")

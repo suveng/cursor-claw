@@ -1,0 +1,10 @@
+{
+  "version": "1.10.2",
+  "date": "2026-07-02",
+  "changes": [
+    "设置 Rules/Skills/MCP 按消息通道绑定的 Agent 引擎动态分块展示",
+    "仅绑定非 Cursor 引擎时不再误显示 Cursor 专属配置",
+    "MCP 支持多引擎分块（SDK 可编辑、Claude Code 只读查看等）",
+    "Dashboard 引导支持四引擎 Agent 资源"
+  ]
+}
