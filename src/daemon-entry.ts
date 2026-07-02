@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { daemonMain } from "./daemon.js";
+import { daemonMain } from "./daemon/daemon.js";
 
 daemonMain().catch((e) => {
   process.stderr.write(`[Daemon] 启动失败: ${e}\n`);

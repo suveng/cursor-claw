@@ -3,7 +3,7 @@ import {
   Plus, Pencil, Trash2, X, Play, ChevronDown, ChevronRight,
   Loader2, CheckCircle2, AlertTriangle, Pause, Clock, FolderOpen, RefreshCw, GripVertical,
 } from "lucide-react"
-import type { WorkflowDefinition, WorkflowNode, WorkflowInstance, WorkflowStatus } from "../../shared/workflow-types"
+import type { WorkflowDefinition, WorkflowNode, WorkflowInstance, WorkflowStatus } from "../../workflow/workflow-types"
 import SearchableSelect from "./SearchableSelect"
 
 const inputCls = "w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-200 outline-none focus:border-blue-500"

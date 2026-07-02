@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { WorkflowDefinition } from "./shared/workflow-types.js";
-import { getTemplateRoot } from "./shared/template-utils.js";
-import { parseWorkflowDefinitionFile } from "./shared/workflow-parse.js";
+import type { WorkflowDefinition } from "./workflow-types.js";
+import { getTemplateRoot } from "./template-utils.js";
+import { parseWorkflowDefinitionFile } from "./workflow-parse.js";
 
 export const BUILTIN_WORKFLOW_ID = "builtin_feishu_dev_pipeline";
 

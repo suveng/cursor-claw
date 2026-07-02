@@ -1,15 +1,15 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
 import { app } from "electron"
-import type { WorkflowDefinition, WorkflowInstance } from "../../src/shared/workflow-types"
-import { loadBuiltinWorkflows } from "../../src/builtin-workflows"
+import type { WorkflowDefinition, WorkflowInstance } from "../../src/workflow/workflow-types"
+import { loadBuiltinWorkflows } from "../../src/workflow/builtin-workflows"
 import {
   deleteDefinition as deleteDefinitionFile,
   getDefinition as getDefinitionFile,
   listDefinitions as listDefinitionsFiles,
   saveDefinition as saveDefinitionFile,
   seedBuiltinDefinitions,
-} from "../../src/shared/workflow-definition-store"
+} from "../../src/workflow/workflow-definition-store"
 
 function workflowDir(): string {
   return path.join(app.getPath("userData"), "workflows")

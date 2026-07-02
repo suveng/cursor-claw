@@ -9,9 +9,9 @@ import {
   stopDaemonScheduledTasks,
   setDaemonSchedulerLogger,
 } from "./daemon-scheduled-tasks.js";
-import { stripProxyEnv, localTimestamp, createLarkClient, LarkSender, LarkMessageEvent, cleanupMediaCache, type MergeBatchCardView, type MergeBatchCardState, type PresentationCardState } from "./shared/lark-core.js";
-import { mergeShellToolDetail } from "./shared/tool-presentation.js";
-import { WeChatManager } from "./wechat-manager.js";
+import { stripProxyEnv, localTimestamp, createLarkClient, LarkSender, LarkMessageEvent, cleanupMediaCache, type MergeBatchCardView, type MergeBatchCardState, type PresentationCardState } from "../bridge/lark-core.js";
+import { mergeShellToolDetail } from "../shared/tool-presentation.js";
+import { WeChatManager } from "../bridge/wechat-manager.js";
 import {
   initFileQueue,
   getQueueDir,
@@ -32,25 +32,25 @@ import {
   replaceSessionUnclaimedMessages,
   type QueueMessage,
   type QueueMessageMeta,
-} from "./file-queue.js";
-import { LOCK_FILE_NAME } from "./shared/constants.js";
+} from "../bridge/file-queue.js";
+import { LOCK_FILE_NAME } from "../shared/constants.js";
 import {
   makeChatKey,
   parseChatKey,
   type DaemonChannelConfig,
   type ChannelStatusInfo,
-} from "./shared/channel-types.js";
+} from "../shared/channel-types.js";
 import {
   isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind,
-} from "./shared/feishu-presentation-gate.js";
+} from "../shared/feishu-presentation-gate.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { registerAdminTools } from "./server-admin.js";
-import { registerWorkflowAgentTools, registerWorkflowAdminTools } from "./server-workflow.js";
+import { registerWorkflowAgentTools, registerWorkflowAdminTools } from "../workflow/server-workflow.js";
 
 const _require = createRequire(import.meta.url);
-const PKG_VERSION: string = (_require("../package.json") as { version: string }).version;
+const PKG_VERSION: string = (_require("../../package.json") as { version: string }).version;
 
 // ── 环境变量 ──────────────────────────────────────────────
 

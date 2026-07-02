@@ -5,7 +5,7 @@ import type {
   WorkflowNextPayload,
   WorkflowRejectPayload,
   NodeExecution,
-} from "./shared/workflow-types.js";
+} from "./workflow-types.js";
 import {
   getDefinition,
   getInstance,
@@ -13,7 +13,7 @@ import {
   listInstances,
 } from "./workflow-store.js";
 import { randomUUID } from "node:crypto";
-import { readTemplate, renderTemplate } from "./shared/template-utils.js";
+import { readTemplate, renderTemplate } from "./template-utils.js";
 
 // ── Prompt 组装 ──────────────────────────────────────────
 

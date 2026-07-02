@@ -6,7 +6,7 @@ import * as Lark from "@larksuiteoapi/node-sdk";
 import {
   buildShellToolCardMarkdown,
   type ShellToolDetail,
-} from "./tool-presentation.js";
+} from "../shared/tool-presentation.js";
 
 const STREAM_ELEMENT_ID = "stream_content";
 const MERGE_BATCH_ELEMENT_ID = "merge_body";

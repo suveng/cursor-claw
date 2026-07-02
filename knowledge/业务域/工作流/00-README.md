@@ -22,14 +22,14 @@
 
 | 模块 | 路径 |
 |------|------|
-| 引擎 | `src/workflow-engine.ts` |
-| Daemon 存储 | `src/workflow-store.ts` |
+| 引擎 | `src/workflow/workflow-engine.ts` |
+| Daemon 存储 | `src/workflow/workflow-store.ts` |
 | Electron 存储 | `electron/workflow-file.ts` |
-| 类型 | `src/shared/workflow-types.ts` |
-| 定义解析 | `src/shared/workflow-parse.ts`、`workflow-definition-store.ts` |
-| MCP | `src/server-workflow.ts` |
+| 类型 | `src/workflow/workflow-types.ts` |
+| 定义解析 | `src/workflow/workflow-parse.ts`、`src/workflow/workflow-definition-store.ts` |
+| MCP | `src/workflow/server-workflow.ts` |
 | 启动 | `electron/workflow-runner.ts` |
-| 内置示例 | `src/builtin-workflows.ts`、`resources/template/workflow/` |
+| 内置示例 | `src/workflow/builtin-workflows.ts`、`resources/template/workflow/` |
 | UI | `src/renderer/components/WorkflowPanel.tsx` |
 | 飞书指令 | `electron/command-handler.ts` |
 
@@ -42,4 +42,5 @@
 
 ## 变更记录
 
+2026-07-02：源码锚点对齐 `src/workflow/*`（archive 20260702120154）。
 2026-06-27：kb-sync 初始建立

@@ -201,7 +201,7 @@ async function wechatWaitFirstMessageImpl(token: string, accountId: string, chan
   const dataDir = channelId
     ? path.join(app.getPath("userData"), "wechat-data", channelId)
     : path.join(app.getPath("userData"), "wechat-data")
-  const { WeChatManager } = await import("../../src/wechat-manager.js")
+  const { WeChatManager } = await import("../../src/bridge/wechat-manager.js")
 
   return new Promise<{ ok: boolean; chatId?: string; error?: string }>((resolve) => {
     let done = false
@@ -1413,7 +1413,7 @@ export function initDaemonManager(): void {
     wechatQrAbort = new AbortController()
     const signal = wechatQrAbort.signal
     try {
-      const { WeChatClient } = await import("../../src/wechat/index.js")
+      const { WeChatClient } = await import("../../src/bridge/wechat/index.js")
       const QRCode = await import("qrcode")
       const tmpClient = new WeChatClient()
       const result = await tmpClient.login({

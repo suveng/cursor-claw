@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
-import type { WorkflowDefinition, WorkflowInstance } from "../src/shared/workflow-types"
+import type { WorkflowDefinition, WorkflowInstance } from "../src/workflow/workflow-types"
 
 export interface AgentResource {
   id: string

@@ -1,0 +1,38 @@
+# shared 域编码约定
+
+> 仅放**跨 daemon / bridge / electron / renderer** 共用的类型、门控与常量；工作流专属类型已迁至 `workflow/`，Lark 实现已迁至 `bridge/`。
+
+## 目录职责
+
+| 文件 | 职责 | 主要引用方 |
+|------|------|------------|
+| `channel-types.ts` | `MessageChannel`、`AgentResource`、`makeChatKey` 等通道 SSOT | daemon、electron、renderer |
+| `feishu-presentation-gate.ts` | `isFeishuProcessPresentationSuppressed` 飞书过程展示门控 | daemon、electron |
+| `tool-presentation.ts` | Shell 工具 CardKit 字段解析与截断常量 | bridge/lark-core、electron |
+| `constants.ts` | `LOCK_FILE_NAME` 等进程级常量 | daemon-entry |
+
+## import 约定
+
+- 跨域引用：`../shared/<file>.js`（Node16 ESM，**须** `.js` 后缀）。
+- shared 内**禁止** import `daemon/`、`bridge/`、`workflow/`（保持无环依赖）。
+- 禁止 barrel `index.ts`；新增跨域符号优先归入已有文件，避免碎片化。
+
+## channel-types 三端同步
+
+- `MessageChannel` / `AgentResource` / `DaemonChannelConfig` 增删字段须同步：
+  - `src/shared/channel-types.ts`（本文件，SSOT）
+  - `electron/preload.ts`
+  - `src/renderer/env.d.ts`（`ChannelConfig`）
+- `AgentResource.type` 与 `engineType` 变更时同步扩展 electron `findFirstRunnableResource` 与 config-store 兜底；详见 [electron/config/AGENTS.md](../../electron/config/AGENTS.md)。
+- `CHAT_KEY_SEP`、`makeChatKey`、`parseChatKey` 为会话键唯一拼装口径，daemon 与 electron 不得另写分隔规则。
+
+## presentation gate 引用约定
+
+- **飞书过程抑制**：daemon `handleToolPresentationEvent` / `handleThinkingPresentationEvent` 与 electron `postPresentationEvent` **均须**调用 `isFeishuProcessPresentationSuppressed`；禁止在调用方复制通道判断逻辑。
+- **门控范围**：仅抑制飞书 tool/thinking CardKit；assistant `stream-text` 与 `PRESENTATION_ORDERING` 不受影响；微信路径不经此 gate。
+- **tool-presentation**：`TOOL_LOG_DETAIL_MAX`、`TOOL_CARD_SHELL_OUTPUT_MAX` 为截断上限 SSOT；`lark-core` 与 electron agent 流式展示须引用本模块，不重复定义 magic number。
+
+## 禁止
+
+- 禁止将工作流、Lark 发送、队列实现放入 `shared/`（已按域迁移）。
+- 禁止在 shared 写业务编排逻辑；仅类型、纯函数门控与常量。

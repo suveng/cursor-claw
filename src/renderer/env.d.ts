@@ -5,7 +5,7 @@ declare module "*.png" {
   export default src
 }
 
-import type { WorkflowDefinition, WorkflowInstance } from "../shared/workflow-types"
+import type { WorkflowDefinition, WorkflowInstance } from "../workflow/workflow-types"
 
 interface AgentResource {
   id: string

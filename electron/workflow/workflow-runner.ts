@@ -2,8 +2,8 @@ import { BrowserWindow } from "electron"
 import { getEnabledChannels } from "../config/config-store"
 import { makeChatKey } from "../../src/shared/channel-types"
 import { getDefinition } from "./workflow-file"
-import { createInstance, startWorkflow } from "../../src/workflow-engine"
-import { getInstance } from "../../src/workflow-store"
+import { createInstance, startWorkflow } from "../../src/workflow/workflow-engine"
+import { getInstance } from "../../src/workflow/workflow-store"
 import { launchWorkflowAgent, notifyWorkflowChat } from "../session/session-dispatcher"
 
 export async function runWorkflowDefinition(

@@ -17,7 +17,7 @@
 
 ## 源码入口
 
-- `src/daemon-entry.ts` → `src/daemon.ts`（`daemonMain`）
+- `src/daemon-entry.ts` → `src/daemon/daemon.ts`（`daemonMain`）
 - 打包产物由 `scripts/bundle-daemon.cjs` 生成，Electron 以 `ELECTRON_RUN_AS_NODE` spawn
 
 ## 推荐阅读路径
@@ -26,5 +26,6 @@
 
 ## 变更记录
 
+- 2026-07-02：源码入口对齐 `src/daemon/daemon.ts`（archive 20260702120154）
 - 2026-06-27：IM 唯一编排、poll 移除（archive 20260627162620）
 - 2026-06-27：kb-sync 初始建立

@@ -7,5 +7,5 @@
 
 ## 编码规矩
 
-- 共享类型从 `../../src/shared/workflow-types` import。
+- 共享类型从 `../../src/workflow/workflow-types` import。
 - **禁止**直接调用四引擎 SDK；统一走 `../session/session-dispatcher`。

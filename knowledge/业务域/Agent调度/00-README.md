@@ -34,6 +34,7 @@
 | 模块 | 路径 |
 |------|------|
 | 调度 | `electron/session/session-dispatcher.ts`、`electron/agent/cursor-sdk/agent-sdk.ts` |
+| Daemon 侧编排 | `src/daemon/daemon.ts` |
 | Daemon | `electron/daemon/daemon-manager.ts`、`electron/daemon/daemon-client.ts` |
 | 远程/Cron | `electron/scheduling/command-handler.ts`、`electron/scheduling/cron-scheduler.ts` |
 | Cursor | `electron/agent/cursor-sdk/agent-sdk.ts`、`electron/agent/cursor-sdk/sdk-run-*.ts`、`electron/mcp/loaders/mcp-sdk-loader.ts`、`electron/session/session-mcp-sdk-path.ts` |
@@ -47,6 +48,7 @@
 
 ## 变更记录
 
+2026-07-02：关键源码增补 Daemon 侧编排 `src/daemon/daemon.ts`（archive 20260702120154）。
 2026-07-02：关键源码表对齐 `electron/` 语义子目录（archive 20260702112559）。
 2026-07-02：关键源码补 sdk-run-* 事件流/续接模块（archive 20260701212827）。
 2026-07-02：关键源码补 Cursor SDK 配置加载模块（archive 20260701212732）。

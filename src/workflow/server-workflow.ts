@@ -15,9 +15,9 @@ import {
   startWorkflow,
   type EngineResult,
 } from "./workflow-engine.js";
-import type { WorkflowDefinition, WorkflowInstance } from "./shared/workflow-types.js";
-import { normalizeWorkflowDefinition } from "./shared/workflow-types.js";
-import { parseWorkflowDefinitionText } from "./shared/workflow-parse.js";
+import type { WorkflowDefinition, WorkflowInstance } from "./workflow-types.js";
+import { normalizeWorkflowDefinition } from "./workflow-types.js";
+import { parseWorkflowDefinitionText } from "./workflow-parse.js";
 import { randomUUID } from "node:crypto";
 
 function txt(text: string) { return { content: [{ type: "text" as const, text }] }; }

@@ -10,7 +10,7 @@ import { McpServerEntry, getMcpServerList, getMcpEnabledMap, getMcpStatusMap, to
 import { httpPost } from "../daemon/daemon-client"
 import { deleteDefinition, getDefinition, listDefinitions, listInstances } from "../workflow/workflow-file"
 import { runWorkflowDefinition } from "../workflow/workflow-runner"
-import type { WorkflowDefinition } from "../../src/shared/workflow-types"
+import type { WorkflowDefinition } from "../../src/workflow/workflow-types"
 import { CLAUDE_CODE_MODEL_LIST } from "../agent/claude-code/agent-cc-types"
 
 // ── 共享类型与工具 ─────────────────────────────────────────

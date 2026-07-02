@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { WeChatClient, normalizeAccountId } from "./wechat/index.js";
 import type { WeixinMessage, MessageItem } from "./wechat/index.js";
-import { MEDIA_CACHE_DIR } from "./shared/lark-core.js";
+import { MEDIA_CACHE_DIR } from "./lark-core.js";
 
 export interface WeChatIncomingMessage {
   text: string;

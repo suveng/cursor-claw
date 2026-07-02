@@ -18,7 +18,7 @@
 - **IPC handler**：`registerIpcHandlers` 内 `mcp:*` handler 之后 `ipcMain.handle("agent:mcp-status", (_e, sessionKey, force?, engineType?, workspaceDir?) => getSessionMcpStatus(sessionKey, force, engineType, workspaceDir))`；`force` 透传 SDK `fetchMcpStatusMap` 跳过 30s 缓存；`engineType`/`workspaceDir` 供 CC 无 session 读盘 fallback。顶部 `import { getSessionMcpStatus } from "./session/session-mcp-status"`（`main.ts`）。
 - **preload 暴露**：`contextBridge` 的 `api` 对象内 `getMcpStatusMap` 之后 `getAgentMcpStatus: (sessionKey, force?, engineType?, workspaceDir?) => ipcRenderer.invoke("agent:mcp-status", sessionKey, force, engineType, workspaceDir)`；返回 `Promise<AgentMcpStatusResult>`，`AgentMcpStatusResult` 在 preload 内 `export interface` 本地声明（与 `McpServerEntry` 同模式），字段与 `session/session-mcp-status` 对齐（`servers`/`statusMap`/`source`）。
 - **env.d.ts 签名**：`ElectronAPI.getAgentMcpStatus(sessionKey, force?, engineType?, workspaceDir?): Promise<AgentMcpStatusResult>`；`AgentMcpStatusResult` 经 `/// <reference path="./types/mcp.d.ts" />` 引入。
-- **保留项**：`mcp:list-for-workspace` / `mcp:status-map` IPC 与 preload `listMcpForWorkspace` / `getMcpStatusMap` **保留不动**——IM `/mcp` CRUD 与 Settings 仍用；仅 `SessionMcpPanel` CC/SDK 路径不再直调（见 src/AGENTS.md SessionMcpPanel dispatch）。
+- **保留项**：`mcp:list-for-workspace` / `mcp:status-map` IPC 与 preload `listMcpForWorkspace` / `getMcpStatusMap` **保留不动**——IM `/mcp` CRUD 与 Settings 仍用；仅 `SessionMcpPanel` CC/SDK 路径不再直调（见 `src/renderer/components/AGENTS.md` SessionMcpPanel dispatch）。
 
 ## 编码规矩
 

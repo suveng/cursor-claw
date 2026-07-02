@@ -22,12 +22,12 @@
 
 | 模块 | 路径 |
 |------|------|
-| 飞书核心 | `src/shared/lark-core.ts` |
+| 飞书核心 | `src/bridge/lark-core.ts` |
 | 通道类型 | `src/shared/channel-types.ts` |
-| 微信客户端 | `src/wechat/` |
-| 微信管理 | `src/wechat-manager.ts` |
-| 文件队列 | `src/file-queue.ts` |
-| Daemon 路由 | `src/daemon.ts` |
+| 微信客户端 | `src/bridge/wechat/` |
+| 微信管理 | `src/bridge/wechat-manager.ts` |
+| 文件队列 | `src/bridge/file-queue.ts` |
+| Daemon 路由 | `src/daemon/daemon.ts` |
 
 ## 推荐阅读路径
 
@@ -38,5 +38,6 @@
 
 ## 变更记录
 
+2026-07-02：源码锚点对齐 `src/bridge/*` 与 `src/daemon/daemon.ts`（archive 20260702120154）。
 2026-06-27：Daemon IM 编排与 MergeBatch（archive 20260627162620）。
 2026-06-27：kb-sync 初始建立。
