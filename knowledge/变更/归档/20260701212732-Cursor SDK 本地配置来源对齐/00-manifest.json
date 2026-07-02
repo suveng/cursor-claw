@@ -1,0 +1,302 @@
+{
+  "change_id": "20260701212732-Cursor SDK 本地配置来源对齐",
+  "name": "Cursor SDK 本地配置来源对齐",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-01T21:27:32+0800",
+  "updated_at": "2026-07-02T18:00:00+0800",
+  "archived_at": "2026-07-02T18:00:00+0800",
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "blocking",
+      "status": "closed",
+      "file": "electron/agent-sdk.ts",
+      "summary": "混入未登记的长任务续接/watchdog 逻辑，依赖 manifest 未收录的 sdk-run-persistence.ts",
+      "task_id": "T-FIX-01",
+      "resolution": "T-FIX-01：agent-sdk.ts 已移除 sdk-run-persistence import/re-export；T2 注入落 sdk-run-dispatch.ts，入口仅保留 launch/dispatch 编排"
+    },
+    {
+      "id": "R2",
+      "severity": "warning",
+      "status": "closed",
+      "file": "electron/AGENTS.md",
+      "summary": "AGENTS 文档混入 sdk-run-persistence/watchdog 段落，超出本变更 design 范围",
+      "task_id": "T-FIX-01",
+      "resolution": "T-FIX-01：已精简为 in-scope MCP 分层、settingSources、[config] 日志与 session-mcp-sdk-path 段落"
+    },
+    {
+      "id": "R3",
+      "severity": "info",
+      "status": "accepted_debt",
+      "file": "electron/daemon-manager.ts",
+      "summary": "仍从 agent-sdk import recoverSdkActiveRuns，函数已迁至 sdk-run-recover.ts",
+      "task_id": null,
+      "resolution": "false_positive for 本变更：归属 20260701212827 事件流/续接变更，非本 manifest 范围；不阻断 archive"
+    }
+  ],
+  "revisions": [
+    {
+      "id": "Rev1",
+      "status": "applied",
+      "task_ids": [
+        "T-Rev1-01",
+        "T-Rev1-02",
+        "T-Rev1-03",
+        "T-Rev1-04"
+      ],
+      "summary": "设置界面 Rules/Skills/MCP/Plugin 与 SDK 配置来源对齐"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "MCP SDK Loader 分层合并与 inline 筛选",
+      "status": "done",
+      "files": [
+        "electron/mcp-sdk-loader.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "Agent SDK 注入点、settingSources 与配置可观测日志",
+      "status": "done",
+      "files": [
+        "electron/agent-sdk.ts",
+        "electron/sdk-run-dispatch.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T-Rev1-01",
+      "title": "Settings Rules Tab 与主工作区 IPC 对齐",
+      "status": "done",
+      "files": [
+        "src/renderer/pages/Settings.tsx",
+        "electron/main.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T-Rev1-02",
+      "title": "Settings Skills Tab 用户级来源对齐",
+      "status": "done",
+      "files": [
+        "src/renderer/pages/Settings.tsx",
+        "electron/main.ts"
+      ],
+      "depends_on": [
+        "T-Rev1-01"
+      ]
+    },
+    {
+      "id": "T-Rev1-03",
+      "title": "Settings MCP Tab（global/project 维护）",
+      "status": "done",
+      "files": [
+        "src/renderer/components/SettingsMcpPanel.tsx",
+        "src/renderer/pages/Settings.tsx"
+      ],
+      "depends_on": [
+        "T-Rev1-02"
+      ]
+    },
+    {
+      "id": "T-Rev1-04",
+      "title": "Plugin 说明区与 mcp-view-strategy 插件文案",
+      "status": "done",
+      "files": [
+        "src/renderer/pages/Settings.tsx",
+        "src/renderer/lib/mcp-view-strategy.ts"
+      ],
+      "depends_on": [
+        "T-Rev1-03"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "SessionMcpPanel 与 session-mcp-status 运行时对齐",
+      "status": "done",
+      "files": [
+        "electron/session-mcp-status.ts",
+        "electron/session-mcp-sdk-path.ts",
+        "src/renderer/components/SessionMcpPanel.tsx",
+        "src/renderer/lib/mcp-view-strategy.ts"
+      ],
+      "depends_on": [
+        "T2",
+        "T-Rev1-04"
+      ]
+    },
+    {
+      "id": "T-FIX-01",
+      "title": "剥离 agent-sdk/AGENTS 越界长任务逻辑",
+      "status": "done",
+      "files": [
+        "electron/agent-sdk.ts",
+        "electron/AGENTS.md"
+      ],
+      "depends_on": [
+        "T2",
+        "T3"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260701212732-Cursor SDK 本地配置来源对齐/00-manifest.json",
+      "kind": "change_doc",
+      "source": "kb-plan",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212732-Cursor SDK 本地配置来源对齐/01-proposal.md",
+      "kind": "change_doc",
+      "source": "kb-revise",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212732-Cursor SDK 本地配置来源对齐/02-design.md",
+      "kind": "change_doc",
+      "source": "kb-design",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212732-Cursor SDK 本地配置来源对齐/03-tasks.md",
+      "kind": "change_doc",
+      "source": "kb-plan",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212732-Cursor SDK 本地配置来源对齐/07-prd-revisions.md",
+      "kind": "change_doc",
+      "source": "kb-revise",
+      "status": "added"
+    },
+    {
+      "path": "electron/mcp-sdk-loader.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent-sdk.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/main.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session-mcp-status.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session-mcp-sdk-path.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/pages/Settings.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/SettingsMcpPanel.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "added"
+    },
+    {
+      "path": "src/renderer/components/SessionMcpPanel.tsx",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/lib/mcp-view-strategy.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/components/AGENTS.md",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212732-Cursor SDK 本地配置来源对齐/04-review.md",
+      "kind": "change_doc",
+      "source": "kb-review",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212732-Cursor SDK 本地配置来源对齐/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "kb-test",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212732-Cursor SDK 本地配置来源对齐/05-summary.md",
+      "kind": "change_doc",
+      "source": "kb-archive",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+      "kind": "knowledge",
+      "source": "kb-archive",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "config",
+      "source": "kb-archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.9.2.json",
+      "kind": "config",
+      "source": "kb-archive",
+      "status": "added"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "version": "1.9.2",
+  "date": "2026-07-02",
+  "changes": [
+    "Cursor SDK 会话 MCP 按官方优先级加载，HTTP/sse 内联、stdio 默认经 settingSources，减少重复注册",
+    "设置页恢复 MCP 管理（区分用户级/项目级），Rules/Skills 说明与 SDK 配置来源对齐",
+    "设置页 Plugin 说明与 Dashboard MCP 面板标注「插件层」来源",
+    "SDK 启动/send 日志输出 [config] 行便于对照 cwd 与 inline MCP"
+  ]
+}

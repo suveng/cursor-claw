@@ -17,6 +17,7 @@ import { getCcSession, getCcActiveQuery } from "./agent-cc-session-registry"
 import { getSdkSession } from "./agent-sdk"
 import { loadInlineCcMcpServers, readCcProjectApproval } from "./cc-mcp-loader"
 import { fetchMcpStatusMap } from "./mcp-status-map"
+import { buildSdkRuntimeEntries } from "./session-mcp-sdk-path"
 import type { McpServerEntry } from "./mcp-types"
 
 /** 取数来源：runtime=运行时探测 / snapshot=session 缓存 / disk=读盘 */
@@ -272,11 +273,12 @@ export async function getSessionMcpStatus(
     return { servers, statusMap: buildDiskStatusMap(approvedMap), source: "disk" }
   }
 
-  // 2) SDK 路径：注入快照转 entries，状态走 fetchMcpStatusMap probe（force 透传，默认 30s 缓存）
+  // 2) SDK 路径：磁盘合并列表 + inline 快照标注，状态走 fetchMcpStatusMap probe
   if (sdkSession) {
+    const ws = sdkSession.workspaceDir ?? ""
     const injected = sdkSession.lastInjectedMcpServers ?? {}
-    const servers = mapInjectedToEntries(injected as Record<string, Record<string, unknown>>)
-    const statusMap = await fetchMcpStatusMap(force ?? false, servers, sdkSession.workspaceDir ?? "", "sdk")
+    const servers = buildSdkRuntimeEntries(ws, injected as Record<string, unknown>)
+    const statusMap = await fetchMcpStatusMap(force ?? false, servers, ws, "sdk")
     return { servers, statusMap, source: "runtime" }
   }
 

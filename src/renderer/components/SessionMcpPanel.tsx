@@ -10,7 +10,7 @@ import {
   Loader2,
   Wrench,
 } from "lucide-react"
-import { getMcpViewConfig, type McpEngineType } from "../lib/mcp-view-strategy"
+import { getMcpViewConfig, formatMcpScopeLabel, formatMcpStatusSourceLabel, type McpEngineType } from "../lib/mcp-view-strategy"
 
 export interface SessionMcpPanelProps {
   sessionKey: string
@@ -60,6 +60,7 @@ export default function SessionMcpPanel({
   const [tools, setTools] = useState<Record<string, ToolState>>({})
   const [loginPending, setLoginPending] = useState<Record<string, boolean>>({})
   const [loginOutput, setLoginOutput] = useState<string | null>(null)
+  const [statusSource, setStatusSource] = useState<AgentMcpStatusResult["source"]>("disk")
 
   const loadMcp = useCallback(async (force = false) => {
     // codex supported=false 已 early return；CC/SDK 统一走 agent:mcp-status（透传 force/engineType/workspaceDir）
@@ -70,6 +71,7 @@ export default function SessionMcpPanel({
       const res = await window.electronAPI.getAgentMcpStatus(sessionKey, force, engineType, effectiveWs)
       setServers(res.servers)
       setStatusMap(res.statusMap)
+      setStatusSource(res.source)
     } finally {
       setStatusLoading(false)
       setRefreshing(false)
@@ -132,6 +134,7 @@ export default function SessionMcpPanel({
         {usingFallback && (
           <span className="text-[10px] text-amber-500/80">使用主工作区 MCP 配置</span>
         )}
+        <span className="text-[10px] text-gray-600">来源：{formatMcpStatusSourceLabel(statusSource)}</span>
       </div>
 
       {loginOutput && (
@@ -139,7 +142,12 @@ export default function SessionMcpPanel({
       )}
 
       {servers.length === 0 ? (
-        <p className="text-xs text-gray-600">{viewConfig.emptyHint(effectiveWs, usingFallback)}</p>
+        <div className="space-y-1">
+          <p className="text-xs text-gray-600">{viewConfig.emptyHint(effectiveWs, usingFallback)}</p>
+          {viewConfig.pluginFootnote && (
+            <p className="text-[10px] text-gray-600 leading-relaxed">{viewConfig.pluginFootnote}</p>
+          )}
+        </div>
       ) : (
         <div className="space-y-1.5">
           {servers.map((s) => {
@@ -167,7 +175,7 @@ export default function SessionMcpPanel({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className={`truncate text-xs font-medium ${approvalDisabled ? "text-gray-500" : "text-gray-300"}`}>{s.name}</span>
-                        <span className="rounded bg-gray-800 px-1 py-0.5 text-[9px] text-gray-500">{s.source === "global" ? "全局" : "项目"}</span>
+                        <span className="rounded bg-gray-800 px-1 py-0.5 text-[9px] text-gray-500">{formatMcpScopeLabel(s, engineType)}</span>
                         {!statusLoading && showApprovalDisabledTag && (
                           <span className="rounded bg-gray-800/80 px-1 py-0.5 text-[9px] text-gray-500">未启用</span>
                         )}

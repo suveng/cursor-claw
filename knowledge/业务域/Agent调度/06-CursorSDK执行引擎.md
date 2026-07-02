@@ -2,72 +2,74 @@
 
 ## 一、能力范围
 
-负责 `@cursor/sdk` 在 Electron 主进程内的 IM/任务/工作流执行：`Agent.create`、`agent.send`、`run.stream()`、Presentation 出站、MCP 内联与 `agent-api` HTTP 服务。
+`@cursor/sdk` 在 Electron 主进程执行 IM/任务/工作流：`Agent.create`、`agent.send`、Presentation、MCP inline + `settingSources`、`agent-api` HTTP。运行期 `sdk-run-stream` 消费事件流；主进程重启 `sdk-run-recover` 有条件续接。
 
-**不负责**：Daemon 队列 claim、消息通道连接、Claude Agent 引擎（见 [07-ClaudeCodeSDK执行引擎](./07-ClaudeCodeSDK执行引擎.md)）。
+**不负责**：Daemon 队列、其他引擎（07–09）；Settings CRUD 见 [Electron §五](../../工程平台/Electron桌面应用/02-主进程与IPC.md)。
 
 ## 二、设计决策与取舍
 
-- **包/API**：`Agent.create` + `agent.send` + `run.stream()`（`electron/agent-sdk.ts`）；本应用采用长驻 + 二次 send，非 `Agent.prompt` 一次性。
-- **路由**：IM → Daemon → `agent-api`；任务/工作流 → `session-dispatcher.launchAgent` → Daemon launch。
-- **长驻**：`SDK_RESIDENT_AGENT` 默认开；Run 结束保留实例，连发 `dispatchToSdkAgent`。
-- **MCP inline**：`mcp-sdk-loader` 合并 mcp.json + OAuth；每次 send 重传 `mcpServers`。
-- **无 resume**：无跨进程续接；ContextRotation-lite 超阈值重建 Agent。
+- **API**：长驻 + 二次 send（`agent-sdk.ts` + `sdk-run-dispatch.ts`）。
+- **事件流 SSOT**：`streamRunEvents` 经 `for await (run.stream())` 驱动呈现与活跃时钟；`run.wait()` 仅收尾读 usage。
+- **onDelta**：`createAgentSendOptions.onActivity` → `markSessionActivity("onDelta")`。
+- **MCP**：HTTP/sse/OAuth inline；stdio `settingSources`；`Agent.resume` 重传 inline。
+- **续接**：`sdk-active-runs.json` 快照；init `recoverSdkActiveRuns`；`userStopped` 不再续接；失败一次 IM 提示。
+- **cwd/resident/settingSources**：通道 cwd 可能与 Settings 主工作区不一致；resident 每次 send 重传 inline。
 
 ## 三、服务端规则
 
-1. 通道 `agentResource.type === "sdk"` 且配 API Key；模型空/`auto` → `composer-2`。
-2. 非超时 error 写 `failedCooldowns`（30s）；超时经 `finalizeSdkRunOnTimeout` 清 session（长驻亦清理）。
-3. `acquireRunGuard` 同 sessionKey 单飞；processing = `run !== null || pendingDispatch`。
-4. legacy CLI 绑定（`agentResourceId === "cli"` 或 `type:"cli"`）返回固定错误。
+1. `type:"sdk"` + API Key；模型空 → `composer-2`。
+2. 非超时 error → `failedCooldowns` 30s；超时清 session。
+3. `mergeMcpJsonEntries`：project 覆盖 global；inline 覆盖 settingSources。
+4. **watchdog**（`sdk-run-watchdog.ts`）：`running→draining→cancelling`；`NEVER_CANCEL_ON_DURATION` 默认 true；`tool_running`/`awaiting_user`/`lastTool.running` 豁免 idle 取消。
+5. **runPhase**：`handleSdkEvent` 写入 `executing|tool_running|awaiting_user`。
+
+### 官方配置来源
+
+| 项 | 项目 | 用户 | 加载 | 优先级 |
+|----|------|------|------|--------|
+| MCP | `.cursor/mcp.json` | `~/.cursor/mcp.json` | settingSources+inline | inline>project>user |
+| Rules | `.cursor/rules/*` | settingSources | settingSources | project>user |
+| Skills | — | `~/.cursor/skills/` | settingSources | 用户级 |
 
 ## 四、客户端流程
 
+同链路：`launchSdkAgent`/`dispatchToSdkAgent` → `agent.send` → `startSdkRun` → `armRunWatchdog`+`streamRunEvents` → `completeSdkRun`。
+
 ```mermaid
-sequenceDiagram
-  participant D as Daemon
-  participant API as agent-api
-  participant SDK as agent-sdk
-  D->>API: POST /api/agent/launch
-  API->>SDK: launchSdkAgent
-  SDK->>SDK: Agent.create + send
-  SDK-->>D: stream-text/presentation
-  D->>API: POST /api/agent/dispatch
-  API->>SDK: dispatchToSdkAgent
+flowchart LR
+  send[agent.send] --> start[startSdkRun]
+  start --> stream[streamRunEvents]
+  stream --> done[completeSdkRun]
+  boot[init] --> recover[recoverSdkActiveRuns]
+  recover --> start
 ```
 
-任务/工作流：`launchSdkAgentFromHttp` 解析工作目录与模型。
+**续接**：`listRecoverableSdkRuns` → `Agent.resume`+`getRun` → 终态 `notifyResumeFailure` 一次，否则挂 `startSdkRun` 补消费。
+
+**Settings → SDK**：Rules/Skills/MCP 见 Settings 四 Tab；Dashboard `buildSdkRuntimeEntries` 标注来源。
 
 ## 五、接口
 
-| 入口 | 说明 |
-|------|------|
-| `launchSdkAgent` / `dispatchToSdkAgent` | 首条 create+send / 长驻二次 send |
-| `POST /api/agent/launch\|dispatch` | Daemon 契约；端口见 `agent-api-port.json` |
-| `checkSdkApiKey` / `listSdkModels` | 设置页 API Key 与模型列表 |
+`launchSdkAgent`/`dispatchToSdkAgent`；`POST /api/agent/launch|dispatch`。内部：`persistActiveSdkRun`/`clearActiveSdkRun`/`recoverSdkActiveRuns`/`markSdkRunUserStopped`。
 
 ## 六、数据
 
-- **SdkSessionAgent**：sessionKey、agent、run、residentMode、pendingDispatch、contextUsage、runGuardToken、f41Stream 等（`agent-sdk.ts`）。
-- **配置**：`config-store` 的 `AgentResource`（`type:"sdk"`, `apiKey`）；通道 `agentResourceId` 绑定。
+`SdkSessionAgent`：`runPhase`、呈现游标、`lastInjectedMcpServers`。磁盘 `userData/sdk-active-runs.json`（`SdkActiveRunRecord`，sessionKey upsert，含 apiKey/agentId/runId/`userStopped`）。`config-store` `AgentResource`。
 
 ## 七、非功能与可观测
 
-- RunGuard + idle watchdog（`SDK_IDLE_TIMEOUT_MS`）；`NEVER_CANCEL_ON_DURATION` 默认 true。
-- 日志：`dispatch_retry`、`watchdog`、`dispatch_failed`、`[compression]`。
-- f41Eligible → `/api/stream-text`；tool/thinking → `/api/presentation-event`。
+RunGuard+watchdog；`[recover]`/`[tool]`/`[status]` 日志；f41 400ms 节流；写盘失败 WARN 不阻断。
 
 ## 八、推送
 
-无独立推送；IM 出站经 Daemon `/api/send-text`、`/api/stream-text`、`/api/presentation-event`。
+无；IM 经 Daemon send-text/stream-text/presentation-event。
 
 ## 九、已知限制与 TODO
 
-- SDK 无 `Agent.resume` 级跨进程续接；超时 finalizer 会 `agent.close()` 并删 Map 条目。
-- 自动压缩依赖 harness 默认 summarization，LocalAgentOptions 无显式 `autoCompress` 字段。
-- Ripgrep 平台包 `@cursor/sdk-{platform}-{arch}` 须 asar 解包（`ensureSdkBinaryPaths`）。
+续接依赖 SDK Run 仍活跃；stdio 依赖 settingSources；持久化含 apiKey。
 
 ## 十、变更记录
 
-- 2026-06-30：新增十段式文档（kb-sync lite）。
-- 2026-06-30：移除 Cursor CLI，统一 sdk/cc 路由（archive 20260629232914）。
+- 2026-07-02：事件流 SSOT、watchdog 活动豁免、重启续接与 sdk-active-runs（archive 20260701212827）。
+- 2026-07-02：MCP 分层、Settings 四 Tab（archive 20260701212732）。
+- 2026-06-30：十段式；移除 CLI（archive 20260629232914）。

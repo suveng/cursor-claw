@@ -34,6 +34,7 @@ import {
 import SearchableSelect from "../components/SearchableSelect"
 import WorkflowPanel from "../components/WorkflowPanel"
 import AgentPanel from "../components/AgentPanel"
+import SettingsMcpPanel from "../components/SettingsMcpPanel"
 import ChannelPanel from "../components/ChannelPanel"
 import WorkspaceSessionModal, { type SessionEntry } from "../components/WorkspaceSessionModal"
 import TitleBar from "../components/TitleBar"
@@ -42,7 +43,7 @@ import { REQUIRED_FEISHU_SCOPES, FEISHU_SCOPES_JSON } from "../constants"
 
 interface Props { onBack: () => void; initialTab?: string; onTabConsumed?: () => void }
 
-type Tab = "general" | "channel" | "proxy" | "agent" | "rules" | "tasks" | "skills" | "workflows" | "setup" | "about"
+type Tab = "general" | "channel" | "proxy" | "agent" | "rules" | "tasks" | "skills" | "mcp" | "workflows" | "setup" | "about"
 type CloseWindowAction = "ask" | "minimize" | "quit"
 
 interface RuleFile { name: string; content: string }
@@ -59,6 +60,7 @@ const TABS: { id: Tab; label: string; icon: typeof SettingsIcon }[] = [
   { id: "channel", label: "消息通道", icon: MessageSquare },
   { id: "rules", label: "Rules", icon: FileCode2 },
   { id: "skills", label: "Skills", icon: Sparkles },
+  { id: "mcp", label: "MCP", icon: Network },
   { id: "tasks", label: "定时任务", icon: Timer },
   { id: "workflows", label: "工作流", icon: Waypoints },
   { id: "setup", label: "帮助引导", icon: BookOpen },
@@ -97,6 +99,8 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
   const updateDownloadingRef = useRef(false)
 
   const [saved, setSaved] = useState(false)
+  /** Skills 保存后的轻提示 */
+  const [skillSaveHint, setSkillSaveHint] = useState<string | null>(null)
   /** 任务编辑弹窗的模型选项（按所选通道的 Agent 资源拉取） */
   const [taskModelOptions, setTaskModelOptions] = useState<{ id: string; label: string; params: string }[]>([])
   const [loadingTaskModels, setLoadingTaskModels] = useState(false)
@@ -381,8 +385,8 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
   }
 
   // ── Rules ──
-  const openRuleAdd = () => { setRuleEditOriginalName(null); setRuleEditing({ name: "", content: "" }) }
-  const openRuleEdit = (r: RuleFile) => { setRuleEditOriginalName(r.name); setRuleEditing({ ...r }) }
+  const openRuleAdd = () => { if (!workspaceDir.trim()) return; setRuleEditOriginalName(null); setRuleEditing({ name: "", content: "" }) }
+  const openRuleEdit = (r: RuleFile) => { if (!workspaceDir.trim()) return; setRuleEditOriginalName(r.name); setRuleEditing({ ...r }) }
   const handleRuleDelete = async (name: string) => { await window.electronAPI.deleteRule(name); refreshRules() }
   const handleRuleSave = async () => {
     if (!ruleEditing || !ruleEditing.name.trim()) return
@@ -405,6 +409,8 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
     }
     await window.electronAPI.saveSkill(newName, skillEditing.content)
     setSkillEditing(null); refreshSkills()
+    setSkillSaveHint("已保存至用户级 ~/.cursor/skills，下轮 SDK 会话自动加载")
+    setTimeout(() => setSkillSaveHint(null), 4000)
   }
   const toggleSkillExpand = (key: string) => {
     setSkillExpanded((prev) => {
@@ -599,13 +605,27 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
             {/* ═══ Rules ═══ */}
             {tab === "rules" && (<>
               <section className="space-y-3">
+                <div className="rounded-lg border border-gray-700/60 bg-gray-900/40 px-3 py-2.5 text-xs">
+                  <p className="font-medium text-gray-300">项目级规则 · 主工作区</p>
+                  {workspaceDir.trim() ? (
+                    <>
+                      <p className="mt-1 font-mono text-[11px] text-gray-500 break-all">{workspaceDir}</p>
+                      <p className="mt-1.5 text-gray-600 leading-relaxed">
+                        规则写入主工作区 <span className="text-gray-500">.cursor/rules/</span>。
+                        SDK 会话的 cwd 可能来自通道或任务工作区；与主工作区不同时，此处修改不会作用于该会话。
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-amber-500/90">请先在「通用」中配置主工作区后才能编辑规则。</p>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-medium text-gray-300">Cursor Rules</h3>
-                  <button onClick={refreshRules} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white"><RefreshCw size={12} />刷新</button>
+                  <button onClick={refreshRules} disabled={!workspaceDir.trim()} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white disabled:opacity-40"><RefreshCw size={12} />刷新</button>
                   <div className="flex-1" />
-                  <button onClick={openRuleAdd} className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-blue-500"><Plus size={12} />新增</button>
+                  <button onClick={openRuleAdd} disabled={!workspaceDir.trim()} className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-blue-500 disabled:opacity-40"><Plus size={12} />新增</button>
                 </div>
-                <p className="text-xs text-gray-600">管理 .cursor/rules/ 下的规则文件</p>
+                <p className="text-xs text-gray-600">管理主工作区 <span className="text-gray-500">.cursor/rules/</span> 下的规则文件</p>
                 <div className="space-y-2">
                   {rules.map((r) => (
                     <div key={r.name} className="flex items-center justify-between rounded-lg border border-gray-700 px-4 py-3">
@@ -666,13 +686,20 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
             {/* ═══ Skills ═══ */}
             {tab === "skills" && (<>
               <section className="space-y-3">
+                <div className="rounded-lg border border-gray-700/60 bg-gray-900/40 px-3 py-2.5 text-xs">
+                  <p className="font-medium text-gray-300">用户级 · 全工作区生效</p>
+                  <p className="mt-1 text-gray-600">
+                    Skills 保存在 <span className="font-mono text-gray-500">~/.cursor/skills</span>，经 SDK <span className="text-gray-500">settingSources</span> 在所有工作区的 Cursor 执行引擎路径自动加载，无需重启应用。
+                  </p>
+                  {skillSaveHint && <p className="mt-2 text-green-400/90">{skillSaveHint}</p>}
+                </div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-medium text-gray-300">Agent Skills</h3>
                   <button onClick={refreshSkills} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white"><RefreshCw size={12} />刷新</button>
                   <div className="flex-1" />
                   <button onClick={openSkillAdd} className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-blue-500"><Plus size={12} />新增</button>
                 </div>
-                <p className="text-xs text-gray-600">管理 ~/.cursor/skills/ 下的技能（每个技能为一个文件夹 + SKILL.md）</p>
+                <p className="text-xs text-gray-600">管理用户级 <span className="font-mono text-gray-500">~/.cursor/skills/</span> 下的技能（每个技能为一个文件夹 + SKILL.md）</p>
                 <div className="space-y-1">
                   {skillTree.map((skill) => {
                     const isExpanded = skillExpanded.has(skill.name)
@@ -742,6 +769,9 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                 </div>
               </section>
             </>)}
+
+            {/* ═══ MCP ═══ */}
+            {tab === "mcp" && <SettingsMcpPanel workspaceDir={workspaceDir} />}
 
             {/* ═══ Workflows ═══ */}
             {tab === "workflows" && <WorkflowPanel />}

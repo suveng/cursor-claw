@@ -1,646 +1,78 @@
-import * as http from "node:http"
-import { Agent, type SDKAgent, type Run, type SDKMessage, type McpServerConfig } from "@cursor/sdk"
-import { resolve, join, dirname } from "node:path"
-import { existsSync, writeFileSync, mkdirSync } from "node:fs"
-import { createRequire } from "node:module"
-import { app } from "electron"
-import { readLockFile, httpPost, reportSessionAgentPhase } from "./daemon-client"
-import { getChannel, getAgentResource, isCodexResourceId, isOpencodeResourceId, resolveChannelForSession, resolveChannelModel, effectiveWorkspaceDir, type MessageChannel, type ModelScenario } from "./config-store"
-import { parseChatKey } from "../src/shared/channel-types"
-import {
-  isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind,
-} from "../src/shared/feishu-presentation-gate"
-import {
-  extractShellPresentationFields,
-  formatToolCallLogSuffix,
-} from "../src/shared/tool-presentation"
-import { pushUiLog, broadcastLog, broadcastSessionStatus } from "./ui-logger"
-import { archiveAgentFailureLogs, type FailureArchiveType } from "./crash-log-archiver"
-import {
-  ZERO_CONTEXT_USAGE,
-  type ContextUsageState,
-  appendContextFooter,
-  createAgentSendOptions,
-  evaluatePreSendContextPressure,
-  formatContextFooter,
-  resolveContextLimitForSession,
-  resolveDisplayContextTokens,
-} from "./context-usage"
-import { finalizeContextUsageAtRunEnd } from "./context-usage-run-end"
-import { type ChatType, type LaunchMeta, buildPrompt, resolveSessionChatName } from "./agent-launcher"
-import { appendInlineMcpToSendOptions, loadInlineMcpServers } from "./mcp-sdk-loader"
-import { formatUserSdkFailureMessage } from "./sdk-failure-messages"
-import { acquireRunGuard, completeRunGuard, getRunGuardHeldMs, releaseRunGuard, watchRunGuard } from "./agent-run-guard"
-import { buildIdempotencyKey, shouldRetry } from "./retry-policy"
-import { maybeRotateContext } from "./context-rotation-lite"
-import {
-  PLATFORM_RUN_LIMIT_MS,
-  cancelRunAndWait,
-  finalizeSdkRunOnTimeout as finalizeSdkRunOnTimeoutImpl,
-  isRunTimeoutFailure as isRunTimeoutFailureImpl,
-  type FinalizerContext,
-} from "./finalize-sdk-run"
-import { launchCcAgentFromHttp } from "./agent-cc-http"
-import { dispatchToClaudeCodeAgent } from "./agent-claude-sdk"
-import { launchCodexAgentFromHttp } from "./agent-codex-http"
-import { dispatchToCodexAgent } from "./agent-codex-sdk"
-import { launchOpencodeAgentFromHttp } from "./agent-opencode-http"
-import { dispatchToOpencodeAgent } from "./agent-opencode-sdk"
-
-export interface SdkSessionAgent {
-  sessionKey: string
-  agent: SDKAgent
-  run: Run | null
-  agentId: string
-  startedAt: number
-  lastActivityAt: number
-  chatType: ChatType
-  workspaceDir?: string
-  senderOpenId?: string
-  chatName?: string
-  abortController: AbortController
-  /** 流式日志聚合缓冲：连续同类型(thinking/text)增量合并成一条打印 */
-  logAgg: { kind: "thinking" | "text" | null; buf: string }
-  /** SDK 流式桥接 eligible（f41Eligible：主用户私聊或飞书群聊 allowOthers） */
-  f41Stream: boolean
-  streamBuffer: string
-  outboundMessageId?: string
-  /** 工具进度 CardKit message_id（按 tool_name，供并发工具各自 PATCH） */
-  toolPresentationOutboundIds?: Map<string, string>
-  streamId?: string
-  streamLastPostAt?: number
-  streamPostTimer?: ReturnType<typeof setTimeout>
-  /** stream-text POST 串行链，避免并发首包 */
-  streamPostChain?: Promise<void>
-  errorNotified?: boolean
-  /** 最近一次终态状态事件（ERROR/EXPIRED/CANCELLED），用于结束时还原真实错误原因 */
-  lastStatus?: { status: string; message?: string }
-  /** 末次 tool 事件快照，供 error 日志与保活失败分类 */
-  lastTool?: { name: string; status: string }
-  /** Feature flag SDK_RESIDENT_AGENT：Run 结束后保持 Agent 实例 */
-  residentMode: boolean
-  /** 二次 send 进行中，防并发 dispatch */
-  pendingDispatch: boolean
-  /** 当前 Run 启动时刻，供 error 时 durationMs 未就绪的兜底 */
-  runStartedAt?: number
-  /** daemon 曾返回 deferred 或本地已见过程，延迟 POST stream-text */
-  presentationDeferStream?: boolean
-  /** 本 Run 是否出现过 tool/thinking */
-  seenProcessEvent?: boolean
-  /** 本 Run thinking 过程尚未 final */
-  thinkingOpen?: boolean
-  /** 当前 turn token 快照（onDelta turn-ended replace） */
-  contextUsage: ContextUsageState
-  /** session 级 prompt 侧 peak（跨 Run 保留；压缩后清零；footer 取 max(peak, 当前)） */
-  contextUsagePeakTokens?: number
-  /** Run 结束时 run.usage.totalTokens，footer 优先使用 */
-  contextUsageFromRunTotal?: number
-  /** 本 Run 是否已从 run.usage finalize */
-  contextUsageFinalized?: boolean
-  /** 模型上下文上限（session 级缓存，跨 Run 复用） */
-  contextLimitTokens?: number
-  /** 当前模型 id，供 resolveModelContextLimit */
-  modelId?: string
-  /** 当前模型参数，供 context rotation 重建 agent */
-  modelParams?: string
-  /** 通道 SDK API Key，供 models.list */
-  apiKey?: string
-  /** 本 Run 是否已下发压缩进度通知（防重复） */
-  compressionNotified?: boolean
-  /** 当次 dispatch claim 的 inbound message_ids，final stream-text 末条 id 用于 ack */
-  inboundMessageIds?: string[]
-  /** 本 Run 正在执行超时/终态收尾，防 completeSdkRun 重复 */
-  runFinalizing?: boolean
-  /** 本 Run 单次失败是否已归档崩溃日志 */
-  failureArchiveDone?: boolean
-  /** RunGuard 单飞 token（同 session 仅允许一个活跃 run） */
-  runGuardToken?: string
-  /** 最近一次调度重试次数（用于可观测） */
-  lastDispatchAttempts?: number
-  /** watchdog 状态机：running -> draining -> cancelling */
-  watchdogState: "running" | "draining" | "cancelling"
-  /** watchdog 状态切换时间戳（ms） */
-  watchdogStateAt: number
-  /** 最近一次注入 SDK 的 inline mcpServers 快照（SDK 无 list/status API，展示侧 T5 据此渲染） */
-  lastInjectedMcpServers?: Record<string, McpServerConfig>
-}
-
-const sdkSessions = new Map<string, SdkSessionAgent>()
-const pendingLaunches = new Set<string>()
-const failedCooldowns = new Map<string, number>()
-const FAIL_COOLDOWN_MS = 30_000
-const NOTIFY_PROCESSING = "Agent 处理中…"
-const NOTIFY_COMPRESSING = "正在压缩上下文…"
-const STREAM_POST_INTERVAL_MS = 400
-const SEND_RETRY_MAX_ATTEMPTS = 3
-const LEGACY_RUN_WATCHDOG_TIMEOUT_MS = Number(process.env.SDK_RUN_WATCHDOG_MS || PLATFORM_RUN_LIMIT_MS)
-const RUN_WATCHDOG_IDLE_TIMEOUT_MS = Number(
-  process.env.SDK_IDLE_TIMEOUT_MS
-  || process.env.sdk_idle_timeout_ms
-  || LEGACY_RUN_WATCHDOG_TIMEOUT_MS,
-)
-const RUN_WATCHDOG_DRAIN_GRACE_MS = Number(process.env.SDK_DRAIN_GRACE_MS || process.env.sdk_drain_grace_ms || 12_000)
-const NEVER_CANCEL_ON_DURATION = (() => {
-  const raw = (process.env.NEVER_CANCEL_ON_DURATION ?? process.env.never_cancel_on_duration ?? "true").trim().toLowerCase()
-  return raw !== "0" && raw !== "false"
-})()
-const RUN_WATCHDOG_TICK_MS = 800
-
-function resolveSafeTimeoutMs(raw: number, fallback: number): number {
-  if (Number.isFinite(raw) && raw > 0) return raw
-  return fallback
-}
-
-const WATCHDOG_IDLE_TIMEOUT_MS = resolveSafeTimeoutMs(RUN_WATCHDOG_IDLE_TIMEOUT_MS, LEGACY_RUN_WATCHDOG_TIMEOUT_MS)
-const WATCHDOG_DRAIN_GRACE_MS = resolveSafeTimeoutMs(RUN_WATCHDOG_DRAIN_GRACE_MS, 12_000)
-const WATCHDOG_ABSOLUTE_TIMEOUT_MS = resolveSafeTimeoutMs(LEGACY_RUN_WATCHDOG_TIMEOUT_MS, PLATFORM_RUN_LIMIT_MS)
-
-function sdkResidentModeEnabled(): boolean {
-  const v = (process.env.SDK_RESIDENT_AGENT ?? "").trim().toLowerCase()
-  return v !== "0" && v !== "false"
-}
-
-function isSdkSessionProcessing(session: SdkSessionAgent): boolean {
-  return session.run !== null || session.pendingDispatch
-}
-
-function resetSdkRunPresentationState(session: SdkSessionAgent): void {
-  session.errorNotified = false
-  session.lastStatus = undefined
-  session.lastTool = undefined
-  session.runStartedAt = undefined
-  session.streamBuffer = ""
-  session.outboundMessageId = undefined
-  session.toolPresentationOutboundIds = undefined
-  session.streamId = undefined
-  session.streamLastPostAt = undefined
-  session.logAgg = { kind: null, buf: "" }
-  session.presentationDeferStream = false
-  session.seenProcessEvent = false
-  session.thinkingOpen = false
-  session.contextUsage = { ...ZERO_CONTEXT_USAGE }
-  session.contextUsageFromRunTotal = undefined
-  session.contextUsageFinalized = false
-  // contextUsagePeakTokens 跨 Run 保留，保证同 session 多轮 footer 可比
-  session.compressionNotified = false
-  session.runFinalizing = false
-  session.failureArchiveDone = false
-  session.watchdogState = "running"
-  session.watchdogStateAt = Date.now()
-  session.abortController = new AbortController()
-}
-
-function setWatchdogState(
-  session: SdkSessionAgent,
-  next: "running" | "draining" | "cancelling",
-  reason: string,
-): void {
-  if (session.watchdogState === next) return
-  session.watchdogState = next
-  session.watchdogStateAt = Date.now()
-  pushUiLog("SDK", "INFO", `[${session.sessionKey}] watchdog 状态切换 -> ${next} (${reason})`)
-}
-
 /**
- * 活跃信号统一入口：任何可观测事件都刷新 lastActivityAt。
- * 若此前因空闲进入 draining/cancelling，则立即恢复 running，避免误取消。
+ * Cursor SDK 执行引擎（入口 & 编排）
+ * 复杂逻辑下沉 sdk-run-* / sdk-session-* / agent-sdk-http。
  */
-function markSessionActivity(session: SdkSessionAgent, source: string): void {
-  session.lastActivityAt = Date.now()
-  if (session.watchdogState !== "running") {
-    setWatchdogState(session, "running", `activity_resume:${source}`)
-  }
-}
+import { Agent } from "@cursor/sdk"
+import { resolve, join, dirname } from "node:path"
+import { existsSync } from "node:fs"
+import { createRequire } from "node:module"
+import { ZERO_CONTEXT_USAGE, evaluatePreSendContextPressure, resolveContextLimitForSession } from "./context-usage"
+import { buildPrompt } from "./agent-launcher"
+import { loadInlineMcpServersForSdk } from "./mcp-sdk-loader"
+import { acquireRunGuard, completeRunGuard, releaseRunGuard } from "./agent-run-guard"
+import { ensureAgentSdkHttpServer } from "./agent-sdk-http"
+import { notifyDispatchFailure } from "./sdk-run-finalize"
+import { sendWithRetry } from "./sdk-run-dispatch"
+import { startSdkRun, stopSdkSession, stopAllSdkSessions } from "./sdk-run-lifecycle"
+import {
+  broadcastSdkSessionStatus,
+  failedCooldowns,
+  FAIL_COOLDOWN_MS,
+  f41Eligible,
+  getSdkSession,
+  getSdkSessionCount,
+  getSdkSessionList,
+  hasSdkSession,
+  isSdkSessionProcessing,
+  isSdkSessionRunning,
+  markSessionActivity,
+  pendingLaunches,
+  resetSdkRunPresentationState,
+  sdkResidentModeEnabled,
+  sdkSessions,
+} from "./sdk-session-registry"
+import type { SdkLaunchOptions } from "./sdk-session-types"
+import { pushUiLog, broadcastLog } from "./ui-logger"
 
-function extractErrorCode(value: unknown): string | undefined {
-  if (!value || typeof value !== "object") return undefined
-  const code = (value as { errorCode?: unknown }).errorCode
-  return code != null && String(code).trim() ? String(code) : undefined
-}
+// ── 类型与拆分模块 re-export（保持外部 import 路径不变） ──
+export type {
+  SdkSessionAgent,
+  PresentationKind,
+  PresentationEvent,
+  SdkLaunchOptions,
+  SdkModelOption,
+} from "./sdk-session-types"
+export { isRunTimeoutFailure, finalizeSdkRunOnTimeout } from "./sdk-run-finalize"
+export { streamRunEvents, handleSdkEvent } from "./sdk-run-stream"
+export {
+  isSdkSessionRunning,
+  hasSdkSession,
+  getSdkSessionCount,
+  getSdkSessionList,
+  getSdkSession,
+} from "./sdk-session-registry"
+export { checkSdkApiKey, listSdkModels } from "./sdk-api-models"
+export { stopSdkSession, stopAllSdkSessions } from "./sdk-run-lifecycle"
+export { ensureAgentSdkHttpServer, getAgentSdkApiPort, launchSdkAgentFromHttp } from "./agent-sdk-http"
+export { recoverSdkActiveRuns } from "./sdk-run-recover"
 
-function extractChatId(sessionKey: string): string {
-  const idx = sessionKey.indexOf("::")
-  return idx > 0 ? sessionKey.slice(0, idx) : sessionKey
-}
-
-/** 主用户私聊或飞书群聊（allowOthers）+ SDK 资源 → 可走 /api/stream-text */
-function f41Eligible(sessionKey: string, chatType: ChatType): boolean {
-  const chatId = extractChatId(sessionKey)
-  const { channelId, chatId: raw } = parseChatKey(chatId)
-  const channel = channelId ? getChannel(channelId) : undefined
-  if (chatType === "p2p") {
-    if (!channel?.mainUserEnabled || !channel.mainUserChatId?.trim()) return false
-    return raw === channel.mainUserChatId.trim()
-  }
-  if (chatType === "group") {
-    return channel?.type === "feishu" && !!channel.allowOthers
-  }
-  return false
-}
-
-function presentationOrderingEnvEnabled(): boolean {
-  const v = (process.env.PRESENTATION_ORDERING ?? "").trim().toLowerCase()
-  if (v === "0" || v === "false") return false
-  return true
-}
-
-/** Presentation 时序编排：PRESENTATION_ORDERING 开启且主用户私聊 SDK 流式 */
-function presentationOrderingEligible(session: SdkSessionAgent): boolean {
-  if (!presentationOrderingEnvEnabled()) return false
-  return session.f41Stream && session.chatType === "p2p"
-}
-
-function resolveRunDurationMs(session: SdkSessionAgent, run?: Run | null): number | undefined {
-  const fromRun = run?.durationMs ?? session.run?.durationMs
-  if (fromRun != null) return fromRun
-  if (session.runStartedAt != null) return Date.now() - session.runStartedAt
-  return undefined
-}
-
-function formatSdkStreamFailure(
-  status?: string,
-  message?: string,
-  ctx?: {
-    lastTool?: { name: string; status: string }
-    durationMs?: number
-    errorCode?: string
-    runResult?: string
-    contextUsed?: number
-    contextLimit?: number | null
-    isTimeoutFailure?: boolean
-  },
-): string {
-  return formatUserSdkFailureMessage({
-    status,
-    message,
-    errorCode: ctx?.errorCode,
-    runResult: ctx?.runResult,
-    lastTool: ctx?.lastTool,
-    durationMs: ctx?.durationMs,
-    contextUsed: ctx?.contextUsed,
-    contextLimit: ctx?.contextLimit,
-    isTimeoutFailure: ctx?.isTimeoutFailure ?? false,
-  })
-}
-
-async function notifySdkFailure(
-  session: SdkSessionAgent,
-  override?: string,
-  run?: Run | null,
-  failureType?: FailureArchiveType,
-): Promise<void> {
-  if (session.errorNotified || session.abortController.signal.aborted) return
-  session.errorNotified = true
-  const resolvedType: FailureArchiveType =
-    failureType ??
-    (session.lastStatus?.status === "CANCELLED" ? "sdk_cancelled" : "sdk_run_error")
-  archiveAgentFailureLogs({
-    sessionKey: session.sessionKey,
-    failureType: resolvedType,
-    session,
-    agentId: session.agentId,
-    runStatus: run?.status ?? session.run?.status,
-  })
-  const last = session.lastStatus
-  const contextUsed = resolveDisplayContextTokens(
-    session.contextUsage,
-    session.contextUsagePeakTokens,
-  )
-  let text = override ?? formatSdkStreamFailure(last?.status, last?.message, {
-    lastTool: session.lastTool,
-    durationMs: resolveRunDurationMs(session, run),
-    errorCode: extractErrorCode(run) ?? extractErrorCode(last),
-    runResult: run?.result ?? session.run?.result,
-    contextUsed,
-    contextLimit: session.contextLimitTokens ?? null,
-    isTimeoutFailure: run ? isRunTimeoutFailure(session, run, last) : false,
-  })
-  const footer = formatContextFooter(
-    session.contextUsage,
-    session.contextLimitTokens ?? null,
-    session.contextUsagePeakTokens,
-    session.contextUsageFromRunTotal,
-  )
-  text = appendContextFooter(text, footer)
-  await notifySessionChat(session.sessionKey, text, true)
-}
-
-async function notifyDispatchFailure(sessionKey: string, reason: string): Promise<void> {
-  pushUiLog("SDK", "ERROR", `[${sessionKey}] dispatch_failed: ${reason}`)
-  archiveAgentFailureLogs({
-    sessionKey,
-    failureType: "dispatch_failed",
-    detail: reason,
-  })
-  await notifySessionChat(sessionKey, "⚠️ 消息投递失败，请稍后重试。", true)
-}
-
-interface StreamTextPayload {
-  session_key: string
-  text: string
-  stream_id?: string
-  outbound_message_id?: string
-  /** final 包携带末条 inbound id，daemon handleStreamText → ackOnReply */
-  message_id?: string
-  final?: boolean
-}
-
-export type PresentationKind = "assistant" | "thinking" | "tool" | "diff" | "merge_batch"
-
-export interface PresentationEvent {
-  session_key: string
-  kind: PresentationKind
-  delta?: string
-  tool_name?: string
-  tool_status?: "started" | "completed" | "failed"
-  /** shell 工具：具体命令（CardKit ```shell 渲染） */
-  tool_shell_command?: string
-  tool_shell_cwd?: string
-  tool_shell_output?: string
-  final?: boolean
-  outbound_message_id?: string
-}
-
-function mapToolPresentationStatus(status: "running" | "completed" | "error"): PresentationEvent["tool_status"] {
-  if (status === "running") return "started"
-  if (status === "completed") return "completed"
-  return "failed"
-}
-
-/** 从 sessionKey 解析通道类型（与 f41Eligible 同源 parseChatKey + getChannel） */
-function resolveSessionChannelType(sessionKey: string): string | undefined {
-  const chatId = extractChatId(sessionKey)
-  const { channelId } = parseChatKey(chatId)
-  const channel = channelId ? getChannel(channelId) : resolveChannelForSession(sessionKey)
-  return channel?.type
-}
-
-/** 飞书全通道：tool/thinking 不 POST presentation-event；assistant 仍走 stream-text */
-function isFeishuProcessPresentationSuppressed(
-  session: SdkSessionAgent,
-  event: Omit<PresentationEvent, "session_key">,
-): boolean {
-  return feishuSuppressesProcessKind(resolveSessionChannelType(session.sessionKey), event.kind)
-}
-
-async function postPresentationEvent(
-  session: SdkSessionAgent,
-  event: Omit<PresentationEvent, "session_key">,
-): Promise<void> {
-  // 飞书抑制过程卡出站；本地闩锁 / SDK UI 日志仍由 handleSdkEvent 维护
-  if (isFeishuProcessPresentationSuppressed(session, event)) return
-  const lock = readLockFile()
-  if (!lock?.port) return
-  const payload: PresentationEvent = {
-    session_key: session.sessionKey,
-    ...event,
-  }
-  if (payload.kind === "tool" && payload.tool_name && !payload.outbound_message_id) {
-    const id = session.toolPresentationOutboundIds?.get(payload.tool_name)
-    if (id) payload.outbound_message_id = id
-  }
-  try {
-    const res = (await httpPost(`http://127.0.0.1:${lock.port}/api/presentation-event`, payload, 5000)) as {
-      ok?: boolean
-      outbound_message_id?: string
-      error?: string
-    }
-    if (res?.outbound_message_id && payload.kind === "tool" && payload.tool_name) {
-      if (!session.toolPresentationOutboundIds) session.toolPresentationOutboundIds = new Map()
-      session.toolPresentationOutboundIds.set(payload.tool_name, res.outbound_message_id)
-    }
-    if (res?.ok === false && res.error) {
-      pushUiLog("SDK", "WARN", `[${session.sessionKey}] presentation-event 拒绝: ${res.error}`)
-    }
-  } catch (e: unknown) {
-    pushUiLog("SDK", "WARN", `[${session.sessionKey}] presentation-event 推送失败: ${e instanceof Error ? e.message : String(e)}`)
-  }
-}
-
-async function postStreamText(session: SdkSessionAgent, payload: StreamTextPayload): Promise<void> {
-  const lock = readLockFile()
-  if (!lock?.port) return
-  try {
-    const res = (await httpPost(`http://127.0.0.1:${lock.port}/api/stream-text`, payload, 5000)) as {
-      ok?: boolean
-      stream_id?: string
-      outbound_message_id?: string
-      deferred?: boolean
-      error?: string
-    }
-    if (res?.stream_id) session.streamId = res.stream_id
-    if (res?.deferred) {
-      session.presentationDeferStream = true
-      return
-    }
-    if (res?.outbound_message_id) session.outboundMessageId = res.outbound_message_id
-    if (res?.ok === false && res.error) {
-      pushUiLog("SDK", "WARN", `[${session.sessionKey}] stream-text 拒绝: ${res.error}`)
-    }
-  } catch (e: unknown) {
-    pushUiLog("SDK", "WARN", `[${session.sessionKey}] stream-text 推送失败: ${e instanceof Error ? e.message : String(e)}`)
-  }
-}
-
-function clearStreamPostTimer(session: SdkSessionAgent): void {
-  if (session.streamPostTimer) {
-    clearTimeout(session.streamPostTimer)
-    session.streamPostTimer = undefined
-  }
-}
-
-function resetStreamPostChain(session: SdkSessionAgent): void {
-  clearStreamPostTimer(session)
-  session.streamPostChain = undefined
-}
-
-async function doFlushStreamPost(session: SdkSessionAgent, final: boolean): Promise<void> {
-  clearStreamPostTimer(session)
-  if (!session.f41Stream) return
-  if (!final && shouldDeferAssistantPost(session)) return
-  if (final) applyContextFooterToBuffer(session)
-  const text = session.streamBuffer
-  if (!text.trim() && !final) return
-
-  const payload: StreamTextPayload = {
-    session_key: session.sessionKey,
-    text,
-  }
-  if (session.streamId) payload.stream_id = session.streamId
-  if (session.outboundMessageId) payload.outbound_message_id = session.outboundMessageId
-  if (final) {
-    payload.final = true
-    const ids = session.inboundMessageIds
-    const lastId = ids?.[ids.length - 1]
-    if (lastId) payload.message_id = lastId
-  }
-
-  await postStreamText(session, payload)
-  session.streamLastPostAt = Date.now()
-}
-
-function flushStreamPost(session: SdkSessionAgent, final: boolean): Promise<void> {
-  session.streamPostChain = (session.streamPostChain ?? Promise.resolve())
-    .then(() => doFlushStreamPost(session, final))
-    .catch((e: unknown) => {
-      pushUiLog("SDK", "WARN", `[${session.sessionKey}] stream-post chain 错误: ${e instanceof Error ? e.message : String(e)}`)
-    })
-  return session.streamPostChain
-}
-
-function scheduleStreamPost(session: SdkSessionAgent, final: boolean): void {
-  if (!session.f41Stream) return
-  if (final) {
-    flushStreamPost(session, true)
-    return
-  }
-  const now = Date.now()
-  const elapsed = session.streamLastPostAt != null ? now - session.streamLastPostAt : STREAM_POST_INTERVAL_MS
-  if (elapsed >= STREAM_POST_INTERVAL_MS) {
-    flushStreamPost(session, false)
-    return
-  }
-  if (session.streamPostTimer) return
-  session.streamPostTimer = setTimeout(() => {
-    session.streamPostTimer = undefined
-    flushStreamPost(session, false)
-  }, STREAM_POST_INTERVAL_MS - elapsed)
-}
-
-function appendStreamDelta(session: SdkSessionAgent, delta: string): void {
-  session.streamBuffer += delta
-  scheduleStreamPost(session, false)
-}
-
-function shouldDeferAssistantPost(session: SdkSessionAgent): boolean {
-  if (!presentationOrderingEligible(session)) return false
-  if (session.outboundMessageId) return false
-  return !!(session.presentationDeferStream || session.seenProcessEvent)
-}
-
-function isAwaitingFirstProcessEvent(session: SdkSessionAgent): boolean {
-  return presentationOrderingEligible(session)
-    && !session.outboundMessageId
-    && !session.seenProcessEvent
-}
-
-/** 首包 POST 前短窗等待 tool/thinking，与 STREAM_POST_INTERVAL 对齐，纯对话路径不额外延迟 */
-function schedulePreambleRelease(session: SdkSessionAgent): void {
-  if (!session.f41Stream) return
-  clearStreamPostTimer(session)
-  session.streamPostTimer = setTimeout(() => {
-    session.streamPostTimer = undefined
-    if (shouldDeferAssistantPost(session)) return
-    scheduleStreamPost(session, false)
-  }, STREAM_POST_INTERVAL_MS)
-}
-
-function appendAssistantStreamDelta(session: SdkSessionAgent, delta: string): void {
-  session.streamBuffer += delta
-  if (shouldDeferAssistantPost(session)) return
-  if (isAwaitingFirstProcessEvent(session)) {
-    schedulePreambleRelease(session)
-    return
-  }
-  scheduleStreamPost(session, false)
-}
-
-function closeThinkingIfOpen(session: SdkSessionAgent): void {
-  if (!session.thinkingOpen) return
-  session.thinkingOpen = false
-  void postPresentationEvent(session, { kind: "thinking", final: true })
-  maybeReleaseDeferredAssistant(session)
-}
-
-function markProcessEventSeen(session: SdkSessionAgent): void {
-  clearStreamPostTimer(session)
-  session.seenProcessEvent = true
-  if (presentationOrderingEligible(session)) {
-    session.presentationDeferStream = true
-  }
-}
-
-async function flushDeferredStreamPost(session: SdkSessionAgent): Promise<void> {
-  if (!session.streamBuffer.trim()) return
-  await flushStreamPost(session, false)
-}
-
-function maybeReleaseDeferredAssistant(session: SdkSessionAgent): void {
-  if (!presentationOrderingEligible(session)) return
-  if (!session.seenProcessEvent) return
-  void flushDeferredStreamPost(session)
-}
-
-/** final flush 前将上下文 footer 写入 streamBuffer（幂等） */
-function applyContextFooterToBuffer(session: SdkSessionAgent): void {
-  const footer = formatContextFooter(
-    session.contextUsage,
-    session.contextLimitTokens ?? null,
-    session.contextUsagePeakTokens,
-    session.contextUsageFromRunTotal,
-  )
-  if (!footer) return
-  session.streamBuffer = appendContextFooter(session.streamBuffer, footer)
-}
-
-/** Run 结束：读 run.usage（必要时 wait），对照 turn-ended 打日志并写入 footer 源 */
-async function finalizeRunContextUsage(session: SdkSessionAgent, run: Run): Promise<void> {
-  if (session.contextUsageFinalized) return
-  let runUsage = run.usage
-  if (!runUsage) {
-    try {
-      const result = await run.wait()
-      runUsage = result.usage
-    } catch {
-      // wait 失败仍用 turn-ended 快照
-    }
-  }
-  finalizeContextUsageAtRunEnd(session, runUsage, pushUiLog)
-}
-
-async function notifySessionChat(sessionKey: string, text: string, stopProgress = false): Promise<void> {
-  const lock = readLockFile()
-  if (!lock?.port) return
-  try {
-    await httpPost(`http://127.0.0.1:${lock.port}/api/send-text`, {
-      text, session_key: sessionKey, ...(stopProgress && { stop_progress: true }),
-    }, 5000)
-  } catch (e: unknown) {
-    broadcastLog(`[SDK Notify] 发送通知失败 (${sessionKey}): ${e instanceof Error ? e.message : String(e)}`, "WARN")
-  }
-}
-
-/** 自动压缩开始时向飞书/微信下发进度通知（同「Agent 处理中…」语义，不 stop progress） */
-function makeCompressionNotify(session: SdkSessionAgent): (phase: "started" | "completed") => void {
-  return (phase) => {
-    if (phase !== "started" || session.compressionNotified) return
-    session.compressionNotified = true
-    void notifySessionChat(session.sessionKey, NOTIFY_COMPRESSING)
-  }
-}
-
-function ensureSdkBinaryPaths(): void {
+/** 解析 SDK 平台包内 ripgrep 路径 */
+export function ensureSdkBinaryPaths(): void {
   if (process.env.CURSOR_RIPGREP_PATH) return
-
   const platformPkg = `@cursor/sdk-${process.platform}-${process.arch}`
   const binaryName = process.platform === "win32" ? "rg.exe" : "rg"
-
   const candidates: string[] = []
   try {
     const req = createRequire(import.meta.url)
     const pkgDir = dirname(req.resolve(`${platformPkg}/package.json`))
     candidates.push(join(pkgDir, "bin", binaryName))
   } catch { /* package not resolvable */ }
-
-  // fallback: walk up from app dir
   const appDir = process.env.PORTABLE_EXECUTABLE_DIR || dirname(process.execPath)
   for (const base of [appDir, resolve(".")]) {
     candidates.push(join(base, "node_modules", platformPkg, "bin", binaryName))
     candidates.push(join(base, "resources", "node_modules", platformPkg, "bin", binaryName))
   }
-
   for (const p of candidates) {
-    // asar 内的二进制无法 spawn（existsSync 对 asar 虚拟路径返回 true），需指向解包目录
     const real = p.includes("app.asar") && !p.includes("app.asar.unpacked")
       ? p.replace("app.asar", "app.asar.unpacked")
       : p
@@ -653,524 +85,6 @@ function ensureSdkBinaryPaths(): void {
   pushUiLog("SDK", "WARN", `未找到 ${binaryName}，SDK 可能报错 (searched: ${candidates.join(", ")})`)
 }
 
-
-/** T2 挂接用：绑定 sdkSessions 等依赖的超时 finalizer */
-const finalizerCtx: FinalizerContext = {
-  sdkSessions,
-  resetStreamPostChain: (session) => resetStreamPostChain(session as SdkSessionAgent),
-  notifySdkFailure: (session, override, run) =>
-    notifySdkFailure(session as SdkSessionAgent, override, run),
-  broadcastSdkSessionStatus,
-}
-
-/** 超时类终态判定（供 T2 completeSdkRun / streamRunEvents 挂接） */
-export function isRunTimeoutFailure(
-  session: SdkSessionAgent,
-  run: Run,
-  lastStatus?: { status: string; message?: string },
-): boolean {
-  return isRunTimeoutFailureImpl(session, run, lastStatus)
-}
-
-/** 超时类终态主动收尾（供 T2 handleSdkEvent / streamRunEvents 挂接） */
-export async function finalizeSdkRunOnTimeout(
-  session: SdkSessionAgent,
-  run: Run,
-  trigger: string,
-): Promise<boolean> {
-  const finalized = await finalizeSdkRunOnTimeoutImpl(finalizerCtx, session, run, trigger)
-  if (finalized && session.runGuardToken) {
-    completeRunGuard(session.sessionKey, session.runGuardToken)
-    releaseRunGuard(session.sessionKey, session.runGuardToken)
-    session.runGuardToken = undefined
-  }
-  return finalized
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function resolveLastInboundId(session: SdkSessionAgent): string {
-  const ids = session.inboundMessageIds
-  if (!ids || ids.length === 0) return "no-inbound"
-  return ids[ids.length - 1] || "no-inbound"
-}
-
-/** 组装 send 选项并注入幂等键，避免重试/轮转时重复执行。 */
-function buildSendOptions(session: SdkSessionAgent, idempotencyKey: string): Parameters<SDKAgent["send"]>[1] {
-  const options = appendInlineMcpToSendOptions(
-    createAgentSendOptions(session, pushUiLog, makeCompressionNotify(session)),
-    session.workspaceDir,
-  ) as Record<string, unknown>
-  options.idempotencyKey = idempotencyKey
-  // ponytail: SDK 无 MCP list/status API；缓存当次注入快照供展示侧（T5）读取
-  session.lastInjectedMcpServers = options.mcpServers as Record<string, McpServerConfig> | undefined
-  return options as Parameters<SDKAgent["send"]>[1]
-}
-
-/** ContextRotation-lite：命中阈值后先建新实例再切换，失败时保持旧会话可继续发送。 */
-async function maybeRotateSessionForPressure(
-  session: SdkSessionAgent,
-  originalText: string,
-): Promise<{ text: string; rotated: boolean }> {
-  const pressure = evaluatePreSendContextPressure(session, pushUiLog)
-  const ratio = pressure.ratio ?? 0
-  const decision = maybeRotateContext({ sessionKey: session.sessionKey, usageRatio: ratio, nowMs: Date.now() })
-  if (!decision.rotated) return { text: originalText, rotated: false }
-  const modelSelection: { id: string; params?: { id: string; value: string }[] } = { id: session.modelId ?? "composer-2" }
-  if (session.modelParams?.trim()) {
-    try {
-      modelSelection.params = JSON.parse(session.modelParams)
-    } catch {
-      // 忽略非法模型参数，保持现网容错语义
-    }
-  }
-  const previousAgent = session.agent
-  const previousAgentId = session.agentId
-  // ponytail: 提取注入变量只读盘一次，供 Agent.create 与切换成功后回写快照复用
-  const injected = loadInlineMcpServers(session.workspaceDir ?? process.cwd())
-  let nextAgent: SDKAgent
-  try {
-    nextAgent = await Agent.create({
-      apiKey: session.apiKey ?? "",
-      model: modelSelection,
-      mcpServers: injected,
-      local: {
-        cwd: session.workspaceDir ?? process.cwd(),
-        settingSources: ["project", "user"],
-        sandboxOptions: { enabled: false },
-      },
-    })
-  } catch (err: unknown) {
-    // 轮转失败不破坏当前会话：继续使用旧 agent，避免“假存活/真不可用”。
-    pushUiLog(
-      "SDK",
-      "WARN",
-      `[${session.sessionKey}] context_rotation skipped: ${err instanceof Error ? err.message : String(err)}`,
-    )
-    session.agent = previousAgent
-    session.agentId = previousAgentId
-    return { text: originalText, rotated: false }
-  }
-  session.agent = nextAgent
-  session.agentId = nextAgent.agentId
-  // ponytail: 轮转成功后同步注入快照（失败保留旧快照，避免展示侧拿到未生效配置）
-  session.lastInjectedMcpServers = injected
-  try {
-    previousAgent.close()
-  } catch {
-    // best-effort：旧实例关闭失败不影响已切换的新实例
-  }
-  session.contextUsage = { ...ZERO_CONTEXT_USAGE }
-  session.contextUsagePeakTokens = undefined
-  const summary = decision.summary ?? "已执行上下文轮转。"
-  return { text: `${summary}\n\n${originalText}`, rotated: true }
-}
-
-/** 发送入口：retryable 退避；busy 不硬重试（交给上层延后重排）。 */
-async function sendWithRetry(
-  session: SdkSessionAgent,
-  inputText: string,
-): Promise<{ run?: Run; attempts: number; finalReason?: string; busyDelayMs?: number; rotated: boolean }> {
-  let text = inputText
-  let rotated = false
-  let lastReason = "unknown"
-  for (let attempt = 1; attempt <= SEND_RETRY_MAX_ATTEMPTS; attempt += 1) {
-    if (attempt === 1) {
-      const rotatedResult = await maybeRotateSessionForPressure(session, text)
-      text = rotatedResult.text
-      rotated = rotatedResult.rotated
-    }
-    const idempotencyKey = buildIdempotencyKey(session.sessionKey, resolveLastInboundId(session), attempt)
-    try {
-      const run = await session.agent.send(text, buildSendOptions(session, idempotencyKey))
-      session.lastDispatchAttempts = attempt
-      pushUiLog("SDK", "INFO", `[${session.sessionKey}] dispatch_retry status=ok attempts=${attempt} idempotency=${idempotencyKey}`)
-      return { run, attempts: attempt, rotated }
-    } catch (err: unknown) {
-      const decision = shouldRetry(err, attempt)
-      lastReason = decision.reason
-      pushUiLog(
-        "SDK",
-        "WARN",
-        `[${session.sessionKey}] dispatch_retry status=failed attempts=${attempt} reason=${decision.reason} delayMs=${decision.delayMs}`,
-      )
-      if (decision.isBusy) {
-        return { attempts: attempt, finalReason: decision.reason, busyDelayMs: decision.delayMs, rotated }
-      }
-      if (!decision.retryable || attempt >= SEND_RETRY_MAX_ATTEMPTS) {
-        break
-      }
-      await sleep(decision.delayMs)
-    }
-  }
-  return { attempts: SEND_RETRY_MAX_ATTEMPTS, finalReason: lastReason, rotated }
-}
-
-/** watchdog 统一超时入口：触发 run.cancel + run.wait 收敛，再进入超时 finalizer。 */
-function armRunWatchdog(session: SdkSessionAgent, run: Run, token: string): void {
-  session.watchdogState = "running"
-  session.watchdogStateAt = Date.now()
-  void watchRunGuard({
-    sessionKey: session.sessionKey,
-    token,
-    timeoutMs: NEVER_CANCEL_ON_DURATION ? Number.MAX_SAFE_INTEGER : WATCHDOG_ABSOLUTE_TIMEOUT_MS,
-    tickMs: RUN_WATCHDOG_TICK_MS,
-    onTick: () => {
-      if (session.run !== run) return "completed"
-      const st = run.status
-      // 覆盖 finished 终态，避免主流程已结束但 watchdog 仍持续等待。
-      if (st === "finished" || st === "cancelled" || st === "error") return "completed"
-      const now = Date.now()
-      const idleMs = now - session.lastActivityAt
-      if (idleMs >= WATCHDOG_IDLE_TIMEOUT_MS && session.watchdogState === "running") {
-        // 先进入 draining，给短暂恢复窗口，避免瞬时静默导致误杀。
-        setWatchdogState(session, "draining", `idle:${idleMs}ms`)
-      }
-      if (session.watchdogState === "draining") {
-        const drainingMs = now - session.watchdogStateAt
-        if (drainingMs >= WATCHDOG_DRAIN_GRACE_MS) {
-          setWatchdogState(session, "cancelling", `grace_elapsed:${drainingMs}ms`)
-          return "timeout"
-        }
-      }
-      // 向后兼容：显式关闭 never_cancel_on_duration 时，仍按绝对运行时长触发。
-      if (
-        !NEVER_CANCEL_ON_DURATION &&
-        session.runStartedAt != null &&
-        now - session.runStartedAt >= WATCHDOG_ABSOLUTE_TIMEOUT_MS
-      ) {
-        setWatchdogState(session, "cancelling", "duration_limit")
-        return "timeout"
-      }
-      return undefined
-    },
-    onTimeout: async () => {
-      const heldMs = getRunGuardHeldMs(session.sessionKey)
-      if (session.run !== run || session.runFinalizing) return
-      const idleMs = Date.now() - session.lastActivityAt
-      // 超时触发与执行取消之间存在竞态；若已恢复活跃则回退到 running 并跳过收尾。
-      if (idleMs < WATCHDOG_IDLE_TIMEOUT_MS) {
-        setWatchdogState(session, "running", `skip_timeout_idle_recovered:${idleMs}ms`)
-        return
-      }
-      setWatchdogState(session, "cancelling", `timeout_cb_idle:${idleMs}ms`)
-      pushUiLog(
-        "SDK",
-        "WARN",
-        `[${session.sessionKey}] watchdog 超时，开始收尾 heldMs=${heldMs ?? -1} idleMs=${idleMs} state=${session.watchdogState}`,
-      )
-      await cancelRunAndWait(run)
-      if (!session.runFinalizing && session.run === run) {
-        await finalizeSdkRunOnTimeout(session, run, "watchdog")
-      }
-    },
-  }).then((result) => {
-    pushUiLog("SDK", "INFO", `[${session.sessionKey}] watchdog 结束: ${result}`)
-  })
-}
-
-function broadcastSdkSessionStatus(): void {
-  const list = [...sdkSessions.values()].map((s) => ({
-    sessionKey: s.sessionKey,
-    pid: 0,
-    startedAt: s.startedAt,
-    lastActivityAt: s.lastActivityAt,
-    chatType: s.chatType as string,
-    chatName: resolveSessionChatName(s.sessionKey, s.chatName, s.senderOpenId),
-    workspaceDir: s.workspaceDir,
-  }))
-  broadcastSessionStatus(list, "sdk")
-}
-
-// prompt 由 agent-launcher.buildPrompt 统一构建
-
-// stream() 发出的 thinking.text / assistant text 均为增量 delta，逐条打印会刷屏；
-// 这里按类型聚合，切换类型 / 超过阈值 / 遇到 tool·status·结束时才落一条日志
-const LOG_FLUSH_LEN = 400
-
-function flushSdkLog(session: SdkSessionAgent): void {
-  const agg = session.logAgg
-  const text = agg.buf.trim()
-  if (agg.kind && text) {
-    if (agg.kind === "thinking") {
-      pushUiLog("SDK", "DEBUG", `[${session.sessionKey}] [thinking] ${text}`)
-    } else {
-      pushUiLog("SDK", "INFO", `[${session.sessionKey}] ${text}`)
-    }
-  }
-  agg.kind = null
-  agg.buf = ""
-}
-
-function appendSdkLog(session: SdkSessionAgent, kind: "thinking" | "text", delta: string): void {
-  const agg = session.logAgg
-  if (agg.kind && agg.kind !== kind) flushSdkLog(session)
-  agg.kind = kind
-  agg.buf += delta
-  if (agg.buf.length >= LOG_FLUSH_LEN) flushSdkLog(session)
-}
-
-async function streamRunEvents(session: SdkSessionAgent, run: Run): Promise<void> {
-  try {
-    for await (const event of run.stream()) {
-      if (session.abortController.signal.aborted) break
-      markSessionActivity(session, `stream:${event.type}`)
-      handleSdkEvent(session, event)
-    }
-    flushSdkLog(session)
-    closeThinkingIfOpen(session)
-    if (presentationOrderingEligible(session) && session.seenProcessEvent) {
-      await flushDeferredStreamPost(session)
-    }
-    await finalizeRunContextUsage(session, run)
-    if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
-      await flushStreamPost(session, true)
-    }
-    // 流结束兜底：无 status 事件时，平台长时 / 保活超时档仍走 finalizer
-    if (
-      (run.status === "error" || run.status === "cancelled") &&
-      isRunTimeoutFailure(session, run) &&
-      !session.runFinalizing
-    ) {
-      await finalizeSdkRunOnTimeout(session, run, "stream")
-    }
-  } catch (e: unknown) {
-    flushSdkLog(session)
-    if (!session.abortController.signal.aborted) {
-      const msg = e instanceof Error ? `[${e.constructor.name}] ${e.message}` : String(e)
-      const stack = e instanceof Error ? e.stack?.split("\n").slice(0, 3).join(" | ") : ""
-      const cause = e instanceof Error && "cause" in e && e.cause ? JSON.stringify(e.cause) : ""
-      pushUiLog("SDK", "ERROR", `[${session.sessionKey}] 流处理异常: ${msg}${stack ? ` stack=${stack}` : ""}${cause ? ` cause=${cause}` : ""}`)
-      await finalizeRunContextUsage(session, run)
-      await notifySdkFailure(session, undefined, run, "sdk_stream_exception")
-    }
-  }
-}
-
-async function completeSdkRun(session: SdkSessionAgent, run: Run): Promise<void> {
-  const sessionKey = session.sessionKey
-
-  // finalizer 已接管或 run 已切换：幂等跳过，避免旧 run 提前 close/delete。
-  if (session.runFinalizing || session.run === null || session.run !== run) {
-    pushUiLog(
-      "SDK",
-      "INFO",
-      `[${sessionKey}] completeSdkRun 跳过（幂等 finalizing=${!!session.runFinalizing} runNull=${session.run === null} runMismatch=${session.run !== null && session.run !== run}）`,
-    )
-    return
-  }
-
-  // cancelled 未 notify 兜底：平台长时走 finalizer（场景 D）
-  if (
-    run.status === "cancelled" &&
-    !session.errorNotified &&
-    isRunTimeoutFailure(session, run)
-  ) {
-    await finalizeSdkRunOnTimeout(session, run, "complete")
-    return
-  }
-
-  const level = run.status === "error" ? "ERROR" : "INFO"
-
-  if (run.status === "error") {
-    const wr = await run.wait().catch((e: unknown) => e)
-    const detail = wr instanceof Error ? `${wr.constructor.name}: ${wr.message}` : JSON.stringify(wr)
-    const last = session.lastStatus
-    const lt = session.lastTool
-    const errorCode = extractErrorCode(wr) ?? extractErrorCode(last)
-    const parts = [
-      `sessionKey=${sessionKey}`,
-      `agentId=${session.agentId}`,
-      last && `lastStatus=${last.status}${last.message ? ` msg=${last.message}` : ""}`,
-      run.result && `run.result=${run.result}`,
-      run.durationMs != null && `durationMs=${run.durationMs}`,
-      errorCode && `errorCode=${errorCode}`,
-      lt && `lastTool=${lt.name}:${lt.status}`,
-      `waitResult=${detail}`,
-    ].filter(Boolean)
-    pushUiLog("SDK", "ERROR", `[${sessionKey}] agent_failed 运行错误详情: ${parts.join(" ")}`)
-    // 超时类失败不写 failedCooldowns，便于用户立即重发
-    if (!isRunTimeoutFailure(session, run)) {
-      failedCooldowns.set(sessionKey, Date.now() + FAIL_COOLDOWN_MS)
-    }
-    if (!session.errorNotified) {
-      await notifySdkFailure(session, undefined, run)
-    }
-  }
-
-  const summary = [
-    run.result && `result=${run.result}`,
-    run.durationMs != null && `duration=${run.durationMs}ms`,
-  ].filter(Boolean).join(", ")
-  pushUiLog("SDK", level, `[${sessionKey}] Agent 运行结束 (status=${run.status}${summary ? `, ${summary}` : ""})`)
-
-  // complete 内部存在 await，收尾前再次确认 run 归属，避免和 timeout finalizer 并发清理。
-  if (session.runFinalizing || session.run === null || session.run !== run) {
-    pushUiLog(
-      "SDK",
-      "INFO",
-      `[${sessionKey}] completeSdkRun 收尾前跳过（finalizing=${!!session.runFinalizing} runNull=${session.run === null} runMismatch=${session.run !== null && session.run !== run}）`,
-    )
-    return
-  }
-
-  resetStreamPostChain(session)
-  if (session.runGuardToken) {
-    completeRunGuard(sessionKey, session.runGuardToken)
-    releaseRunGuard(sessionKey, session.runGuardToken)
-    session.runGuardToken = undefined
-  }
-  session.run = null
-  session.pendingDispatch = false
-  await reportSessionAgentPhase(sessionKey, "idle")
-
-  if (session.residentMode) {
-    resetSdkRunPresentationState(session)
-    broadcastSdkSessionStatus()
-    return
-  }
-
-  try { session.agent.close() } catch { /* best-effort */ }
-  sdkSessions.delete(sessionKey)
-  broadcastSdkSessionStatus()
-}
-
-async function startSdkRun(session: SdkSessionAgent, run: Run): Promise<void> {
-  session.failureArchiveDone = false
-  session.run = run
-  session.runStartedAt = Date.now()
-  markSessionActivity(session, "run_start")
-  if (session.runGuardToken) {
-    armRunWatchdog(session, run, session.runGuardToken)
-  }
-  await notifySessionChat(session.sessionKey, NOTIFY_PROCESSING)
-  await reportSessionAgentPhase(session.sessionKey, "processing")
-  streamRunEvents(session, run).then(() => completeSdkRun(session, run))
-}
-
-function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): void {
-  switch (event.type) {
-    case "assistant":
-      closeThinkingIfOpen(session)
-      for (const block of event.message.content) {
-        if (block.type === "text" && block.text) {
-          if (session.f41Stream) {
-            appendAssistantStreamDelta(session, block.text)
-          } else {
-            appendSdkLog(session, "text", block.text)
-          }
-        }
-      }
-      break
-    case "thinking":
-      if (event.text) {
-        appendSdkLog(session, "thinking", event.text)
-        markProcessEventSeen(session)
-        session.thinkingOpen = true
-        void postPresentationEvent(session, { kind: "thinking", delta: event.text })
-      }
-      break
-    case "tool_call":
-      flushSdkLog(session)
-      closeThinkingIfOpen(session)
-      session.lastTool = { name: event.name, status: event.status }
-      const toolDetail = formatToolCallLogSuffix(event.status, event.args, event.result, event.truncated)
-      pushUiLog("SDK", "INFO", `[${session.sessionKey}] [tool] ${event.name}: ${event.status}${toolDetail}`)
-      markProcessEventSeen(session)
-      if (event.status === "running") session.toolPresentationOutboundIds?.delete(event.name)
-      void postPresentationEvent(session, {
-        kind: "tool",
-        tool_name: event.name,
-        tool_status: mapToolPresentationStatus(event.status),
-        final: event.status !== "running",
-        ...extractShellPresentationFields(event.name, event.status, event.args, event.result),
-      })
-      if (event.status !== "running") {
-        maybeReleaseDeferredAssistant(session)
-      }
-      break
-    case "status": {
-      flushSdkLog(session)
-      const isErr = event.status === "ERROR" || event.status === "EXPIRED"
-      if (isErr || event.status === "CANCELLED") {
-        session.lastStatus = { status: event.status, message: event.message }
-        // 平台长时 CANCELLED/ERROR/EXPIRED 经 isRunTimeoutFailure 走 finalizer；用户 Stop（aborted）静默
-        if (!session.abortController.signal.aborted && session.run) {
-          if (isRunTimeoutFailure(session, session.run, session.lastStatus)) {
-            void finalizeSdkRunOnTimeout(session, session.run, "status")
-          } else if (event.status === "CANCELLED") {
-            // 短取消极少路径
-            void notifySdkFailure(session, undefined, session.run, "sdk_cancelled")
-          }
-          // 短 ERROR/EXPIRED 留 completeSdkRun 通用失败 + cooldown
-        }
-      }
-      const lvl = isErr ? "ERROR" as const : "INFO" as const
-      pushUiLog("SDK", lvl, `[${session.sessionKey}] [status] ${event.status}${event.message ? ` - ${event.message}` : ""}`)
-    }
-      break
-  }
-}
-
-// ── 公开 API ────────────────────────────────────────
-
-export function isSdkSessionRunning(sessionKey: string): boolean {
-  if (pendingLaunches.has(sessionKey)) return true
-  const s = sdkSessions.get(sessionKey)
-  if (!s || s.abortController.signal.aborted) return false
-  return isSdkSessionProcessing(s)
-}
-
-/** 长驻 Agent 实例是否存在（含 idle，供 stop 等路径；T7 dispatch 须用 isSdkSessionRunning 区分 processing） */
-export function hasSdkSession(sessionKey: string): boolean {
-  const s = sdkSessions.get(sessionKey)
-  return s !== undefined && !s.abortController.signal.aborted
-}
-
-export function getSdkSessionCount(): number {
-  let count = 0
-  for (const s of sdkSessions.values()) {
-    if (!s.abortController.signal.aborted) count++
-  }
-  return count
-}
-
-export function getSdkSessionList() {
-  return [...sdkSessions.values()].map((s) => ({
-    sessionKey: s.sessionKey,
-    agentId: s.agentId,
-    startedAt: s.startedAt,
-    lastActivityAt: s.lastActivityAt,
-    chatType: s.chatType,
-    workspaceDir: s.workspaceDir,
-    senderOpenId: s.senderOpenId,
-    chatName: s.chatName,
-  }))
-}
-
-/** 取 SDK session 实体（含 lastInjectedMcpServers 注入快照；展示侧 T5 据此渲染 inline MCP） */
-export function getSdkSession(sessionKey: string): SdkSessionAgent | undefined {
-  return sdkSessions.get(sessionKey)
-}
-
-export interface SdkLaunchOptions {
-  sessionKey: string
-  chatType: ChatType
-  meta?: LaunchMeta
-  workspaceDir: string
-  useMainWorkspace?: boolean
-  senderOpenId?: string
-  chatName?: string
-  taskMessage?: string
-  /** 该会话所属通道绑定的 SDK 资源 API Key */
-  apiKey: string
-  /** 调用方解析好的模型（空 = composer-2） */
-  model?: string
-  modelParams?: string
-}
-
 export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: boolean; error?: string }> {
   const { sessionKey, chatType, meta, workspaceDir, senderOpenId, chatName, taskMessage } = opts
   ensureAgentSdkHttpServer()
@@ -1179,11 +93,7 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
   if (existing && !existing.abortController.signal.aborted) {
     if (isSdkSessionProcessing(existing)) {
       markSessionActivity(existing, "launch_reentry")
-      pushUiLog(
-        "SDK",
-        "WARN",
-        `[${sessionKey}] launchSdkAgent 早退：session 仍 processing（run=${existing.run !== null} pendingDispatch=${existing.pendingDispatch}）`,
-      )
+      pushUiLog("SDK", "WARN", `[${sessionKey}] launchSdkAgent 早退：session 仍 processing`)
       return { ok: true }
     }
     if (taskMessage?.trim()) {
@@ -1193,16 +103,13 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     return { ok: true }
   }
 
-  if (pendingLaunches.has(sessionKey)) {
-    return { ok: true }
-  }
+  if (pendingLaunches.has(sessionKey)) return { ok: true }
 
   const cooldownUntil = failedCooldowns.get(sessionKey)
   if (cooldownUntil && Date.now() < cooldownUntil) {
     return { ok: false, error: `冷却中，${Math.ceil((cooldownUntil - Date.now()) / 1000)}s 后可重试` }
   }
   failedCooldowns.delete(sessionKey)
-
   pendingLaunches.add(sessionKey)
 
   const apiKey = opts.apiKey?.trim()
@@ -1215,32 +122,27 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
 
   try {
     ensureSdkBinaryPaths()
-
     const modelId = opts.model?.trim() && opts.model.trim() !== "auto" ? opts.model.trim() : "composer-2"
     const modelSelection: { id: string; params?: { id: string; value: string }[] } = { id: modelId }
     if (opts.modelParams?.trim()) {
-      try {
-        modelSelection.params = JSON.parse(opts.modelParams)
-      } catch { /* ignore bad JSON */ }
+      try { modelSelection.params = JSON.parse(opts.modelParams) } catch { /* ignore */ }
     }
     pushUiLog("SDK", "INFO", `[${sessionKey}] 正在创建 SDK Agent (cwd=${workspaceDir}, model=${JSON.stringify(modelSelection)})`)
 
-    // ponytail: 提取注入变量只读盘一次，供 Agent.create 与 session.lastInjectedMcpServers 初始化复用
-    const injected = loadInlineMcpServers(workspaceDir)
-    // 自动压缩：SDK LocalAgentOptions / SendOptions 无 autoCompress 字段；接近上限时由 harness 默认 summarization（onDelta summary-* 可观测）
+    const injected = loadInlineMcpServersForSdk(workspaceDir)
+    pushUiLog(
+      "SDK",
+      "INFO",
+      `[config] settingSources=project,user cwd=${workspaceDir} inlineMcp=${Object.keys(injected).join(",")}`,
+    )
     const agent = await Agent.create({
       apiKey,
       model: modelSelection,
       mcpServers: injected,
-      local: {
-        cwd: workspaceDir,
-        settingSources: ["project", "user"],
-        sandboxOptions: { enabled: false },
-      },
+      local: { cwd: workspaceDir, settingSources: ["project", "user"], sandboxOptions: { enabled: false } },
     })
 
-    const abortController = new AbortController()
-    const session: SdkSessionAgent = {
+    const session = {
       sessionKey,
       agent,
       run: null,
@@ -1251,7 +153,7 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
       workspaceDir,
       senderOpenId,
       chatName,
-      abortController,
+      abortController: new AbortController(),
       logAgg: { kind: null, buf: "" },
       f41Stream: f41Eligible(sessionKey, chatType),
       streamBuffer: "",
@@ -1265,12 +167,10 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
       modelParams: opts.modelParams,
       apiKey,
       inboundMessageIds: meta?.messageIds,
-      watchdogState: "running",
+      watchdogState: "running" as const,
       watchdogStateAt: Date.now(),
-      // ponytail: 创建即带注入快照，展示侧（T5）在首次 send 前也能读到当次 inline mcpServers
       lastInjectedMcpServers: injected,
     }
-
     sdkSessions.set(sessionKey, session)
     pendingLaunches.delete(sessionKey)
     broadcastLog(`[SDK] 会话 ${sessionKey} 已创建, agentId=${agent.agentId}`)
@@ -1299,9 +199,7 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
       }
       return { ok: false, error: `dispatch failed: ${sendResult.finalReason ?? "unknown"}` }
     }
-    const run = sendResult.run
-    await startSdkRun(session, run)
-
+    await startSdkRun(session, sendResult.run)
     return { ok: true }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -1332,21 +230,14 @@ export async function dispatchToSdkAgent(
 
   const session = sdkSessions.get(sessionKey)
   if (!session || session.abortController.signal.aborted) {
-    const err = "no resident agent"
-    pushUiLog("SDK", "ERROR", `[${sessionKey}] dispatch_failed: ${err}`)
-    return { ok: false, error: err }
+    pushUiLog("SDK", "ERROR", `[${sessionKey}] dispatch_failed: no resident agent`)
+    return { ok: false, error: "no resident agent" }
   }
-  if (isSdkSessionProcessing(session)) {
-    return { ok: false, error: "agent busy" }
-  }
+  if (isSdkSessionProcessing(session)) return { ok: false, error: "agent busy" }
 
-  // 覆盖当次 batch ids；resetSdkRunPresentationState 不清除 inboundMessageIds
   session.inboundMessageIds = messageIds?.length ? messageIds : undefined
-
   const guard = acquireRunGuard(sessionKey)
-  if (!guard.acquired) {
-    return { ok: false, error: "agent busy|retry_after=1500" }
-  }
+  if (!guard.acquired) return { ok: false, error: "agent busy|retry_after=1500" }
   session.runGuardToken = guard.token
   session.pendingDispatch = true
   try {
@@ -1358,16 +249,14 @@ export async function dispatchToSdkAgent(
       completeRunGuard(sessionKey, guard.token)
       releaseRunGuard(sessionKey, guard.token)
       session.runGuardToken = undefined
+      session.pendingDispatch = false
       if (sendResult.finalReason === "agent_busy") {
-        session.pendingDispatch = false
         return { ok: false, error: `agent busy|retry_after=${sendResult.busyDelayMs ?? 1500}` }
       }
-      session.pendingDispatch = false
       return { ok: false, error: `dispatch failed: ${sendResult.finalReason ?? "unknown"}` }
     }
-    const run = sendResult.run
     session.pendingDispatch = false
-    await startSdkRun(session, run)
+    await startSdkRun(session, sendResult.run)
     return { ok: true }
   } catch (e: unknown) {
     session.pendingDispatch = false
@@ -1379,318 +268,5 @@ export async function dispatchToSdkAgent(
     const msg = e instanceof Error ? e.message : String(e)
     await notifyDispatchFailure(sessionKey, msg)
     return { ok: false, error: msg }
-  }
-}
-
-// ponytail: Electron 侧 agent API 端口写入 userData/agent-api-port.json；T7 Daemon 转发 SSOT 后仍可直连此端口
-let agentApiServer: http.Server | null = null
-let agentApiPort = 0
-
-function writeAgentApiPortFile(port: number): void {
-  try {
-    const dir = app.getPath("userData")
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(join(dir, "agent-api-port.json"), JSON.stringify({ port }), "utf-8")
-  } catch (e: unknown) {
-    pushUiLog("SDK", "WARN", `agent-api-port 写入失败: ${e instanceof Error ? e.message : String(e)}`)
-  }
-}
-
-function readAgentApiBody(req: http.IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on("data", (c: Buffer) => chunks.push(c))
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")))
-    req.on("error", reject)
-  })
-}
-
-function jsonAgentApi(res: http.ServerResponse, body: object, status = 200): void {
-  const data = JSON.stringify(body)
-  res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) })
-  res.end(data)
-}
-
-function parseInboundMessageIds(body: Record<string, unknown>): string[] | undefined {
-  const raw = body.message_ids
-  if (!Array.isArray(raw)) return undefined
-  const ids = raw.filter((id): id is string => typeof id === "string" && !!id.trim()).map((id) => id.trim())
-  return ids.length ? ids : undefined
-}
-
-/** 已废弃 CLI 绑定的用户可见错误（IM Daemon 统一入口） */
-const LEGACY_CLI_BIND_ERROR =
-  "通道仍绑定已废弃的 Cursor CLI，请在设置中将 Agent 资源改为 SDK 或 Claude Code Profile"
-
-/** Codex Profile 已删除、通道仍保留 codex_ 绑定时提示重新选择（F6） */
-const CODEX_PROFILE_MISSING_ERROR =
-  "通道绑定的 Codex Profile 已删除，请在设置中重新选择"
-
-const OPENCODE_PROFILE_MISSING_ERROR =
-  "通道绑定的 OpenCode Profile 已删除，请在设置中重新选择"
-
-type BoundAgentRoute = "sdk" | "claude-code" | "codex" | "opencode" | "cli" | "codex-missing" | "opencode-missing"
-
-/** 解析通道绑定的 Agent 资源类型；legacy CLI 须先于 getAgentResource fallback 拦截 */
-function resolveBoundAgentResourceType(
-  sessionKey: string,
-  channelId?: string,
-): BoundAgentRoute {
-  const channel = getChannel(channelId) ?? resolveChannelForSession(sessionKey)
-  const boundId = channel?.agentResourceId
-  if (boundId === "cli") return "cli"
-  // Codex 绑定已删除时 getAgentResource 不 fallback，须显式拦截勿误路由 sdk
-  if (boundId && isCodexResourceId(boundId)) {
-    const codexResource = getAgentResource(boundId)
-    if (!codexResource) return "codex-missing"
-    if ((codexResource as { type?: string }).type === "cli") return "cli"
-    return "codex"
-  }
-  if (boundId && isOpencodeResourceId(boundId)) {
-    const opencodeResource = getAgentResource(boundId)
-    if (!opencodeResource) return "opencode-missing"
-    if ((opencodeResource as { type?: string }).type === "cli") return "cli"
-    return "opencode"
-  }
-  const resource = getAgentResource(boundId)
-  if ((resource as { type?: string } | undefined)?.type === "cli") return "cli"
-  if (resource?.type === "claude-code") return "claude-code"
-  if (resource?.type === "codex") return "codex"
-  if (resource?.type === "opencode") return "opencode"
-  return "sdk"
-}
-
-/** Daemon 统一 dispatch：按通道资源类型委托 SDK / Claude Code / Codex 长驻实例 */
-async function dispatchAgentFromHttp(
-  sessionKey: string,
-  taskText: string,
-  messageIds?: string[],
-): Promise<{ ok: boolean; error?: string }> {
-  const route = resolveBoundAgentResourceType(sessionKey)
-  if (route === "cli") return { ok: false, error: LEGACY_CLI_BIND_ERROR }
-  if (route === "codex-missing") return { ok: false, error: CODEX_PROFILE_MISSING_ERROR }
-  if (route === "opencode-missing") return { ok: false, error: OPENCODE_PROFILE_MISSING_ERROR }
-  if (route === "claude-code") return dispatchToClaudeCodeAgent(sessionKey, taskText, messageIds)
-  if (route === "codex") return dispatchToCodexAgent(sessionKey, taskText, messageIds)
-  if (route === "opencode") return dispatchToOpencodeAgent(sessionKey, taskText, messageIds)
-  return dispatchToSdkAgent(sessionKey, taskText, messageIds)
-}
-
-export async function launchSdkAgentFromHttp(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
-  const sessionKey = typeof body.session_key === "string" ? body.session_key.trim() : ""
-  if (!sessionKey) return { ok: false, error: "session_key is required" }
-
-  const chatType = (typeof body.chat_type === "string" ? body.chat_type : "p2p") as ChatType
-  const taskMessage = typeof body.task_text === "string" ? body.task_text : undefined
-  const senderOpenId = typeof body.sender_open_id === "string" ? body.sender_open_id : undefined
-  const chatName = typeof body.chat_name === "string" ? body.chat_name : undefined
-  const channelId = typeof body.channel_id === "string" ? body.channel_id : undefined
-  const explicitDir = typeof body.working_directory === "string" ? body.working_directory.trim() : ""
-  const modelOverride = typeof body.model === "string" ? body.model : undefined
-  const modelParamsOverride = typeof body.model_params === "string" ? body.model_params : undefined
-
-  const useMain = body.use_main_workspace === true
-
-  const chatId = typeof body.chat_id === "string" ? body.chat_id.trim() : sessionKey.split("::")[0]
-  const messageIds = parseInboundMessageIds(body)
-  const meta: LaunchMeta = { chatId, chatType: chatType === "group" ? "group" : "p2p", messageIds }
-
-  const route = resolveBoundAgentResourceType(sessionKey, channelId)
-  if (route === "cli") return { ok: false, error: LEGACY_CLI_BIND_ERROR }
-  if (route === "codex-missing") return { ok: false, error: CODEX_PROFILE_MISSING_ERROR }
-  if (route === "opencode-missing") return { ok: false, error: OPENCODE_PROFILE_MISSING_ERROR }
-  if (route === "claude-code") return launchCcAgentFromHttp(body)
-  if (route === "codex") return launchCodexAgentFromHttp(body)
-  if (route === "opencode") return launchOpencodeAgentFromHttp(body)
-
-  const channel = getChannel(channelId) ?? resolveChannelForSession(sessionKey)
-  const resource = getAgentResource(channel?.agentResourceId)
-  if (resource.type !== "sdk") {
-    return { ok: false, error: "请配置 SDK、Claude Code、Codex 或 OpenCode 资源（设置 → Agent）" }
-  }
-
-  const isOwnTask = chatType === "task" || chatType === "temp" || chatType === "workflow"
-  if (!useMain && !isOwnTask && !channel?.allowOthers) {
-    return { ok: false, error: `通道「${channel?.name ?? "未知"}」未启用其他人使用` }
-  }
-
-  let workDir = explicitDir
-  if (!workDir) {
-    if (useMain || isOwnTask) {
-      workDir = effectiveWorkspaceDir(channel)
-    } else {
-      const mode = channel?.othersWorkspaceMode ?? "isolated"
-      if (mode === "isolated") {
-        const safeChatId = sessionKey.replace(/[^a-zA-Z0-9_-]/g, "_")
-        workDir = join(app.getPath("userData"), "workspaces", safeChatId)
-        if (!existsSync(workDir)) mkdirSync(workDir, { recursive: true })
-      } else {
-        const dir = channel?.othersWorkspaceDir?.trim() ?? ""
-        if (!dir) {
-          workDir = effectiveWorkspaceDir(channel)
-        } else {
-          const resolved = resolve(dir)
-          if (!existsSync(resolved)) return { ok: false, error: "目录不存在，请检查路径或省略 -dir 使用当前主会话目录" }
-          workDir = resolved
-        }
-      }
-    }
-  } else if (chatType !== "temp" && !existsSync(workDir)) {
-    mkdirSync(workDir, { recursive: true })
-  }
-  if (!workDir) return { ok: false, error: "工作目录未配置" }
-
-  let model: string
-  let modelParams: string
-  if (modelOverride?.trim()) {
-    model = modelOverride.trim()
-    modelParams = modelParamsOverride ?? ""
-  } else {
-    const scenario: ModelScenario = useMain || isOwnTask ? "primary" : "others"
-    const resolved = resolveChannelModel(channel, scenario)
-    model = resolved.model
-    modelParams = resolved.modelParams
-  }
-
-  return launchSdkAgent({
-    sessionKey, chatType, meta, workspaceDir: workDir, useMainWorkspace: useMain,
-    senderOpenId, chatName, taskMessage,
-    apiKey: resource.apiKey ?? "", model, modelParams,
-  })
-}
-
-export function getAgentSdkApiPort(): number {
-  return agentApiPort
-}
-
-export function ensureAgentSdkHttpServer(): void {
-  if (agentApiServer) return
-  agentApiServer = http.createServer(async (req, res) => {
-    if (req.method !== "POST") {
-      jsonAgentApi(res, { ok: false, error: "method not allowed" }, 405)
-      return
-    }
-    const pathname = req.url?.split("?")[0] ?? ""
-    try {
-      const raw = await readAgentApiBody(req)
-      const body = raw ? JSON.parse(raw) as Record<string, unknown> : {}
-      if (pathname === "/api/agent/dispatch") {
-        const session_key = typeof body.session_key === "string" ? body.session_key.trim() : ""
-        const task_text = typeof body.task_text === "string" ? body.task_text : ""
-        if (!session_key) {
-          jsonAgentApi(res, { ok: false, error: "session_key is required" }, 400)
-          return
-        }
-        const messageIds = parseInboundMessageIds(body)
-        const result = await dispatchAgentFromHttp(session_key, task_text, messageIds)
-        jsonAgentApi(res, result, result.ok ? 200 : 400)
-        return
-      }
-      if (pathname === "/api/agent/launch") {
-        const result = await launchSdkAgentFromHttp(body)
-        jsonAgentApi(res, result, result.ok ? 200 : 400)
-        return
-      }
-      jsonAgentApi(res, { ok: false, error: "not found" }, 404)
-    } catch (e: unknown) {
-      jsonAgentApi(res, { ok: false, error: e instanceof Error ? e.message : String(e) }, 400)
-    }
-  })
-  agentApiServer.listen(0, "127.0.0.1", () => {
-    const addr = agentApiServer!.address()
-    agentApiPort = typeof addr === "object" && addr ? addr.port : 0
-    writeAgentApiPortFile(agentApiPort)
-    pushUiLog("SDK", "INFO", `Agent API 监听 127.0.0.1:${agentApiPort}`)
-  })
-}
-
-export function stopSdkSession(sessionKey: string): void {
-  const s = sdkSessions.get(sessionKey)
-  if (!s) return
-  s.abortController.abort()
-  resetStreamPostChain(s)
-  if (s.run) {
-    void cancelRunAndWait(s.run)
-  }
-  if (s.runGuardToken) {
-    completeRunGuard(sessionKey, s.runGuardToken)
-    releaseRunGuard(sessionKey, s.runGuardToken)
-    s.runGuardToken = undefined
-  }
-  s.agent.close()
-  sdkSessions.delete(sessionKey)
-  void reportSessionAgentPhase(sessionKey, "idle")
-  broadcastSdkSessionStatus()
-}
-
-export function stopAllSdkSessions(): void {
-  for (const key of [...sdkSessions.keys()]) {
-    stopSdkSession(key)
-  }
-  failedCooldowns.clear()
-  pendingLaunches.clear()
-}
-
-export async function checkSdkApiKey(apiKey: string): Promise<{ ok: boolean; email?: string; error?: string }> {
-  const key = apiKey?.trim()
-  if (!key) return { ok: false, error: "API Key 未配置" }
-
-  try {
-    const { Cursor } = await import("@cursor/sdk")
-    const me = await Cursor.me({ apiKey: key })
-    return { ok: true, email: me.userEmail }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { ok: false, error: msg }
-  }
-}
-
-export interface SdkModelOption {
-  id: string
-  label: string
-  params: string
-  current: boolean
-}
-
-export async function listSdkModels(apiKey: string, currentModelId?: string, currentModelParams?: string): Promise<{ ok: boolean; models: SdkModelOption[]; error?: string }> {
-  const key = apiKey?.trim()
-  if (!key) return { ok: false, models: [], error: "API Key 未配置" }
-
-  try {
-    const { Cursor } = await import("@cursor/sdk")
-    const sdkModels = await Cursor.models.list({ apiKey: key })
-    const currentModel = currentModelId?.trim() || ""
-    const currentParams = currentModelParams?.trim() || ""
-
-    const models: SdkModelOption[] = []
-    for (const m of sdkModels) {
-      if (m.variants && m.variants.length > 0) {
-        const nameCount = new Map<string, number>()
-        for (const v of m.variants) nameCount.set(v.displayName, (nameCount.get(v.displayName) || 0) + 1)
-
-        for (const v of m.variants) {
-          const ps = JSON.stringify(v.params)
-          const hasDup = (nameCount.get(v.displayName) || 0) > 1
-          const suffix = hasDup ? ` (${v.params.map((p) => `${p.id}=${p.value}`).join(", ")})` : ""
-          models.push({
-            id: m.id,
-            label: (v.displayName || m.displayName) + suffix,
-            params: ps,
-            current: m.id === currentModel && ps === currentParams,
-          })
-        }
-      } else {
-        models.push({
-          id: m.id,
-          label: m.displayName || m.id,
-          params: "",
-          current: m.id === currentModel && !currentParams,
-        })
-      }
-    }
-    return { ok: true, models }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return { ok: false, models: [], error: msg }
   }
 }

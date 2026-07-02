@@ -45,6 +45,32 @@ function resolveOAuthAccessToken(serverName: string, authStore: Record<string, M
 }
 
 /**
+ * ponytail: 设为 1/true 可回滚 stdio/command 类 MCP 也走 inline（默认由 settingSources 加载，避免双份注册）。
+ * 升级路径：确认 settingSources 无法加载某 stdio 服务后再临时开启。
+ */
+function stdioInlineRollbackEnabled(): boolean {
+  const v = process.env.SDK_MCP_STDIO_INLINE?.trim().toLowerCase()
+  return v === "1" || v === "true"
+}
+
+/** 判断条目是否须 inline 注入 SDK（HTTP/sse/OAuth 依赖；stdio 默认走 settingSources） */
+function needsInlineInjection(
+  serverName: string,
+  raw: RawMcpEntry,
+  authStore: Record<string, McpAuthEntry>,
+): boolean {
+  if (raw.disabled === true) return false
+  // HTTP/sse：远程 settingSources 常无法加载，须 inline
+  if (raw.url) return true
+  // mcp.json 声明 OAuth/auth 或磁盘已有 token 依赖
+  const auth = raw.auth
+  if (auth && typeof auth === "object" && !Array.isArray(auth)) return true
+  if (resolveOAuthAccessToken(serverName, authStore)) return true
+  // stdio/command 默认不 inline，由 settingSources + cwd 加载
+  return stdioInlineRollbackEnabled()
+}
+
+/**
  * 将路径型 segment 解析为绝对路径；bare 命令名（npx/node）与已是绝对路径则原样返回。
  * 无 shell 的 spawn 无法解析 ./scripts/...、node_modules/.bin/... 等相对路径。
  */
@@ -111,15 +137,15 @@ function toHttpInlineConfig(
 }
 
 /**
- * 加载需 inline 注入 SDK 的 MCP 配置（stdio + HTTP/sse）。
- * settingSources 在 SDK 远程会话中常无法加载 HTTP MCP，故 mcp.json 条目均 inline；
- * stdio 仍补 cwd；HTTP 合并 mcp-auth OAuth 与 headers。
+ * 加载须 inline 注入 SDK 的 MCP 子集（HTTP/sse/OAuth；stdio 默认由 settingSources 加载）。
+ * T2 三处注入点唯一读盘入口；同名 server 若 settingSources 与 inline 均存在，inline 覆盖 send 级配置。
  */
-export function loadInlineMcpServers(workspaceDir: string): Record<string, McpServerConfig> {
+export function loadInlineMcpServersForSdk(workspaceDir: string): Record<string, McpServerConfig> {
   const merged = mergeMcpJsonEntries(workspaceDir)
   const authStore = readMcpAuthStore(workspaceDir)
   const result: Record<string, McpServerConfig> = {}
   for (const [name, raw] of Object.entries(merged)) {
+    if (!needsInlineInjection(name, raw, authStore)) continue
     const cfg = raw.url
       ? toHttpInlineConfig(raw, name, authStore)
       : toStdioInlineConfig(raw, workspaceDir)
@@ -128,13 +154,18 @@ export function loadInlineMcpServers(workspaceDir: string): Record<string, McpSe
   return result
 }
 
-/** agent.send 选项合并：在 createAgentSendOptions 返回值上追加 inline mcpServers（resident 模式每次 send 须重传） */
+/** @deprecated 请使用 loadInlineMcpServersForSdk，避免误用全量 inline */
+export function loadInlineMcpServers(workspaceDir: string): Record<string, McpServerConfig> {
+  return loadInlineMcpServersForSdk(workspaceDir)
+}
+
+/** agent.send 选项合并：在 createAgentSendOptions 返回值上追加筛选后 inline mcpServers（resident 每次 send 须重传） */
 export function appendInlineMcpToSendOptions<T extends object>(
   sendOptions: T,
   workspaceDir?: string,
 ): T & { mcpServers: Record<string, McpServerConfig> } {
   return {
     ...sendOptions,
-    mcpServers: loadInlineMcpServers(workspaceDir ?? ""),
+    mcpServers: loadInlineMcpServersForSdk(workspaceDir ?? ""),
   }
 }

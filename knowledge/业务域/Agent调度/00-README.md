@@ -34,7 +34,7 @@
 | 模块 | 路径 |
 |------|------|
 | 调度 | `electron/session-dispatcher.ts`、`electron/agent-sdk.ts` |
-| Cursor | `electron/agent-sdk.ts` |
+| Cursor | `electron/agent-sdk.ts`、`electron/sdk-run-*.ts`、`electron/mcp-sdk-loader.ts`、`electron/session-mcp-sdk-path.ts` |
 | Claude | `electron/agent-claude-sdk.ts`、`electron/agent-cc-*.ts` |
 | Codex | `electron/agent-codex-sdk.ts`、`electron/agent-codex-*.ts`、`electron/codex-mcp-loader.ts` |
 | OpenCode | `electron/agent-opencode-sdk.ts`、`electron/agent-opencode-*.ts`、`electron/opencode-mcp-loader.ts`、`electron/opencode-failure-messages.ts` |
@@ -43,6 +43,8 @@
 
 ## 变更记录
 
+2026-07-02：关键源码补 sdk-run-* 事件流/续接模块（archive 20260701212827）。
+2026-07-02：关键源码补 Cursor SDK 配置加载模块（archive 20260701212732）。
 2026-06-30：新增 09 OpenCode SDK；四引擎 `agent-opencode-*`（archive 20260630105159）。
 2026-06-30：07 §二/§五/§七/§九 补 project scope 审批门控与启用展示（archive 20260630140113）。
 2026-06-30：新增 08 Codex SDK；三引擎 `agent-codex-*`（archive 20260630104714）。

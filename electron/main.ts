@@ -158,19 +158,23 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("rules:save", (_, name: string, content: string) => {
     const config = getConfig()
-    if (!config.workspaceDir) return { ok: false }
+    if (!config.workspaceDir) {
+      return { ok: false, error: "未配置主工作区，无法保存规则。请先在「通用」中设置主工作区。" }
+    }
     const rulesDir = path.join(config.workspaceDir, ".cursor", "rules")
     if (!fs.existsSync(rulesDir)) fs.mkdirSync(rulesDir, { recursive: true })
     fs.writeFileSync(path.join(rulesDir, name), content, "utf-8")
-    return { ok: true }
+    return { ok: true, workspaceDir: config.workspaceDir }
   })
 
   ipcMain.handle("rules:delete", (_, name: string) => {
     const config = getConfig()
-    if (!config.workspaceDir) return { ok: false }
+    if (!config.workspaceDir) {
+      return { ok: false, error: "未配置主工作区，无法删除规则。请先在「通用」中设置主工作区。" }
+    }
     const filePath = path.join(config.workspaceDir, ".cursor", "rules", name)
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
-    return { ok: true }
+    return { ok: true, workspaceDir: config.workspaceDir }
   })
 
   ipcMain.handle("skills:list", () => {
@@ -257,7 +261,7 @@ function registerIpcHandlers(): void {
     const dir = path.join(os.homedir(), ".cursor", "skills", name)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(path.join(dir, "SKILL.md"), content, "utf-8")
-    return { ok: true }
+    return { ok: true, skillsDir: path.join(os.homedir(), ".cursor", "skills") }
   })
 
   ipcMain.handle("skills:rename", (_, oldName: string, newName: string) => {
