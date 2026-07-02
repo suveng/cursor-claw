@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from "electron"
 import * as path from "node:path"
 import * as fs from "node:fs"
 import * as os from "node:os"
-import { getConfig, saveConfig, markCliMigrationNotified } from "./config-store"
+import { getConfig, saveConfig, markCliMigrationNotified } from "./config/config-store"
 import {
   startDaemon,
   stopDaemon,
@@ -18,8 +18,8 @@ import {
   checkClaudeCodeApiKey,
   CLAUDE_CODE_MODEL_LIST,
   CODEX_MODEL_LIST,
-} from "./daemon-manager"
-import { closeAllEmbeddedOpencodeServers } from "./agent-opencode-utils"
+} from "./daemon/daemon-manager"
+import { closeAllEmbeddedOpencodeServers } from "./agent/opencode/agent-opencode-utils"
 import {
   getMcpServerList,
   getMcpServerListForWorkspace,
@@ -30,13 +30,13 @@ import {
   getMcpEnabledMap,
   getMcpServerTools,
   getMcpStatusMap,
-} from "./mcp-manager"
-import { getSessionMcpStatus } from "./session-mcp-status"
-import { injectWorkspace } from "./workspace-injector"
-import { initTray, destroyTray } from "./tray"
-import { initAppUpdater } from "./updater"
-import { broadcastLog } from "./ui-logger"
-import { createWindow, mainWindow, setCloseConfirmDialogOpen } from "./main-window"
+} from "./mcp/mcp-manager"
+import { getSessionMcpStatus } from "./session/session-mcp-status"
+import { injectWorkspace } from "./agent/shared/workspace-injector"
+import { initTray, destroyTray } from "./app/tray"
+import { initAppUpdater } from "./config/updater"
+import { broadcastLog } from "./app/ui-logger"
+import { createWindow, mainWindow, setCloseConfirmDialogOpen } from "./app/main-window"
 
 const profileArg = process.argv.find((a) => a.startsWith("--profile="))
 const profileName = profileArg?.split("=")[1] || ""

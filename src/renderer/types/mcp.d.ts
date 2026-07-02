@@ -19,7 +19,7 @@ interface McpServerEntry {
   enabled?: boolean
 }
 
-/** agent:mcp-status IPC 返回结构：按 sessionKey 取运行时 MCP 状态（与 electron/session-mcp-status 对齐） */
+/** agent:mcp-status IPC 返回结构：按 sessionKey 取运行时 MCP 状态（与 electron/session/session-mcp-status 对齐） */
 interface AgentMcpStatusResult {
   servers: McpServerEntry[]
   statusMap: Record<string, string>

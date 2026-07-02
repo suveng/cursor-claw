@@ -19,6 +19,7 @@
 
 ## MCP 展示 enable/disable 标签（SessionMcpPanel.tsx）
 
+- 取数经 `agent:mcp-status` IPC；主进程实现 `electron/session/session-mcp-status.ts`（`getSessionMcpStatus`）。
 - 来源标签经 `mcp-view-strategy.formatMcpScopeLabel` 渲染（SDK 区分用户级/项目级/inline/settingSources/插件层）；runtime/snapshot/disk 三态经 `formatMcpStatusSourceLabel`。
 - 审批未启用（`s.enabled === false`）渲染规矩：容器加 `opacity-60` 整体灰化；名字色阶从 `text-gray-300` 降为 `text-gray-500`；补「未启用」标签（`bg-gray-800/80` + `text-gray-500`）。
 - 与 `statusLabel` 协同去重：`showApprovalDisabledTag = approvalDisabled && statusLabel !== "disabled"`——runtime status 已标 disabled 时不重复加「未启用」标签，由 statusLabel 表达；其余情况（审批未启用但 runtime 无条目/ready）补「未启用」标签。

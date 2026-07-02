@@ -1,0 +1,44 @@
+# agent/cursor-sdk/ — Cursor SDK Run 边界
+
+## Cursor SDK Run 模块边界
+
+- **入口编排**：`agent-sdk.ts` launch/dispatch/HTTP 路由；复杂逻辑下沉 `sdk-run-*`；**单文件 ≤300 行**。
+- **事件流 SSOT**：`sdk-run-stream.ts` — `streamRunEvents`+`handleSdkEvent`；运行期仅 `for await (run.stream())`；`run.wait()` 仅 `finalizeRunContextUsage`/`completeSdkRun` 收尾。
+- **生命周期**：`sdk-run-lifecycle.ts` — `startSdkRun`（挂 watchdog+stream+持久化）、`completeSdkRun`（幂等收尾+`clearActiveSdkRun`）、`stopSdkSession`（`markSdkRunUserStopped`+abort）。
+- **watchdog**：`sdk-run-watchdog.ts` — `armRunWatchdog`；idle/absolute 解耦；`tool_running`/`awaiting_user`/`lastTool.running` 豁免 idle 取消（对称 CC）。
+- **持久化**：`sdk-run-persistence.ts` — `userData/sdk-active-runs.json` 读写；`sdk-run-persist.ts` 呈现游标 3s 节流写盘。
+- **续接**：`sdk-run-recover.ts` — `recoverSdkActiveRuns`（`Agent.resume`+`Agent.getRun`→`startSdkRun`）；`notifyResumeFailure` 一次 IM 提示；`daemon/daemon-manager` init 挂接。
+- **呈现/收尾/分发**：`sdk-run-presentation.ts`（stream-text/PRESENTATION_ORDERING）、`sdk-run-finalize.ts`（超时/失败 notify）、`sdk-run-dispatch.ts`（sendWithRetry）。
+- **会话注册表**：`sdk-session-registry.ts`+`sdk-session-types.ts` — `sdkSessions` Map、`markSessionActivity`、`runPhase`；`agent-sdk.ts` re-export 查询 API。
+- `agent-sdk.ts`：SDK 生命周期与事件流；通知 daemon 时用 `daemon/daemon-client.httpPost`，避免与 `session/session-dispatcher` 循环 import。
+
+## SDK 流式与 Presentation
+
+- **SDK 流式桥接（f41Eligible）**：主用户私聊或飞书群聊（`allowOthers`）+ SDK 资源时，`handleSdkEvent` assistant delta → `POST /api/stream-text`（累积全文、400ms 节流）；首包不带 `outbound_message_id`，后续回传 daemon 返回值。`flushStreamPost` 经 `session.streamPostChain` 串行 in-flight：每次 POST 入链并 await 上一包完成后再发，避免并发首包；`final` 包同样入链末尾，且携带 `message_id`（当次 claim 末条 inbound id，经 launch/dispatch `message_ids` → `session.inboundMessageIds`）。会话结束或 `stopSdkSession` 时 `resetStreamPostChain` 清 timer 与链。非 f41Eligible 仍走 `appendSdkLog`，不调 stream-text。eligible 须与 Daemon `isStreamTextEligible` 一致。
+- **Presentation 时序编排（PRESENTATION_ORDERING）**：`presentationOrderingEligible(session)` = 开关开启 **且** `f41Stream && p2p`（主用户私聊 SDK）。`seenProcessEvent` / `presentationDeferStream` 见 tool/thinking 后置闩；含过程 Run 内 assistant delta 只累积 `streamBuffer` 不 `scheduleStreamPost`；首包未见过程事件时 `schedulePreambleRelease`（400ms 与 stream 节流对齐）短窗等待 tool/thinking，`doFlushStreamPost` 非 final 复检 `shouldDeferAssistantPost`；过程事件 `clearStreamPostTimer`。thinking 结束 `closeThinkingIfOpen` 传 `final: true` 并 `maybeReleaseDeferredAssistant`。Run 收尾 `streamRunEvents` 强制 flush。daemon 返回 `deferred: true` 时设 `presentationDeferStream`。纯对话（始终无过程事件）经 preamble 短窗后 POST，不额外延迟于现网 400ms 节流。`resetSdkRunPresentationState` / `startSdkRun` 清零编排布尔与 buffer。
+- **Presentation 出站（tool/thinking）**：`handleSdkEvent` 中 `tool_call` / `thinking` → `POST /api/presentation-event`（`PresentationEvent`）；工具 `running` 时清该 `tool_name` 的 `toolPresentationOutboundIds` 以新建 CardKit，完成/失败回传 `outbound_message_id` 供 PATCH；assistant 正文仍仅走 stream-text，不经 notify 发工具进度。**飞书门控**：`postPresentationEvent` 入口 `isFeishuProcessPresentationSuppressed` — 飞书全通道（私聊+群聊）抑制 tool/thinking POST，过程见 SDK UI 日志；微信不受影响。PRESENTATION_ORDERING 仍仅 p2p。
+- **SDK 错误 notify**：失败经 `notifySdkFailure` → `notifySessionChat(..., stop_progress: true)`。用户可见文案经 `sdk-failure-messages.formatUserSdkFailureMessage`（`formatSdkStreamFailure` 委托）；`notifySdkFailure` 组装 peak/limit、`errorCode`、`run.result` 与 `isRunTimeoutFailure` 标志。**失败归因类别**（优先级）：`timeout`（`isTimeoutFailure`）→ `context_exhausted` → `session_abnormal` → `safe_sdk_message` → `fallback_actionable`。路径：`streamRunEvents` catch（非 aborted）、短 `CANCELLED`（极少）、`run.status === "error"` 且非超时（`completeSdkRun`）。stack/tool 名仅写 UI 日志；用户主动 `stopSdkSession`（aborted）不 notify。**平台长时结束**（非 aborted + `durationMs ≥ PLATFORM_RUN_LIMIT_MS` 7min）：`CANCELLED`/`ERROR`/`EXPIRED`/`run.status=error` 经 `isRunTimeoutFailure` → `finalizeSdkRunOnTimeout`（trigger `status`/`stream`/`complete`），IM 走超时分支，归档 `sdk_timeout`；**finalizer 先 notify 再 abort**（避免 aborted 闩跳过 IM）。**短 ERROR**（<7min、非 F3.2）：不走 finalizer，走 `completeSdkRun` 通用文案 + `failedCooldowns`。**F3.2 / 20min 保活超时档**仍由 `isRunTimeoutFailure` 判定。`runFinalizing` + `session.run` 空检查幂等；`completeSdkRun` 已收尾则跳过。
+- **SDK error 可观测性**：`handleSdkEvent` 在 `tool_call` 时写入 `session.lastTool`；`run.status === "error"` 时 UI 日志单行 `运行错误详情:` 含 `sessionKey`、`agentId`、`durationMs`、`lastTool`、`run.result`、`errorCode`、`waitResult` 等结构化字段。
+- **保活失败文案（F3.2）**：超时类由 `isRunTimeoutFailure` 判定后 `formatUserSdkFailureMessage` 输出「会话因等待超时已退出…」（含 F3.2 shell:running + duration≥20min、平台长时 ≥7min）；`isTimeoutFailure` 分支**优先于** CANCELLED 固定「任务已取消」句。`notifySdkFailure` 用 `run`/`runStartedAt` 解析 duration。平台长时 `CANCELLED/ERROR/EXPIRED` 经 finalizer 即时 notify；短 ERROR 走 `completeSdkRun`。非超时 tool/上下文失败走 `sdk-failure-messages` 归因。
+
+## SDK MCP / 压缩 / 上下文
+
+- **SDK MCP 内联**：`mcp/loaders/mcp-sdk-loader.loadInlineMcpServersForSdk` 仅 inline HTTP/sse/OAuth 依赖项；stdio/command 默认由 `settingSources` 加载（`SDK_MCP_STDIO_INLINE=1` 可回滚全量 inline）。`appendInlineMcpToSendOptions` 内部调用筛选函数。三处注入点（`launchSdkAgent`/`buildSendOptions`/`maybeRotateSessionForPressure`）统一使用 `loadInlineMcpServersForSdk`；`lastInjectedMcpServers` 仅含实际 inline 条目。启动/send 前 `pushUiLog` 输出 `[config] settingSources=project,user cwd=… inlineMcp=…`（S13 可观测）。
+- **SDK 自动压缩**：`Agent.create` / `agent.send` 无显式 `autoCompress` 配置项；接近上下文上限时由 harness **默认** summarization/compression。`agent.send` 挂载 `onDelta`，`summary-started` / `summary-completed`（及 `summary`）写入 SDK UI 日志，前缀 `[compression]`。**pre-send 可观测**：`launchSdkAgent` / `dispatchToSdkAgent` 在 `resolveContextLimitForSession` 之后、`agent.send` 之前调用 `evaluatePreSendContextPressure` → UI 日志 `[compression] pre-send usage {pct}%`（≥85% limit，不阻断 send）。**turn-ended 高水位**：占用 ≥85% limit 时 `[compression] high-watermark {pct}%`（`context-usage-pressure` + `handleAgentSendDelta`）。
+- **SDK 上下文 footer（IM 回复）**：**单一落点** `agent-sdk.ts` — Run 流结束后 `finalizeRunContextUsage` 读 `run.usage`（必要时 `run.wait()`），与 `onDelta` turn-ended 快照 **并排打 `[context-usage]` 日志**；`doFlushStreamPost(..., final=true)` 前 `applyContextFooterToBuffer` 写入 `streamBuffer`；中间 chunk 不含 footer。footer **优先** `run.usage.totalTokens`，不可得时回退 turn-ended/peak；格式 `\n\n---\n上下文：{p}% ({usedK}k/{limitK}k)`（有上限）或 `\n\n---\n上下文：已用 {usedK}`；上限来自 `Cursor.models.list` 或 modelId 启发式（session 级缓存）。`appendContextFooter` 对已含「上下文：」的正文幂等。CLI 路径不在 IM scope。
+- **SDK 自动压缩飞书通知**：`summary-started` 经 `notifySessionChat` 下发「正在压缩上下文…」（与「Agent 处理中…」同语义，不传 `stop_progress`）；每 Run 至多一次（`compressionNotified`）；`summary-completed` 仅写 UI 日志。
+- **SDK 长驻 Agent（`SDK_RESIDENT_AGENT`）**：默认开启；`SDK_RESIDENT_AGENT=0` 回退 Run 结束 `close()`。**非超时 error**：`completeSdkRun` 在 `residentMode` **保留**实例、`reportSessionAgentPhase(idle)` 触发 Daemon flush。**超时类**：`finalizeSdkRunOnTimeout` 后 `agent.close()` + 删 session（长驻与非长驻均清理），下条 launch 重建；**不写 `failedCooldowns`**。`isSdkSessionRunning` 仅 processing（`run`/`pendingDispatch`），idle 用 `hasSdkSession`。二次任务 `dispatchToSdkAgent`；`launchSdkAgent` 遇 processing 会话 WARN 早退 `{ ok: true }`。失败日志 `dispatch_failed` / `agent_failed`。`ensureAgentSdkHttpServer` 应用 init 启动，端口 `userData/agent-api-port.json`；Daemon 转发 `POST /api/agent/launch|dispatch`。**Daemon 统一入口路由**：`launchSdkAgentFromHttp` / `dispatchAgentFromHttp` 按 `resolveBoundAgentResourceType` 委托 — `claude-code` → `launchCcAgentFromHttp` / `dispatchToClaudeCodeAgent`，`sdk` → 现有 SDK 逻辑，legacy `cli` 绑定返回明确错误；与 `session/session-dispatcher.launchAgent` 双引擎口径一致。
+
+## ContextRotation
+
+- 轮转必须"先 `Agent.create` 成功，再替换 `session.agent`，最后 best-effort 关闭旧实例"；创建失败时保留旧实例继续 send，禁止先 `close` 再创建导致会话假存活。
+
+## IM 调度
+
+- Daemon `POST /api/agent/launch|dispatch` 经 `agent-sdk.ts` 按通道资源类型路由（SDK / Claude Code）；无 CLI spawn、无 `poll-message`。
+
+## 编码规矩
+
+- MCP loader import `../../mcp/loaders/mcp-sdk-loader`；共享符号 `../shared/agent-launcher`。
+- 通知 Daemon 用 `../../daemon/daemon-client`，避免与 `session/session-dispatcher` 循环 import。
+- **禁止**旧路径 `./agent-sdk` re-export shim。

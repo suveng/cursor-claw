@@ -33,16 +33,21 @@
 
 | 模块 | 路径 |
 |------|------|
-| 调度 | `electron/session-dispatcher.ts`、`electron/agent-sdk.ts` |
-| Cursor | `electron/agent-sdk.ts`、`electron/sdk-run-*.ts`、`electron/mcp-sdk-loader.ts`、`electron/session-mcp-sdk-path.ts` |
-| Claude | `electron/agent-claude-sdk.ts`、`electron/agent-cc-*.ts` |
-| Codex | `electron/agent-codex-sdk.ts`、`electron/agent-codex-*.ts`、`electron/codex-mcp-loader.ts` |
-| OpenCode | `electron/agent-opencode-sdk.ts`、`electron/agent-opencode-*.ts`、`electron/opencode-mcp-loader.ts`、`electron/opencode-failure-messages.ts` |
-| HTTP | `agent-cc-http.ts`（cc）、`agent-codex-http.ts`（codex）、`agent-opencode-http.ts`（opencode） |
-| 配置 | `electron/config-store.ts`（`newOpencodeResourceId`/`isOpencodeResourceId`） |
+| 调度 | `electron/session/session-dispatcher.ts`、`electron/agent/cursor-sdk/agent-sdk.ts` |
+| Daemon | `electron/daemon/daemon-manager.ts`、`electron/daemon/daemon-client.ts` |
+| 远程/Cron | `electron/scheduling/command-handler.ts`、`electron/scheduling/cron-scheduler.ts` |
+| Cursor | `electron/agent/cursor-sdk/agent-sdk.ts`、`electron/agent/cursor-sdk/sdk-run-*.ts`、`electron/mcp/loaders/mcp-sdk-loader.ts`、`electron/session/session-mcp-sdk-path.ts` |
+| Claude | `electron/agent/claude-code/agent-claude-sdk.ts`、`electron/agent/claude-code/agent-cc-*.ts`、`electron/mcp/loaders/cc-mcp-loader.ts` |
+| Codex | `electron/agent/codex/agent-codex-sdk.ts`、`electron/agent/codex/agent-codex-*.ts`、`electron/mcp/loaders/codex-mcp-loader.ts` |
+| OpenCode | `electron/agent/opencode/agent-opencode-sdk.ts`、`electron/agent/opencode/agent-opencode-*.ts`、`electron/mcp/loaders/opencode-mcp-loader.ts`、`electron/agent/opencode/opencode-failure-messages.ts` |
+| Session MCP | `electron/session/session-mcp-status.ts` |
+| 跨引擎 | `electron/agent/shared/agent-launcher.ts`、`electron/agent/shared/crash-log-archiver.ts` |
+| HTTP | `electron/agent/claude-code/agent-cc-http.ts`（cc）、`electron/agent/codex/agent-codex-http.ts`（codex）、`electron/agent/opencode/agent-opencode-http.ts`（opencode） |
+| 配置 | `electron/config/config-store.ts`（`newOpencodeResourceId`/`isOpencodeResourceId`） |
 
 ## 变更记录
 
+2026-07-02：关键源码表对齐 `electron/` 语义子目录（archive 20260702112559）。
 2026-07-02：关键源码补 sdk-run-* 事件流/续接模块（archive 20260701212827）。
 2026-07-02：关键源码补 Cursor SDK 配置加载模块（archive 20260701212732）。
 2026-06-30：新增 09 OpenCode SDK；四引擎 `agent-opencode-*`（archive 20260630105159）。

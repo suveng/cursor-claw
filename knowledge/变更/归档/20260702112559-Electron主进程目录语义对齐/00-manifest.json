@@ -1,0 +1,636 @@
+{
+  "change_id": "20260702112559-Electron主进程目录语义对齐",
+  "name": "Electron主进程目录语义对齐",
+  "flow": "standard",
+  "stage": "archived",
+  "archived_at": "2026-07-02T12:02:50+0800",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-02T11:25:59+0800",
+  "updated_at": "2026-07-02T12:02:50+0800",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "refactor",
+    "priority": "P1"
+  },
+  "reviews": [],
+  "tasks": [
+    {
+      "id": "T0",
+      "title": "正交变更协调闸门",
+      "status": "done",
+      "files": [],
+      "depends_on": []
+    },
+    {
+      "id": "T1",
+      "title": "叶节点目录迁移（app/config/workflow/scheduling/agent/shared）",
+      "status": "done",
+      "files": [
+        "electron/app/main-window.ts",
+        "electron/app/tray.ts",
+        "electron/app/ui-logger.ts",
+        "electron/app/proxy-env.ts",
+        "electron/config/config-store.ts",
+        "electron/config/updater.ts",
+        "electron/workflow/workflow-file.ts",
+        "electron/workflow/workflow-runner.ts",
+        "electron/scheduling/command-handler.ts",
+        "electron/scheduling/cron-scheduler.ts",
+        "electron/agent/shared/agent-launcher.ts",
+        "electron/agent/shared/agent-run-guard.ts",
+        "electron/agent/shared/crash-log-archiver.ts",
+        "electron/agent/shared/retry-policy.ts",
+        "electron/agent/shared/workspace-injector.ts"
+      ],
+      "depends_on": ["T0"]
+    },
+    {
+      "id": "T2",
+      "title": "MCP 模块迁移（mcp/mcp/loaders）",
+      "status": "done",
+      "files": [
+        "electron/mcp/mcp-manager.ts",
+        "electron/mcp/mcp-types.ts",
+        "electron/mcp/mcp-tools-probe.ts",
+        "electron/mcp/mcp-status-map.ts",
+        "electron/mcp/mcp-project-dir.ts",
+        "electron/mcp/loaders/mcp-sdk-loader.ts",
+        "electron/mcp/loaders/cc-mcp-loader.ts",
+        "electron/mcp/loaders/codex-mcp-loader.ts",
+        "electron/mcp/loaders/opencode-mcp-loader.ts"
+      ],
+      "depends_on": ["T1"]
+    },
+    {
+      "id": "T3",
+      "title": "Cursor SDK 引擎目录迁移（agent/cursor-sdk）",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/agent-sdk.ts",
+        "electron/agent/cursor-sdk/agent-sdk-http.ts",
+        "electron/agent/cursor-sdk/sdk-api-models.ts",
+        "electron/agent/cursor-sdk/sdk-session-registry.ts",
+        "electron/agent/cursor-sdk/sdk-session-types.ts",
+        "electron/agent/cursor-sdk/sdk-run-dispatch.ts",
+        "electron/agent/cursor-sdk/sdk-run-finalize.ts",
+        "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+        "electron/agent/cursor-sdk/sdk-run-persist.ts",
+        "electron/agent/cursor-sdk/sdk-run-persistence.ts",
+        "electron/agent/cursor-sdk/sdk-run-presentation.ts",
+        "electron/agent/cursor-sdk/sdk-run-recover.ts",
+        "electron/agent/cursor-sdk/sdk-run-stream.ts",
+        "electron/agent/cursor-sdk/sdk-run-watchdog.ts",
+        "electron/agent/cursor-sdk/finalize-sdk-run.ts",
+        "electron/agent/cursor-sdk/context-usage.ts",
+        "electron/agent/cursor-sdk/context-usage-pressure.ts",
+        "electron/agent/cursor-sdk/context-usage-run-end.ts",
+        "electron/agent/cursor-sdk/context-rotation-lite.ts",
+        "electron/agent/cursor-sdk/sdk-failure-messages.ts"
+      ],
+      "depends_on": ["T2"]
+    },
+    {
+      "id": "T4",
+      "title": "Claude Code 引擎目录迁移（agent/claude-code）",
+      "status": "done",
+      "files": [
+        "electron/agent/claude-code/agent-claude-sdk.ts",
+        "electron/agent/claude-code/agent-cc-stream.ts",
+        "electron/agent/claude-code/agent-cc-presentation.ts",
+        "electron/agent/claude-code/agent-cc-types.ts",
+        "electron/agent/claude-code/agent-cc-utils.ts",
+        "electron/agent/claude-code/agent-cc-http.ts",
+        "electron/agent/claude-code/agent-cc-session-registry.ts",
+        "electron/agent/claude-code/agent-cc-events.ts",
+        "electron/agent/claude-code/cc-sdk-hooks.ts",
+        "electron/agent/claude-code/cc-watchdog-finalize.ts"
+      ],
+      "depends_on": ["T2"]
+    },
+    {
+      "id": "T5",
+      "title": "Codex 与 OpenCode 引擎目录迁移",
+      "status": "done",
+      "files": [
+        "electron/agent/codex/agent-codex-sdk.ts",
+        "electron/agent/codex/agent-codex-stream.ts",
+        "electron/agent/codex/agent-codex-http.ts",
+        "electron/agent/codex/agent-codex-watchdog.ts",
+        "electron/agent/codex/agent-codex-events.ts",
+        "electron/agent/codex/agent-codex-complete.ts",
+        "electron/agent/codex/agent-codex-utils.ts",
+        "electron/agent/codex/agent-codex-types.ts",
+        "electron/agent/codex/agent-codex-session-registry.ts",
+        "electron/agent/codex/codex-failure-messages.ts",
+        "electron/agent/opencode/agent-opencode-sdk.ts",
+        "electron/agent/opencode/agent-opencode-stream.ts",
+        "electron/agent/opencode/agent-opencode-http.ts",
+        "electron/agent/opencode/agent-opencode-watchdog.ts",
+        "electron/agent/opencode/agent-opencode-events.ts",
+        "electron/agent/opencode/agent-opencode-complete.ts",
+        "electron/agent/opencode/agent-opencode-utils.ts",
+        "electron/agent/opencode/agent-opencode-types.ts",
+        "electron/agent/opencode/agent-opencode-session-registry.ts",
+        "electron/agent/opencode/opencode-failure-messages.ts"
+      ],
+      "depends_on": ["T2"]
+    },
+    {
+      "id": "T6",
+      "title": "会话调度目录迁移（session）",
+      "status": "done",
+      "files": [
+        "electron/session/session-dispatcher.ts",
+        "electron/session/session-mcp-status.ts",
+        "electron/session/session-mcp-sdk-path.ts"
+      ],
+      "depends_on": ["T3", "T4", "T5"]
+    },
+    {
+      "id": "T7",
+      "title": "Daemon 桥接目录迁移（daemon）",
+      "status": "done",
+      "files": [
+        "electron/daemon/daemon-manager.ts",
+        "electron/daemon/daemon-client.ts",
+        "electron/daemon/sdk-daemon-notify.ts"
+      ],
+      "depends_on": ["T6"]
+    },
+    {
+      "id": "T8",
+      "title": "main.ts 枢纽 import 收尾",
+      "status": "done",
+      "files": [
+        "electron/main.ts",
+        "electron/preload.ts"
+      ],
+      "depends_on": ["T7"]
+    },
+    {
+      "id": "T9",
+      "title": "electron/AGENTS.md 分层",
+      "status": "done",
+      "files": [
+        "electron/AGENTS.md",
+        "electron/app/AGENTS.md",
+        "electron/config/AGENTS.md",
+        "electron/daemon/AGENTS.md",
+        "electron/session/AGENTS.md",
+        "electron/scheduling/AGENTS.md",
+        "electron/agent/shared/AGENTS.md",
+        "electron/agent/cursor-sdk/AGENTS.md",
+        "electron/agent/claude-code/AGENTS.md",
+        "electron/agent/codex/AGENTS.md",
+        "electron/agent/opencode/AGENTS.md",
+        "electron/mcp/AGENTS.md",
+        "electron/workflow/AGENTS.md"
+      ],
+      "depends_on": ["T8"]
+    },
+    {
+      "id": "T10",
+      "title": "构建验收与旧路径零残留",
+      "status": "done",
+      "files": [
+        "electron.vite.config.ts"
+      ],
+      "depends_on": ["T9"]
+    },
+    {
+      "id": "T11",
+      "title": "知识库路径同步（kb-librarian）",
+      "status": "done",
+      "files": [
+        "knowledge/业务域/Agent调度/00-README.md",
+        "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+        "knowledge/工程平台/Electron桌面应用/00-README.md",
+        "knowledge/工程平台/Electron桌面应用/04-配置与更新.md",
+        "src/renderer/components/AGENTS.md",
+        "src/renderer/types/mcp.d.ts"
+      ],
+      "depends_on": ["T10"],
+      "agent": "kb-librarian"
+    }
+  ],
+  "files": [
+    {
+      "path": "electron/main.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/preload.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/app/main-window.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/app/tray.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/app/ui-logger.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/app/proxy-env.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/app/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/config/config-store.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/config/updater.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/config/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/daemon/daemon-client.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/daemon/sdk-daemon-notify.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/daemon/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/session/session-dispatcher.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/session/session-mcp-status.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/session/session-mcp-sdk-path.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/session/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/scheduling/command-handler.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/scheduling/cron-scheduler.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/scheduling/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/workflow/workflow-file.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/workflow/workflow-runner.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/workflow/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/shared/agent-launcher.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/shared/agent-run-guard.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/shared/crash-log-archiver.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/shared/retry-policy.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/shared/workspace-injector.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/shared/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-sdk.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-sdk-http.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-api-models.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-session-registry.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-session-types.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-dispatch.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-finalize.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-persist.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-persistence.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-presentation.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-recover.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-stream.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-watchdog.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/finalize-sdk-run.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/context-usage.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/context-usage-pressure.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/context-usage-run-end.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/context-rotation-lite.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-failure-messages.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-claude-sdk.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-stream.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-presentation.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-types.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-utils.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-http.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-session-registry.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-events.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-sdk-hooks.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-watchdog-finalize.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/claude-code/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-sdk.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-stream.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-http.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-watchdog.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-events.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-complete.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-utils.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-types.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-session-registry.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/codex-failure-messages.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/codex/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-sdk.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-stream.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-http.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-watchdog.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-events.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-complete.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-utils.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-types.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-session-registry.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/opencode-failure-messages.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent/opencode/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/mcp-manager.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/mcp-types.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/mcp-tools-probe.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/mcp-status-map.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/mcp-project-dir.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/loaders/mcp-sdk-loader.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/loaders/cc-mcp-loader.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/loaders/codex-mcp-loader.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/loaders/opencode-mcp-loader.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/mcp/AGENTS.md",
+      "role": "code"
+    },
+    {
+      "path": "knowledge/变更/归档/20260702112559-Electron主进程目录语义对齐/00-manifest.json",
+      "role": "manifest"
+    },
+    {
+      "path": "knowledge/变更/归档/20260702112559-Electron主进程目录语义对齐/04-review.md",
+      "role": "review"
+    },
+    {
+      "path": "knowledge/变更/归档/20260702112559-Electron主进程目录语义对齐/05-summary.md",
+      "role": "summary"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "role": "knowledge"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/00-README.md",
+      "role": "knowledge"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+      "role": "knowledge"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/04-配置与更新.md",
+      "role": "knowledge"
+    },
+    {
+      "path": "src/renderer/components/AGENTS.md",
+      "role": "knowledge"
+    },
+    {
+      "path": "src/renderer/types/mcp.d.ts",
+      "role": "knowledge"
+    }
+  ]
+}
