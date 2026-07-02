@@ -4,6 +4,7 @@
 
 - `AgentPanel.tsx`：仅 Cursor SDK Key 列表与弹窗（<300 行）。
 - `SettingsMcpPanel.tsx`：Settings MCP Tab（global/project CRUD、OAuth、插件说明区）；单文件 ≤300 行。
+- `SettingsSkillsPanel.tsx`：Settings Skills Tab（上项目级、下用户级双区块）；props `{ workspaceDir }`；CRUD 末位传 `scope`；expand key 前缀 `${scope}/`；无工作区时项目级 `disabled`；拆分为 `SkillTreeBlock.tsx`（树列表）与 `SkillEditModals.tsx`（弹窗）；主面板 ≤300 行。
 - `AgentProfilePanels.tsx`：Claude Code / Codex Profile 列表与弹窗；OpenCode 区块见 `AgentOpencodeProfileSection.tsx`；持久化时保留既有 SDK 资源。
 - `AgentResourceModals.tsx`：`SdkEditModal` / `CcEditModal` / `CodexEditModal` / `OpenCodeEditModal` 弹窗组件。
 

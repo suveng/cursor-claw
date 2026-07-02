@@ -1,0 +1,146 @@
+{
+  "id": "20260702120631-项目级Skills未显示",
+  "title": "项目级Skills未显示",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "updated_at": "2026-07-02T14:05:00+0800",
+  "archived_at": "2026-07-02T14:05:00+0800",
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md",
+    "02-design.md",
+    "03-tasks.md",
+    "04-review.md",
+    "05-summary.md",
+    "06-automation-test.md",
+    "package.json",
+    "changelog/1.10.1.json",
+    "electron/skills-ipc.ts",
+    "electron/main.ts",
+    "electron/preload.ts",
+    "electron/AGENTS.md",
+    "src/renderer/components/SettingsSkillsPanel.tsx",
+    "src/renderer/components/SkillTreeBlock.tsx",
+    "src/renderer/components/SkillEditModals.tsx",
+    "src/renderer/components/AGENTS.md",
+    "src/renderer/pages/Settings.tsx",
+    "src/renderer/env.d.ts",
+    "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+    "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md"
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "主进程 Skills IPC 模块与 main 接线",
+      "status": "completed",
+      "files": [
+        "electron/skills-ipc.ts",
+        "electron/main.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "Preload 与 env.d.ts scope 扩展",
+      "status": "completed",
+      "files": [
+        "electron/preload.ts",
+        "src/renderer/env.d.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T3",
+      "title": "SettingsSkillsPanel 双区块 UI",
+      "status": "completed",
+      "files": [
+        "src/renderer/components/SettingsSkillsPanel.tsx",
+        "src/renderer/components/SkillTreeBlock.tsx",
+        "src/renderer/components/SkillEditModals.tsx",
+        "src/renderer/components/AGENTS.md"
+      ],
+      "depends_on": [
+        "T1",
+        "T2"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "Settings.tsx 挂载面板并清理",
+      "status": "completed",
+      "files": [
+        "src/renderer/pages/Settings.tsx"
+      ],
+      "depends_on": [
+        "T3"
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "alias": "SKILL-001",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "src/renderer/pages/Settings.tsx",
+      "summary": "首进 Skills tab workspaceDir 未加载导致误禁用",
+      "resolution": "tab===skills 时 getConfig 加载 workspaceDir"
+    },
+    {
+      "id": "R2",
+      "alias": "SKILL-002",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "src/renderer/components/SettingsSkillsPanel.tsx",
+      "summary": "workspaceDir 变更未刷新项目列表",
+      "resolution": "useEffect on workspaceDir 刷新/清空项目级列表"
+    },
+    {
+      "id": "R3",
+      "alias": "SKILL-003",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "src/renderer/components/SettingsSkillsPanel.tsx",
+      "summary": "IPC 失败仍 showSaveHint",
+      "resolution": "检查 ok/error + useInlineModal showAlert"
+    },
+    {
+      "id": "R4",
+      "alias": "SKILL-004",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/skills-ipc.ts",
+      "summary": "路径穿越",
+      "resolution": "assertSkillPath 边界校验"
+    },
+    {
+      "id": "R5",
+      "alias": "IPC-01",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/skills-ipc.ts",
+      "summary": "read-file 无工作区误报文件不存在",
+      "resolution": "返回 PROJECT_WRITE_NO_WORKSPACE"
+    },
+    {
+      "id": "R6",
+      "alias": "UX-01",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "src/renderer/components/SkillTreeBlock.tsx",
+      "summary": "刷新按钮未 disabled",
+      "resolution": "SkillTreeBlock disabled={disabled}"
+    },
+    {
+      "id": "KB-01",
+      "severity": "info",
+      "status": "fixed",
+      "file": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "summary": "知识库 Skills 双来源同步",
+      "resolution": "archive 阶段 kb-librarian 已更新两篇知识文件"
+    }
+  ],
+  "revisions": []
+}

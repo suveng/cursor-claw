@@ -105,6 +105,9 @@ interface ScheduledTask {
   modelParams?: string
 }
 
+/** Skills 作用域：用户级 ~/.cursor/skills 或项目级 {workspace}/.cursor/skills */
+type SkillScope = "user" | "project"
+
 interface SkillTreeNode {
   name: string
   type: "file" | "directory"
@@ -235,15 +238,15 @@ interface ElectronAPI {
   getRules(): Promise<{ name: string; content: string }[]>
   saveRule(name: string, content: string): Promise<{ ok: boolean }>
   deleteRule(name: string): Promise<{ ok: boolean }>
-  getSkills(): Promise<{ name: string; content: string }[]>
-  getSkillTree(): Promise<SkillTreeNode[]>
-  readSkillFile(skillName: string, relativePath: string): Promise<{ ok: boolean; content?: string; error?: string }>
-  saveSkillFile(skillName: string, relativePath: string, content: string): Promise<{ ok: boolean }>
-  deleteSkillFile(skillName: string, relativePath: string): Promise<{ ok: boolean; error?: string }>
-  createSkillDir(skillName: string, relativePath: string): Promise<{ ok: boolean }>
-  saveSkill(name: string, content: string): Promise<{ ok: boolean }>
-  renameSkill(oldName: string, newName: string): Promise<{ ok: boolean }>
-  deleteSkill(name: string): Promise<{ ok: boolean }>
+  getSkills(scope?: SkillScope): Promise<{ name: string; content: string }[]>
+  getSkillTree(scope?: SkillScope): Promise<SkillTreeNode[]>
+  readSkillFile(skillName: string, relativePath: string, scope?: SkillScope): Promise<{ ok: boolean; content?: string; error?: string }>
+  saveSkillFile(skillName: string, relativePath: string, content: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }>
+  deleteSkillFile(skillName: string, relativePath: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }>
+  createSkillDir(skillName: string, relativePath: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }>
+  saveSkill(name: string, content: string, scope?: SkillScope): Promise<{ ok: boolean; skillsDir?: string; error?: string }>
+  renameSkill(oldName: string, newName: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }>
+  deleteSkill(name: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }>
   onMcpLoginComplete(cb: (data: { serverName: string; ok: boolean }) => void): () => void
   onDaemonStatus(cb: (status: DaemonStatus) => void): () => void
   onDaemonLog(cb: (line: string) => void): () => void

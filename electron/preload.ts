@@ -175,6 +175,9 @@ export interface AppModalRequestPayload {
   variant?: "info" | "error" | "warning"
 }
 
+/** Skills 作用域：用户级 ~/.cursor/skills 或项目级 {workspace}/.cursor/skills */
+export type SkillScope = "user" | "project"
+
 export interface SkillTreeNode {
   name: string
   type: "file" | "directory"
@@ -287,15 +290,15 @@ const api = {
   getRules: (): Promise<{ name: string; content: string }[]> => ipcRenderer.invoke("rules:list"),
   saveRule: (name: string, content: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("rules:save", name, content),
   deleteRule: (name: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("rules:delete", name),
-  getSkills: (): Promise<{ name: string; content: string }[]> => ipcRenderer.invoke("skills:list"),
-  getSkillTree: (): Promise<SkillTreeNode[]> => ipcRenderer.invoke("skills:tree"),
-  readSkillFile: (skillName: string, relativePath: string): Promise<{ ok: boolean; content?: string; error?: string }> => ipcRenderer.invoke("skills:read-file", skillName, relativePath),
-  saveSkillFile: (skillName: string, relativePath: string, content: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("skills:save-file", skillName, relativePath, content),
-  deleteSkillFile: (skillName: string, relativePath: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("skills:delete-file", skillName, relativePath),
-  createSkillDir: (skillName: string, relativePath: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("skills:create-dir", skillName, relativePath),
-  saveSkill: (name: string, content: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("skills:save", name, content),
-    renameSkill: (oldName: string, newName: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("skills:rename", oldName, newName),
-    deleteSkill: (name: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("skills:delete", name),
+  getSkills: (scope?: SkillScope): Promise<{ name: string; content: string }[]> => ipcRenderer.invoke("skills:list", scope),
+  getSkillTree: (scope?: SkillScope): Promise<SkillTreeNode[]> => ipcRenderer.invoke("skills:tree", scope),
+  readSkillFile: (skillName: string, relativePath: string, scope?: SkillScope): Promise<{ ok: boolean; content?: string; error?: string }> => ipcRenderer.invoke("skills:read-file", skillName, relativePath, scope),
+  saveSkillFile: (skillName: string, relativePath: string, content: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("skills:save-file", skillName, relativePath, content, scope),
+  deleteSkillFile: (skillName: string, relativePath: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("skills:delete-file", skillName, relativePath, scope),
+  createSkillDir: (skillName: string, relativePath: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("skills:create-dir", skillName, relativePath, scope),
+  saveSkill: (name: string, content: string, scope?: SkillScope): Promise<{ ok: boolean; skillsDir?: string; error?: string }> => ipcRenderer.invoke("skills:save", name, content, scope),
+  renameSkill: (oldName: string, newName: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("skills:rename", oldName, newName, scope),
+  deleteSkill: (name: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("skills:delete", name, scope),
   onMcpLoginComplete: (cb: (data: { serverName: string; ok: boolean }) => void) => {
     const handler = (_: unknown, data: { serverName: string; ok: boolean }) => cb(data)
     ipcRenderer.on("mcp:login-complete", handler)

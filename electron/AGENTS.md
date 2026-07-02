@@ -27,3 +27,10 @@
 - **IM 调度**：Daemon `POST /api/agent/launch|dispatch` 经四引擎 HTTP 路由；无 CLI spawn。
 - **通道配置**：`MessageChannel` / `AgentResource` 变更须同步 `src/shared/channel-types.ts`、`preload.ts`、`env.d.ts`（详见 [config/AGENTS.md](config/AGENTS.md)）。
 - **SDK 可观测**：`handleSdkEvent` 写 `lastTool`；超时类 `isRunTimeoutFailure` 优先于 CANCELLED 文案（详见 [agent/cursor-sdk/AGENTS.md](agent/cursor-sdk/AGENTS.md)）。
+
+## Skills IPC 模块边界
+
+- **入口**：`skills-ipc.ts` 导出 `SkillScope`、`SkillTreeNode`、`resolveSkillsDir`、`buildSkillTree`、`registerSkillsIpcHandlers`；`main.ts` 在 `registerIpcHandlers` 内调用注册，**禁止**内联 `skills:*` handler。
+- **路径单点**：所有 handler 经 `resolveSkillsDir(scope)` 解析根目录；`user` → `~/.cursor/skills`，`project` → `{workspaceDir}/.cursor/skills`（读 `config-store.getConfig().workspaceDir`）。
+- **scope 契约**：各 channel 末位可选 `scope?: SkillScope`，省略默认 `"user"`；project 写操作无工作区返回统一中文错误；project 读 `list`/`tree` 无工作区返回 `[]`。
+- **对齐 rules**：工作区缺失错误文案与 `rules:save`/`rules:delete` 模式一致，仅 skills 专用措辞不同。

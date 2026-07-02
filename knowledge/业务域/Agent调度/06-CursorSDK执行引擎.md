@@ -29,7 +29,7 @@
 |----|------|------|------|--------|
 | MCP | `.cursor/mcp.json` | `~/.cursor/mcp.json` | settingSources+inline | inline>project>user |
 | Rules | `.cursor/rules/*` | settingSources | settingSources | project>user |
-| Skills | — | `~/.cursor/skills/` | settingSources | 用户级 |
+| Skills | `.cursor/skills/` | `~/.cursor/skills/` | settingSources | project>user |
 
 ## 四、客户端流程
 
@@ -46,7 +46,7 @@ flowchart LR
 
 **续接**：`listRecoverableSdkRuns` → `Agent.resume`+`getRun` → 终态 `notifyResumeFailure` 一次，否则挂 `startSdkRun` 补消费。
 
-**Settings → SDK**：Rules/Skills/MCP 见 Settings 四 Tab；Dashboard `buildSdkRuntimeEntries` 标注来源。
+**Settings → SDK**：四 Tab；Skills 双区块 project/user；Dashboard 标注来源。
 
 ## 五、接口
 
@@ -54,7 +54,7 @@ flowchart LR
 
 ## 六、数据
 
-`SdkSessionAgent`：`runPhase`、呈现游标、`lastInjectedMcpServers`。磁盘 `userData/sdk-active-runs.json`（`SdkActiveRunRecord`，sessionKey upsert，含 apiKey/agentId/runId/`userStopped`）。`config-store` `AgentResource`。
+`SdkSessionAgent`：`runPhase`、呈现游标、`lastInjectedMcpServers`。磁盘 `userData/sdk-active-runs.json`（sessionKey upsert，含 apiKey/agentId/runId/`userStopped`）。`config-store` `AgentResource`。
 
 ## 七、非功能与可观测
 
@@ -66,10 +66,11 @@ RunGuard+watchdog；`[recover]`/`[tool]`/`[status]` 日志；f41 400ms 节流；
 
 ## 九、已知限制与 TODO
 
-续接依赖 SDK Run 仍活跃；stdio 依赖 settingSources；持久化含 apiKey。
+续接依赖 SDK Run；stdio 依赖 settingSources；持久化含 apiKey。
 
 ## 十、变更记录
 
+- 2026-07-02：Skills 双来源与 Settings 界面（archive 20260702120631）。
 - 2026-07-02：事件流 SSOT、watchdog 活动豁免、重启续接与 sdk-active-runs（archive 20260701212827）。
 - 2026-07-02：MCP 分层、Settings 四 Tab（archive 20260701212732）。
 - 2026-06-30：十段式；移除 CLI（archive 20260629232914）。
