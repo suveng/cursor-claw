@@ -1,0 +1,221 @@
+{
+  "change_id": "20260701212827-CursorSDK执行引擎事件流消费",
+  "name": "20260701212827-CursorSDK执行引擎事件流消费",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v0.3.3",
+  "updated_at": "2026-07-02T12:00:00+0800",
+  "archived_at": "2026-07-02T12:00:00+0800",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  },
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260701212827-CursorSDK执行引擎事件流消费/00-manifest.json",
+      "role": "manifest"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212827-CursorSDK执行引擎事件流消费/01-proposal.md",
+      "role": "proposal"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212827-CursorSDK执行引擎事件流消费/02-design.md",
+      "role": "design"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212827-CursorSDK执行引擎事件流消费/03-tasks.md",
+      "role": "tasks"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212827-CursorSDK执行引擎事件流消费/04-review.md",
+      "role": "review"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212827-CursorSDK执行引擎事件流消费/05-summary.md",
+      "role": "summary"
+    },
+    {
+      "path": "knowledge/变更/归档/20260701212827-CursorSDK执行引擎事件流消费/06-automation-test.md",
+      "role": "automation-test"
+    },
+    {
+      "path": "electron/agent-sdk.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/agent-sdk-http.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-session-types.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-session-registry.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-daemon-notify.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-run-persist.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-run-persistence.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-run-presentation.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-run-stream.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-run-watchdog.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-run-finalize.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-run-lifecycle.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-run-dispatch.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-run-recover.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/sdk-api-models.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/context-usage.ts",
+      "role": "code"
+    },
+    {
+      "path": "electron/daemon-manager.ts",
+      "role": "code"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "role": "knowledge"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "role": "knowledge"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "role": "knowledge"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "role": "knowledge"
+    },
+    {
+      "path": "package.json",
+      "role": "config"
+    },
+    {
+      "path": "changelog/1.10.0.json",
+      "role": "config"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "活跃 Run 磁盘持久化模块",
+      "status": "done",
+      "files": [
+        "electron/sdk-run-persistence.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "onDelta 活跃回调注入",
+      "status": "done",
+      "files": [
+        "electron/context-usage.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T3",
+      "title": "事件流 SSOT 与呈现活跃刷新",
+      "status": "done",
+      "files": [
+        "electron/sdk-run-stream.ts",
+        "electron/agent-sdk.ts"
+      ],
+      "depends_on": [
+        "T2"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "Watchdog 活动感知增强",
+      "status": "done",
+      "files": [
+        "electron/sdk-run-watchdog.ts",
+        "electron/agent-sdk.ts"
+      ],
+      "depends_on": [
+        "T3"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "持久化挂接与进程重启续接",
+      "status": "done",
+      "files": [
+        "electron/sdk-run-recover.ts",
+        "electron/sdk-run-persist.ts",
+        "electron/sdk-run-persistence.ts",
+        "electron/agent-sdk.ts"
+      ],
+      "depends_on": [
+        "T1",
+        "T4"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "启动挂接与 agent-sdk 行数治理",
+      "status": "done",
+      "files": [
+        "electron/daemon-manager.ts",
+        "electron/agent-sdk.ts",
+        "electron/agent-sdk-http.ts",
+        "electron/sdk-run-stream.ts",
+        "electron/sdk-session-types.ts",
+        "electron/sdk-session-registry.ts",
+        "electron/sdk-run-presentation.ts",
+        "electron/sdk-run-finalize.ts",
+        "electron/sdk-run-lifecycle.ts",
+        "electron/sdk-run-dispatch.ts",
+        "electron/sdk-run-watchdog.ts",
+        "electron/sdk-run-recover.ts",
+        "electron/sdk-api-models.ts",
+        "electron/sdk-daemon-notify.ts",
+        "electron/sdk-run-persist.ts"
+      ],
+      "depends_on": [
+        "T5"
+      ]
+    }
+  ],
+  "reviews": []
+}

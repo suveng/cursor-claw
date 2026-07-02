@@ -53,8 +53,9 @@ const MODEL_LIMIT_HEURISTICS: ReadonlyArray<{ pattern: RegExp; limit: number }> 
 
 type UiLogFn = (channel: string, level: string, message: string) => void
 
-/** 压缩阶段回调：started 时飞书下发进度通知 */
+/** 压缩/活跃回调：onCompression 飞书通知；onActivity 刷新 watchdog */
 export type CompressionNotifyFn = (phase: "started" | "completed") => void
+export type CreateAgentSendOptionsOpts = { onCompression?: CompressionNotifyFn; onActivity?: () => void }
 
 /** 从 models.list 条目提取上下文 token 上限；无则 null */
 function extractContextLimitFromModel(model: unknown): number | null {
@@ -246,22 +247,26 @@ export function handleAgentSendDelta(
   update: InteractionUpdate,
   log: UiLogFn,
   onCompression?: CompressionNotifyFn,
+  onActivity?: () => void,
 ): void {
   if (update.type === "turn-ended") {
     if (update.usage) updateContextUsageDisplay(session, update.usage)
     const used = resolveDisplayContextTokens(session.contextUsage, session.contextUsagePeakTokens)
     logTurnEndedHighWatermark(session.sessionKey, used, session.contextLimitTokens, log)
+    onActivity?.()
     return
   }
   if (update.type === "summary-started") {
     log("SDK", "INFO", `[${session.sessionKey}] [compression] 上下文压缩开始`)
     onCompression?.("started")
+    onActivity?.()
     return
   }
   if (update.type === "summary-completed") {
     log("SDK", "INFO", `[${session.sessionKey}] [compression] 上下文压缩完成`)
     resetContextUsagePeak(session)
     onCompression?.("completed")
+    onActivity?.()
     return
   }
   if (update.type === "summary") {
@@ -273,12 +278,15 @@ export function handleAgentSendDelta(
 export function createAgentSendOptions(
   session: ContextUsageDisplaySession & { sessionKey: string },
   log: UiLogFn,
-  onCompression?: CompressionNotifyFn,
+  optsOrCompression?: CompressionNotifyFn | CreateAgentSendOptionsOpts,
 ): { onDelta: (args: { update: InteractionUpdate }) => void } {
+  const opts: CreateAgentSendOptionsOpts = typeof optsOrCompression === "function"
+    ? { onCompression: optsOrCompression }
+    : (optsOrCompression ?? {})
   return {
     onDelta: (args) => {
       try {
-        handleAgentSendDelta(session, args.update, log, onCompression)
+        handleAgentSendDelta(session, args.update, log, opts.onCompression, opts.onActivity)
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
         log("SDK", "WARN", `[${session.sessionKey}] onDelta 处理异常: ${msg}`)

@@ -18,7 +18,7 @@ import { seedBuiltins, listDefinitions, saveDefinition, deleteDefinition, listIn
 import { runWorkflowDefinition } from "./workflow-runner"
 import { pushLog, pushUiLog, broadcastLog, getLogBuffer, clearLogBuffer, escapeLogContentSingleLine, resetLogFilePath } from "./ui-logger"
 import { applyProxyEnv } from "./proxy-env"
-import { getSdkSessionCount, getSdkSessionList, checkSdkApiKey, listSdkModels, ensureAgentSdkHttpServer } from "./agent-sdk"
+import { getSdkSessionCount, getSdkSessionList, checkSdkApiKey, listSdkModels, ensureAgentSdkHttpServer, recoverSdkActiveRuns } from "./agent-sdk"
 import { getClaudeCodeSessionList } from "./agent-claude-sdk"
 import { getCodexSessionList } from "./agent-codex-sdk"
 import { getOpencodeSessionList } from "./agent-opencode-sdk"
@@ -1261,6 +1261,10 @@ export function initDaemonManager(): void {
   seedBuiltins()
   initSessionDispatcher()
   ensureAgentSdkHttpServer()
+  // 冷启动续接：HTTP server 就绪后 fire-and-forget，失败不阻断 init
+  void recoverSdkActiveRuns().catch((e: unknown) => {
+    pushUiLog("SDK", "WARN", `[recover] recoverSdkActiveRuns 启动失败: ${e instanceof Error ? e.message : String(e)}`)
+  })
   ipcMain.handle("config:apply-workspace-switch", (_, workspaceDir: string, stopOldSessions: boolean) => applyWorkspaceSwitch(workspaceDir, stopOldSessions))
   ipcMain.handle("daemon:get-log-buffer", () => getLogBuffer())
   ipcMain.handle("agent:stop", () => { stopAgent(); return { ok: true } })

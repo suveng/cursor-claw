@@ -51,6 +51,17 @@
 - **内嵌 server**：`resolveOpencodeClient` 按 Profile id 缓存；`stopAllOpencodeSessions` 调 `closeAllEmbeddedOpencodeServers()`。
 - **ui-logger.SessionSource** 含 `"opencode"`。
 
+## Cursor SDK Run 模块边界
+
+- **入口编排**：`agent-sdk.ts` launch/dispatch/HTTP 路由；复杂逻辑下沉 `sdk-run-*`；**单文件 ≤300 行**。
+- **事件流 SSOT**：`sdk-run-stream.ts` — `streamRunEvents`+`handleSdkEvent`；运行期仅 `for await (run.stream())`；`run.wait()` 仅 `finalizeRunContextUsage`/`completeSdkRun` 收尾。
+- **生命周期**：`sdk-run-lifecycle.ts` — `startSdkRun`（挂 watchdog+stream+持久化）、`completeSdkRun`（幂等收尾+`clearActiveSdkRun`）、`stopSdkSession`（`markSdkRunUserStopped`+abort）。
+- **watchdog**：`sdk-run-watchdog.ts` — `armRunWatchdog`；idle/absolute 解耦；`tool_running`/`awaiting_user`/`lastTool.running` 豁免 idle 取消（对称 CC）。
+- **持久化**：`sdk-run-persistence.ts` — `userData/sdk-active-runs.json` 读写；`sdk-run-persist.ts` 呈现游标 3s 节流写盘。
+- **续接**：`sdk-run-recover.ts` — `recoverSdkActiveRuns`（`Agent.resume`+`Agent.getRun`→`startSdkRun`）；`notifyResumeFailure` 一次 IM 提示；`daemon-manager` init 挂接。
+- **呈现/收尾/分发**：`sdk-run-presentation.ts`（stream-text/PRESENTATION_ORDERING）、`sdk-run-finalize.ts`（超时/失败 notify）、`sdk-run-dispatch.ts`（sendWithRetry）。
+- **会话注册表**：`sdk-session-registry.ts`+`sdk-session-types.ts` — `sdkSessions` Map、`markSessionActivity`、`runPhase`；`agent-sdk.ts` re-export 查询 API。
+
 ## 模块边界
 
 - `main-window.ts`：`BrowserWindow` 创建与 renderer 加载（dev `loadURL` / 打包 `loadFile`、`did-fail-load` fallback）；`main.ts` 仅注入退出状态并注册 IPC。
