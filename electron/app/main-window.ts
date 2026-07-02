@@ -29,8 +29,9 @@ function resolveIcon(): string {
   return path.join(dir, "icon.png")
 }
 
+/** 打包后 __dirname 为 out/main，renderer 与 main 同级在 out/ 下 */
 function getRendererHtmlPath(): string {
-  return path.join(__dirname, "../../renderer/index.html")
+  return path.join(__dirname, "../renderer/index.html")
 }
 
 /** 仅开发模式且存在 Vite URL 时走 dev server；打包版忽略残留环境变量 */
@@ -119,7 +120,8 @@ export function createWindow(opts: CreateWindowOptions): void {
     frame: false,
     backgroundColor: WINDOW_BACKGROUND,
     webPreferences: {
-      preload: path.join(__dirname, "../../preload/index.js"),
+      // 打包后 __dirname 为 out/main，preload 与 main 同级在 out/ 下
+      preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },

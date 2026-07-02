@@ -2,7 +2,7 @@
 
 ## 模块边界
 
-- `main-window.ts`：`BrowserWindow` 创建与 renderer 加载（dev `loadURL` / 打包 `loadFile`、`did-fail-load` fallback）；`main.ts` 仅注入退出状态并注册 IPC。
+- `main-window.ts`：`BrowserWindow` 创建与 renderer 加载（dev `loadURL` / 打包 `loadFile`、`did-fail-load` fallback）；`main.ts` 仅注入退出状态并注册 IPC。打包后 `__dirname` 为 `out/main`，renderer/preload 相对路径为 `../renderer`、`../preload`（**禁止** `../../` 回退到项目根）。
 - `ui-logger.ts`：`pushUiLog` / `broadcastLog` / `getLogBuffer`；`SessionSource` 含 `"sdk"` / `"codex"` / `"opencode"` 等引擎标识。
 - `proxy-env.ts`：子进程/Daemon 启动时的 HTTP(S) 代理 env 注入；**不** spawn Cursor CLI。
 - `tray.ts`：系统托盘菜单与窗口显隐。

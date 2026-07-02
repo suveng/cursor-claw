@@ -28,6 +28,11 @@
 - **通道配置**：`MessageChannel` / `AgentResource` 变更须同步 `src/shared/channel-types.ts`、`preload.ts`、`env.d.ts`（详见 [config/AGENTS.md](config/AGENTS.md)）。
 - **SDK 可观测**：`handleSdkEvent` 写 `lastTool`；超时类 `isRunTimeoutFailure` 优先于 CANCELLED 文案（详见 [agent/cursor-sdk/AGENTS.md](agent/cursor-sdk/AGENTS.md)）。
 
+## main-window 模块边界
+
+- **入口**：`app/main-window.ts` 负责 `BrowserWindow` 创建与 renderer 加载（dev `loadURL` / 打包 `loadFile`）；详情见 [app/AGENTS.md](app/AGENTS.md)。
+- **打包路径约定**：打包后 `__dirname` 为 `out/main`，renderer/preload 与 main 同级在 `out/` 下，相对路径为 `../renderer`、`../preload`（**禁止** `../../` 回退到项目根）。
+
 ## Skills IPC 模块边界
 
 - **入口**：`skills-ipc.ts` 导出 `SkillScope`、`SkillTreeNode`、`resolveSkillsDir`、`buildSkillTree`、`registerSkillsIpcHandlers`；`main.ts` 在 `registerIpcHandlers` 内调用注册，**禁止**内联 `skills:*` handler。
