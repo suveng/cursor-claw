@@ -5,17 +5,18 @@ const fs = require("fs");
 const pkg = require(path.resolve(__dirname, "../package.json"));
 const pkgJson = JSON.stringify(pkg);
 
+// 匹配 require("../package.json")、_require("../../package.json") 等相对路径变体
+const PACKAGE_JSON_REQUIRE_RE =
+  /\w+\(["'](?:\.\.\/)+package\.json["']\)/g;
+
 const inlinePackageJson = {
   name: "inline-package-json",
   setup(b) {
     b.onLoad({ filter: /\.(js|ts)$/ }, async (args) => {
-      let contents = fs.readFileSync(args.path, "utf8");
-      if (contents.includes('("../package.json")')) {
-        contents = contents.replace(
-          /\w+\("\.\.\/package\.json"\)/g,
-          pkgJson,
-        );
-        return { contents, loader: "js" };
+      const contents = fs.readFileSync(args.path, "utf8");
+      const inlined = contents.replace(PACKAGE_JSON_REQUIRE_RE, pkgJson);
+      if (inlined !== contents) {
+        return { contents: inlined, loader: "js" };
       }
     });
   },

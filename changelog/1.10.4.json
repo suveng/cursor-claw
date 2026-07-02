@@ -1,0 +1,7 @@
+{
+  "version": "1.10.4",
+  "date": "2026-07-02",
+  "changes": [
+    "修复打包版启动 Agent 时 Daemon 因找不到 package.json 而崩溃的问题"
+  ]
+}

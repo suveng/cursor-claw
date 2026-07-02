@@ -1,0 +1,67 @@
+{
+  "change_id": "20260702143057-修复打包版Daemon版本读取",
+  "name": "修复打包版Daemon版本读取",
+  "flow": "lite",
+  "lite_type": "记录型",
+  "stage": "archived",
+  "archived_at": "2026-07-02T15:30:00+0800",
+  "source": "kb-scribe",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-02T14:30:57+08:00",
+  "updated_at": "2026-07-02T15:30:00+0800",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "修复打包版 Daemon package.json 内联",
+      "status": "done",
+      "files": [
+        "scripts/bundle-daemon.cjs",
+        "package.json",
+        "changelog/1.10.4.json"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "scripts/bundle-daemon.cjs",
+      "kind": "code",
+      "status": "applied"
+    },
+    {
+      "path": "package.json",
+      "kind": "config",
+      "status": "applied"
+    },
+    {
+      "path": "changelog/1.10.4.json",
+      "kind": "config",
+      "status": "applied"
+    },
+    {
+      "path": "knowledge/变更/归档/20260702143057-修复打包版Daemon版本读取/00-manifest.json",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260702143057-修复打包版Daemon版本读取/01-proposal.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260702143057-修复打包版Daemon版本读取/05-summary.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "added"
+    },
+    {
+      "path": "knowledge/变更/归档/20260702143057-修复打包版Daemon版本读取/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "added"
+    }
+  ]
+}
