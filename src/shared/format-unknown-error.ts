@@ -134,6 +134,80 @@ function formatRecordFields(rec: Record<string, unknown>): string {
   return safeJsonStringify(redactObject(rec));
 }
 
+/** gRPC StatusCode 常用映射（connect/grpc-js） */
+const GRPC_STATUS_NAMES: Record<number, string> = {
+  0: "OK",
+  1: "CANCELLED",
+  2: "UNKNOWN",
+  3: "INVALID_ARGUMENT",
+  4: "DEADLINE_EXCEEDED",
+  5: "NOT_FOUND",
+  6: "ALREADY_EXISTS",
+  7: "PERMISSION_DENIED",
+  8: "RESOURCE_EXHAUSTED",
+  9: "FAILED_PRECONDITION",
+  10: "ABORTED",
+  11: "OUT_OF_RANGE",
+  12: "UNIMPLEMENTED",
+  13: "INTERNAL",
+  14: "UNAVAILABLE",
+  15: "DATA_LOSS",
+  16: "UNAUTHENTICATED",
+}
+
+/** Connect 网络读超时等场景：将部分码归一为 UNAVAILABLE 展示 */
+const GRPC_STATUS_DISPLAY_ALIASES: Record<number, string> = {
+  2: "UNAVAILABLE",
+  14: "UNAVAILABLE",
+}
+
+/** ConnectError / connect-js 抛出的 Error 形态 */
+type ConnectErrorLike = Error & {
+  code?: string | number
+  rawMessage?: string
+}
+
+function isConnectErrorLike(err: Error): boolean {
+  const rec = err as ConnectErrorLike
+  if (err.name === "ConnectError") return true
+  if (/^\[unknown\]/i.test(err.message)) return true
+  if (typeof rec.rawMessage === "string" && rec.rawMessage.length > 0) return true
+  if (typeof rec.code === "number" && Number.isFinite(rec.code)) return true
+  return false
+}
+
+/** 去掉 ConnectError message 开头的 [unknown]/[unavailable] 前缀 */
+function stripConnectErrorMessagePrefix(message: string): string {
+  return message.replace(/^(?:\[(?:unknown|unavailable)\]\s*)+/i, "").trim()
+}
+
+/** 数字 gRPC code → 展示名（含业务别名） */
+function resolveGrpcStatusDisplayName(code: number): string {
+  return GRPC_STATUS_DISPLAY_ALIASES[code] ?? GRPC_STATUS_NAMES[code] ?? `CODE_${code}`
+}
+
+/** 格式化 ConnectError：UNAVAILABLE read ETIMEDOUT | code=14 | … */
+function formatConnectError(err: ConnectErrorLike): string {
+  const raw = err.rawMessage ?? err.message
+  const body = stripConnectErrorMessagePrefix(raw)
+  const codeNum = typeof err.code === "number" && Number.isFinite(err.code) ? err.code : undefined
+  const parts: string[] = []
+  if (codeNum != null) parts.push(resolveGrpcStatusDisplayName(codeNum))
+  parts.push(body || err.name || "ConnectError")
+  if (codeNum != null) parts.push(`code=${codeNum}`)
+  const errno = (err as Error & { errno?: number }).errno
+  if (errno != null) parts.push(`errno=${errno}`)
+  const syscall = (err as Error & { syscall?: string }).syscall
+  if (syscall) parts.push(`syscall=${syscall}`)
+  const stackLine = firstStackLine(err.stack)
+  if (stackLine) parts.push(stackLine)
+  if ("cause" in err && err.cause != null) {
+    const c = formatCause(err.cause)
+    if (c) parts.push(c)
+  }
+  return parts.join(" | ")
+}
+
 /** 内部格式化（不含注册点 hint，供 cause 递归） */
 function formatUnknownErrorInner(reason: unknown): string {
   if (reason == null) return String(reason);
@@ -148,6 +222,9 @@ function formatUnknownErrorInner(reason: unknown): string {
   }
 
   if (reason instanceof Error) {
+    if (isConnectErrorLike(reason)) {
+      return formatConnectError(reason as ConnectErrorLike);
+    }
     const err = reason as Error & { code?: string | number; errno?: number; syscall?: string };
     const parts: string[] = [err.message || err.name || "Error"];
     if (err.code != null) parts.push(`code=${err.code}`);

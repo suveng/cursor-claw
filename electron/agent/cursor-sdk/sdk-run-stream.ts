@@ -11,6 +11,7 @@ import {
 } from "../../../src/shared/tool-presentation"
 import { finalizeContextUsageAtRunEnd } from "./context-usage-run-end"
 import { pushUiLog } from "../../app/ui-logger"
+import { guardSdkPromise } from "./sdk-async-guard"
 import {
   finalizeSdkRunOnTimeout,
   isRunTimeoutFailure,
@@ -126,7 +127,11 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
         appendSdkLog(session, "thinking", event.text)
         markProcessEventSeen(session, "thinking")
         session.thinkingOpen = true
-        void postPresentationEvent(session, { kind: "thinking", delta: event.text })
+        guardSdkPromise(
+          postPresentationEvent(session, { kind: "thinking", delta: event.text }),
+          session.sessionKey,
+          "presentation-event:thinking",
+        )
       }
       break
     case "tool_call": {
@@ -141,13 +146,17 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       if (tier === "notify") {
         markProcessEventSeen(session, "tool")
         if (event.status === "running") session.toolPresentationOutboundIds?.delete(event.name)
-        void postPresentationEvent(session, {
-          kind: "tool",
-          tool_name: event.name,
-          tool_status: mapToolPresentationStatus(event.status),
-          final: event.status !== "running",
-          ...extractShellPresentationFields(event.name, event.status, event.args, event.result),
-        })
+        guardSdkPromise(
+          postPresentationEvent(session, {
+            kind: "tool",
+            tool_name: event.name,
+            tool_status: mapToolPresentationStatus(event.status),
+            final: event.status !== "running",
+            ...extractShellPresentationFields(event.name, event.status, event.args, event.result),
+          }),
+          session.sessionKey,
+          "presentation-event:tool",
+        )
         if (event.status !== "running") {
           maybeReleaseDeferredAssistant(session)
         }
@@ -163,9 +172,19 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
         session.lastStatus = { status: event.status, message: event.message }
         if (!session.abortController.signal.aborted && session.run) {
           if (isRunTimeoutFailure(session, session.run, session.lastStatus)) {
-            void finalizeSdkRunOnTimeout(session, session.run, "status")
+            guardSdkPromise(
+              finalizeSdkRunOnTimeout(session, session.run, "status"),
+              session.sessionKey,
+              "finalizeSdkRunOnTimeout:status",
+              "ERROR",
+            )
           } else if (event.status === "CANCELLED") {
-            void notifySdkFailure(session, undefined, session.run, "sdk_cancelled")
+            guardSdkPromise(
+              notifySdkFailure(session, undefined, session.run, "sdk_cancelled"),
+              session.sessionKey,
+              "notifySdkFailure:cancelled",
+              "ERROR",
+            )
           }
         }
       }
@@ -188,11 +207,15 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       // task 里程碑参与 ordering defer，与 thinking/tool 对称置闩（不单独 release）
       markProcessEventSeen(session, "task")
       // task_text 传映射后全文，daemon 直接用于里程碑展示（非 SDK 原始 text）
-      void postPresentationEvent(session, {
-        kind: "task",
-        task_status: event.status,
-        task_text: mappedText,
-      })
+      guardSdkPromise(
+        postPresentationEvent(session, {
+          kind: "task",
+          task_status: event.status,
+          task_text: mappedText,
+        }),
+        session.sessionKey,
+        "presentation-event:task",
+      )
       pushUiLog("SDK", "INFO", `[${session.sessionKey}] [task] ${mappedText}`)
       break
     }

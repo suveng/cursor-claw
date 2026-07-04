@@ -41,4 +41,5 @@
 
 - MCP loader import `../../mcp/loaders/mcp-sdk-loader`；共享符号 `../shared/agent-launcher`。
 - 通知 Daemon 用 `../../daemon/daemon-client`，避免与 `session/session-dispatcher` 循环 import。
+- **SDK 异步链 fire-and-forget**：`streamRunEvents→completeSdkRun`、`watchRunGuard`、`finalizeSdkRunOnTimeout`、`notifySdkFailure`、`postPresentationEvent`、`flushDeferredStreamPost` 等 **须** `.catch` 或经 `sdk-async-guard.guardSdkPromise` 消化 rejection，**禁止**冒泡至 process `unhandledRejection`。
 - **禁止**旧路径 `./agent-sdk` re-export shim。

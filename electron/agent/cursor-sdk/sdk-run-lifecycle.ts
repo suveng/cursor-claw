@@ -28,11 +28,17 @@ import {
 } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
 import { pushUiLog } from "../../app/ui-logger"
+import {
+  guardSdkPromise,
+  isSdkNetworkOrTimeoutError,
+  logSdkRunChainError,
+} from "./sdk-async-guard"
 
 export const NOTIFY_PROCESSING = "Agent 处理中…"
 
 /** 启动 Run：挂 watchdog + 事件流 SSOT */
 export async function startSdkRun(session: SdkSessionAgent, run: Run): Promise<void> {
+  const sessionKey = session.sessionKey
   session.failureArchiveDone = false
   session.run = run
   session.runStartedAt = Date.now()
@@ -44,7 +50,20 @@ export async function startSdkRun(session: SdkSessionAgent, run: Run): Promise<v
   }
   await notifySessionChat(session.sessionKey, NOTIFY_PROCESSING)
   await reportSessionAgentPhase(session.sessionKey, "processing")
-  streamRunEvents(session, run).then(() => completeSdkRun(session, run))
+  streamRunEvents(session, run)
+    .then(() => completeSdkRun(session, run))
+    .catch((err: unknown) => {
+      logSdkRunChainError(sessionKey, "stream→complete", err)
+      if (session.abortController.signal.aborted || session.errorNotified) return
+      if (isSdkNetworkOrTimeoutError(err)) {
+        guardSdkPromise(
+          notifySdkFailure(session, undefined, run, "sdk_stream_exception"),
+          sessionKey,
+          "notifySdkFailure",
+          "ERROR",
+        )
+      }
+    })
 }
 
 /** Run 终态收尾（幂等） */

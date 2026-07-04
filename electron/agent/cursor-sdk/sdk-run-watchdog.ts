@@ -8,6 +8,7 @@ import { finalizeSdkRunOnTimeout } from "./sdk-run-finalize"
 import { setWatchdogState } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
 import { pushUiLog } from "../../app/ui-logger"
+import { logSdkRunChainError } from "./sdk-async-guard"
 
 const LEGACY_RUN_WATCHDOG_TIMEOUT_MS = Number(process.env.SDK_RUN_WATCHDOG_MS || PLATFORM_RUN_LIMIT_MS)
 const RUN_WATCHDOG_IDLE_TIMEOUT_MS = Number(
@@ -123,7 +124,11 @@ export function armRunWatchdog(session: SdkSessionAgent, run: Run, token: string
         await finalizeSdkRunOnTimeout(session, run, "watchdog")
       }
     },
-  }).then((result) => {
-    pushUiLog("SDK", "INFO", `[${session.sessionKey}] watchdog 结束: ${result}`)
   })
+    .then((result) => {
+      pushUiLog("SDK", "INFO", `[${session.sessionKey}] watchdog 结束: ${result}`)
+    })
+    .catch((err: unknown) => {
+      logSdkRunChainError(session.sessionKey, "watchdog", err, "WARN")
+    })
 }

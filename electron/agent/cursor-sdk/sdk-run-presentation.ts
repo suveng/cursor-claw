@@ -4,6 +4,7 @@
 import { readLockFile, httpPost } from "../../daemon/daemon-client"
 import { appendContextFooter, formatContextFooter } from "./context-usage"
 import { pushUiLog } from "../../app/ui-logger"
+import { guardSdkPromise } from "./sdk-async-guard"
 import { persistActiveRunSnapshot } from "./sdk-run-persist"
 import { presentationOrderingEligible } from "./sdk-session-registry"
 import type { PresentationEvent, PresentationKind, SdkSessionAgent } from "./sdk-session-types"
@@ -209,7 +210,11 @@ export function appendAssistantStreamDelta(session: SdkSessionAgent, delta: stri
 export function closeThinkingIfOpen(session: SdkSessionAgent): void {
   if (!session.thinkingOpen) return
   session.thinkingOpen = false
-  void postPresentationEvent(session, { kind: "thinking", final: true })
+  guardSdkPromise(
+    postPresentationEvent(session, { kind: "thinking", final: true }),
+    session.sessionKey,
+    "presentation-event:thinking-final",
+  )
   maybeReleaseDeferredAssistant(session)
 }
 
@@ -237,5 +242,9 @@ export function maybeReleaseDeferredAssistant(session: SdkSessionAgent): void {
   if (shouldEndOnlyAssistantDefer(session)) return
   if (!presentationOrderingEligible(session)) return
   if (!session.seenProcessEvent && !session.presentationDeferStream) return
-  void flushDeferredStreamPost(session)
+  guardSdkPromise(
+    flushDeferredStreamPost(session),
+    session.sessionKey,
+    "flushDeferredStreamPost",
+  )
 }

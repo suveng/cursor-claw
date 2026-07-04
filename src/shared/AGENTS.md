@@ -10,8 +10,8 @@
 | `feishu-presentation-gate.ts` | `isFeishuProcessPresentationSuppressed` 飞书过程展示门控 | daemon、electron |
 | `tool-presentation.ts` | Shell 工具 CardKit 字段解析、里程碑文案 `formatToolMilestoneText` 与截断常量 | bridge/lark-core、electron、daemon |
 | `sdk-tool-presentation-tier.ts` | SDK `tool_name` → notify/silent 分级 SSOT | electron cursor-sdk |
+| `format-unknown-error.ts` | `formatUnknownError` 未知 rejection/exception 诊断格式化 SSOT | electron `main.ts`、daemon 全局 handler、cursor-sdk `sdk-async-guard` |
 | `constants.ts` | `LOCK_FILE_NAME` 等进程级常量 | daemon-entry |
-| `format-unknown-error.ts` | 全局 rejection/exception 诊断格式化 SSOT | daemon、electron |
 
 ## import 约定
 
@@ -33,11 +33,16 @@
 - **飞书过程抑制**：daemon `handleToolPresentationEvent` / `handleThinkingPresentationEvent` 与 electron `postPresentationEvent` **均须**调用 `isFeishuProcessPresentationSuppressed`；禁止在调用方复制通道判断逻辑。
 - **门控范围**：仅抑制飞书 tool/thinking CardKit；assistant `stream-text` 与 `PRESENTATION_ORDERING` 不受影响；微信路径不经此 gate。
 - **tool-presentation**：`TOOL_LOG_DETAIL_MAX`、`TOOL_CARD_SHELL_OUTPUT_MAX`、`TOOL_MILESTONE_TEXT_MAX` 为截断上限 SSOT；`formatToolMilestoneText` 为飞书 tool 里程碑文案 SSOT；`lark-core`、electron agent 与 daemon 里程碑须引用本模块，不重复定义 magic number。
+- **task 工具里程碑**：`tool_call` 名 `task` 时，`extractTaskPresentationFields` 从 args 解析 `description` → `tool_task_description`；`formatToolMilestoneText` 在 `started` 态优先输出 `正在执行：{截断描述}`，禁止裸 `task：已开始`；daemon 与 electron 须透传该字段，不重复解析 args。
 
 ## 全局异常日志
 
 - **格式化 SSOT**：daemon `daemon.ts` 与 electron `main.ts` 的 `uncaughtException` / `unhandledRejection` **须**调用 `formatUnknownError(..., { includeRegistrationHint: true })`；禁止内联 `instanceof Error` 或 `e?.stack` 退化输出 `[unknown]`。
 - **rejection 上下文**：`unhandledRejection` 日志须追加 `promise=[object Promise]`（`Object.prototype.toString.call(promise)`）；daemon 用 `log("ERROR", ...)`，electron 用 `broadcastLog`。
+
+## format-unknown-error 约定
+
+- **ConnectError 形态**：`instanceof Error` 且 `name === 'ConnectError'`、message 以 `[unknown]` 开头、或存在 `rawMessage` / 数字 `code`（gRPC）时走 ConnectError 分支；去掉 message 前缀 `[unknown]`/`[unavailable]`；数字 `code` 经展示别名映射（如 `2`/`14` → `UNAVAILABLE`）后输出 `UNAVAILABLE read ETIMEDOUT | code=14 | …` 形态，而非 `[unknown] [unavailable]…`。
 
 ## 禁止
 
