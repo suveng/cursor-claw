@@ -3,11 +3,10 @@
   "title": "IM通知消息顺序与流式推送优化",
   "name": "IM通知消息顺序与流式推送优化",
   "flow": "standard",
-  "stage": "archived_with_debt",
+  "stage": "acceptance_reopened",
   "source": "kb-propose",
   "created_at": "2026-07-04T19:07:48+0800",
-  "updated_at": "2026-07-04T19:35:00+0800",
-  "archived_at": "2026-07-04T19:35:00+0800",
+  "updated_at": "2026-07-04T19:50:00+0800",
   "files": [
     "00-manifest.json",
     "01-proposal.md",
@@ -16,6 +15,7 @@
     "04-review.md",
     "05-summary.md",
     "06-automation-test.md",
+    "08-verify-issue.md",
     {
       "path": "electron/agent/cursor-sdk/sdk-run-presentation.ts",
       "kind": "code",
@@ -126,5 +126,17 @@
     }
   ],
   "reviews": [],
-  "revisions": []
+  "revisions": [],
+  "external": {
+    "acceptance": {
+      "rounds": [
+        {
+          "round": 1,
+          "reason": "code",
+          "feedback": "出现相同的消息，重复发送（assistant 答复文案完全相同出现两次）",
+          "created_at": "2026-07-04T19:50:00+0800"
+        }
+      ]
+    }
+  }
 }
