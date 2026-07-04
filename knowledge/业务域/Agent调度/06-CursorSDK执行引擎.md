@@ -14,6 +14,7 @@
 - **Presentation**：thinking/task 始终 post（飞书 thinking **零里程碑出站**）；tool 分级 notify→mark+post、silent 仅日志；assistant→stream-text（400ms）。飞书 tool/task 抑制→`formatToolMilestoneText` / `mapTaskMilestoneText` 里程碑；Electron POST+置闩。**与 A Rev2 end-only 正交**；supersede A·F8.1 飞书 thinking 实时里程碑部分。
 - **PRESENTATION_ORDERING**（p2p+f41）：thinking/notify-tool/task 经 mark 置 defer 闩；抑制≠defer；Daemon `sendMilestoneText` sent 时亦置 `presentationProcessActive`。**ordering 闩锁与 Rev2 分工**：闩锁仍标记含过程应 defer assistant；Rev2 将 release 从过程 idle 改为 Run final 唯一出站。**Rev2 end-only**：含过程 Run 过程未结束前 assistant **零 IM 出站**；`shouldEndOnlyAssistantDefer` 禁止 Electron mid-run release；Daemon 禁用 process-idle `enqueueRelease`，`handleStreamText` defer-only 直至 final；里程碑 `sendMilestoneText` 行为不变。
 - **release 串行与 Run 收尾**：`assistantReleaseChain` 仅服务 final 首建；Run 收尾 `flushStreamPost(true)` 为 ordering+含过程场景唯一 assistant 出站，无 non-final 双 POST。
+- **watchdog**：`tool_running`/`awaiting_user`/`lastTool.running` 豁免 idle 取消。`onTimeout` 在 `cancelRunAndWait` 前置 `watchdogTimedOut` 闩（对称 CC；用户 stop 不置闩，`resetSdkRunPresentationState` 清零）；`markSessionActivity` 在 `cancelling`/闩已置时禁止 `activity_resume`（防 stream CANCELLED 复活 watchdog）。
 
 ## 三、服务端规则
 
@@ -48,7 +49,7 @@ RunGuard+watchdog；400ms 节流；Rev2 end-only：含过程 Run 收尾单次 `f
 
 ## 八、推送
 
-`presentation-event`+`stream-text` 出站。thinking/task 始终 presentation（**飞书 thinking 零里程碑**）；assistant 仅 stream-text；notify tool 仍 presentation-event；silent 不出站。飞书 tool/task 抑制→`sendMilestoneText`（3s、≤4/Run）：shell started 含命令摘要（`formatToolMilestoneText`）；task started 含描述或 `#序号`（`mapTaskMilestoneText`+`taskSeq`）。与 A Rev2 end-only 正交；supersede A·F8.1 飞书 thinking 部分。
+`presentation-event`+`stream-text` 出站。thinking/task 始终 presentation（**飞书 thinking 零里程碑**）；assistant 仅 stream-text；notify tool 仍 presentation-event；silent 不出站。飞书 tool/task 抑制→`sendMilestoneText`（3s、≤4/Run）：shell/Task **tool_call** started 经 `formatToolMilestoneText`（shell 命令摘要；Task 含 `tool_task_description`→`正在执行：{描述}`）；task **事件** started 含描述或 `#序号`（`mapTaskMilestoneText`+`taskSeq`）。watchdog 竞态仅单次 `sdk_timeout`（`watchdogTimedOut` 闩去重 status/stream/complete 收尾）。与 A Rev2 end-only 正交；supersede A·F8.1 飞书 thinking 部分。
 
 ## 九、已知限制与 TODO
 
@@ -56,6 +57,7 @@ RunGuard+watchdog；400ms 节流；Rev2 end-only：含过程 Run 收尾单次 `f
 
 ## 十、变更记录
 
+- 2026-07-04：`watchdogTimedOut` 闩与 activity 门控、超时收尾去重；Task tool_call 飞书 started 含描述（archive 20260704223914）。
 - 2026-07-04：飞书 started 里程碑文案补强（shell 命令摘要、task 描述/序号）+ 飞书 thinking 零出站（archive 20260704212706；supersede A·F8.1 飞书 thinking 部分）。
 - 2026-07-04：Rev2 end-only assistant IM——过程实时出站、答复仅 Run final 首建流式完结；禁用 process-idle release（archive 20260704190748 Rev2）。
 - 2026-07-04：T-FIX release 串行化与飞行窗口门控（archive 20260704190748 复归档）。

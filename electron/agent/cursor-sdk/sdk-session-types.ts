@@ -84,6 +84,12 @@ export interface SdkSessionAgent {
   watchdogState: "running" | "draining" | "cancelling"
   /** watchdog 状态切换时间戳（ms） */
   watchdogStateAt: number
+  /**
+   * watchdog 空闲/绝对超时触发时为 true（对称 CC）。
+   * 由 armRunWatchdog.onTimeout 在取消前置位；resetSdkRunPresentationState 清零；
+   * 用户主动 stopSdkSession 不置闩。
+   */
+  watchdogTimedOut?: boolean
   /** 最近一次注入 SDK 的 inline mcpServers 快照（SDK 无 list/status API，展示侧据此渲染） */
   lastInjectedMcpServers?: Record<string, McpServerConfig>
 }

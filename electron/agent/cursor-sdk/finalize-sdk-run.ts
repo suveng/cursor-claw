@@ -20,6 +20,8 @@ export interface SdkSessionForFinalizer {
   abortController: AbortController
   residentMode: boolean
   runFinalizing?: boolean
+  /** watchdog onTimeout 已置闩；副门控防止 status/stream/complete 重复判超时 */
+  watchdogTimedOut?: boolean
   errorNotified?: boolean
   failureArchiveDone?: boolean
   lastStatus?: { status: string; message?: string }
@@ -61,6 +63,8 @@ export function isRunTimeoutFailure(
 ): boolean {
   // 用户主动 Stop 不判超时
   if (session.abortController.signal.aborted) return false
+  // watchdog 已主动超时收尾，副门控兜底防遗漏 caller
+  if (session.watchdogTimedOut === true) return false
 
   const st = (lastStatus ?? session.lastStatus)?.status?.toUpperCase()
   const message = (lastStatus ?? session.lastStatus)?.message

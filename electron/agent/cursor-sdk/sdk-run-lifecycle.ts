@@ -79,9 +79,11 @@ export async function completeSdkRun(session: SdkSessionAgent, run: Run): Promis
     return
   }
 
+  // watchdog 已超时收尾时 complete 路径不再重复 finalize
   if (
     run.status === "cancelled" &&
     !session.errorNotified &&
+    !session.watchdogTimedOut &&
     isRunTimeoutFailure(session, run)
   ) {
     await finalizeSdkRunOnTimeout(session, run, "complete")

@@ -49,6 +49,7 @@ export function resetSdkRunPresentationState(session: SdkSessionAgent): void {
   session.taskSeq = undefined
   session.watchdogState = "running"
   session.watchdogStateAt = Date.now()
+  session.watchdogTimedOut = undefined
   session.abortController = new AbortController()
 }
 
@@ -65,10 +66,14 @@ export function setWatchdogState(
 
 /**
  * 活跃信号统一入口：任何可观测事件都刷新 lastActivityAt。
- * 若此前因空闲进入 draining/cancelling，则立即恢复 running，避免误取消。
+ * draining 态可 resume 为 running（hung run 保护）；cancelling 或 watchdog 已置闩时不 resume，避免竞态误复活。
  */
 export function markSessionActivity(session: SdkSessionAgent, source: string): void {
   session.lastActivityAt = Date.now()
+  // watchdog 已进入取消或 onTimeout 已置闩：仅刷新时钟，禁止 activity_resume
+  if (session.watchdogState === "cancelling" || session.watchdogTimedOut) {
+    return
+  }
   if (session.watchdogState !== "running") {
     setWatchdogState(session, "running", `activity_resume:${source}`)
   }

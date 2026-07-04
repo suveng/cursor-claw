@@ -148,6 +148,11 @@ export function stringifyToolPayload(value: unknown, max = TOOL_LOG_DETAIL_MAX):
       if (parsed.cwd) parts.push(`cwd=${parsed.cwd}`);
       return truncateText(parts.join(" "), max);
     }
+    // task 工具：日志优先展示 description，与飞书里程碑字段对齐
+    const taskParsed = parseTaskToolArgs(value);
+    if (taskParsed?.tool_task_description) {
+      return truncateText(`description=${taskParsed.tool_task_description}`, max);
+    }
     try {
       return truncateText(JSON.stringify(value), max);
     } catch {

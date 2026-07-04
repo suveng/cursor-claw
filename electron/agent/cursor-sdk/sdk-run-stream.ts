@@ -136,6 +136,7 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       }
       break
     case "tool_call": {
+      // 分级门控仅控制 IM 出站；日志、活跃时钟、watchdog 副作用始终全量（含 silent 工具）
       markSessionActivity(session, "tool_call")
       flushSdkLog(session)
       closeThinkingIfOpen(session)
@@ -172,7 +173,13 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       const isErr = event.status === "ERROR" || event.status === "EXPIRED"
       if (isErr || event.status === "CANCELLED") {
         session.lastStatus = { status: event.status, message: event.message }
-        if (!session.abortController.signal.aborted && session.run) {
+        // watchdog 已超时收尾或正在 finalizing 时跳过，避免与 onTimeout 路径重复 notify/归档
+        if (
+          !session.abortController.signal.aborted &&
+          session.run &&
+          !session.watchdogTimedOut &&
+          !session.runFinalizing
+        ) {
           if (isRunTimeoutFailure(session, session.run, session.lastStatus)) {
             guardSdkPromise(
               finalizeSdkRunOnTimeout(session, session.run, "status"),
@@ -262,10 +269,12 @@ export async function streamRunEvents(session: SdkSessionAgent, run: Run): Promi
     if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
       await flushStreamPost(session, true)
     }
+    // watchdog 已超时收尾或正在 finalizing 时跳过 stream 尾部 finalize，避免二次 notify/归档
     if (
+      !session.watchdogTimedOut &&
+      !session.runFinalizing &&
       (run.status === "error" || run.status === "cancelled") &&
-      isRunTimeoutFailure(session, run) &&
-      !session.runFinalizing
+      isRunTimeoutFailure(session, run)
     ) {
       await finalizeSdkRunOnTimeout(session, run, "stream")
     }

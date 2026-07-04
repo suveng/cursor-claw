@@ -114,6 +114,8 @@ export function armRunWatchdog(session: SdkSessionAgent, run: Run, token: string
         return
       }
       setWatchdogState(session, "cancelling", `timeout_cb_idle:${idleMs}ms`)
+      // 先于 cancelRunAndWait 置闩，供 markSessionActivity / 收尾路径识别 watchdog 主动超时（对称 CC）
+      session.watchdogTimedOut = true
       pushUiLog(
         "SDK",
         "WARN",
