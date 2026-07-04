@@ -910,6 +910,8 @@ interface PresentationEvent {
   tool_shell_command?: string;
   tool_shell_cwd?: string;
   tool_shell_output?: string;
+  /** task 工具 tool_call：子代理任务描述（飞书里程碑摘要） */
+  tool_task_description?: string;
   /** task 里程碑状态（如 in_progress / completed） */
   task_status?: string;
   /** task 里程碑展示文案 */
@@ -1458,12 +1460,11 @@ async function handleToolPresentationEvent(
     const formattedText = formatToolMilestoneText(
       toolName,
       status,
-      event.tool_shell_command
-        ? {
-          tool_shell_command: event.tool_shell_command,
-          tool_shell_cwd: event.tool_shell_cwd,
-        }
-        : undefined,
+      {
+        tool_shell_command: event.tool_shell_command,
+        tool_shell_cwd: event.tool_shell_cwd,
+        tool_task_description: event.tool_task_description,
+      },
     );
     const sent = await sendMilestoneText(
       sessionKey,

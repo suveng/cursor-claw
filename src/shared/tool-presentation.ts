@@ -17,6 +17,18 @@ export interface ToolShellPresentationFields {
   tool_shell_output?: string;
 }
 
+/** Task 工具 presentation-event 描述字段 */
+export interface ToolTaskPresentationFields {
+  tool_task_description: string;
+}
+
+/** 飞书里程碑文案可选详情（shell 命令 / task 描述） */
+export interface ToolMilestoneDetail {
+  tool_shell_command?: string;
+  tool_shell_cwd?: string;
+  tool_task_description?: string;
+}
+
 function truncateText(text: string, max: number): string {
   const compact = text.replace(/\s+/g, " ").trim();
   if (compact.length <= max) return compact;
@@ -104,6 +116,27 @@ export function extractShellPresentationFields(
   return fields;
 }
 
+/** 解析 Task 工具 args 中的 description */
+export function parseTaskToolArgs(args: unknown): Pick<ToolTaskPresentationFields, "tool_task_description"> | undefined {
+  if (!args || typeof args !== "object") return undefined;
+  const rec = args as Record<string, unknown>;
+  const description = typeof rec.description === "string" ? rec.description.trim() : "";
+  if (!description) return undefined;
+  return { tool_task_description: description };
+}
+
+/** SDK task 工具 tool_call → presentation-event 的描述字段 */
+export function extractTaskPresentationFields(
+  toolName: string,
+  _status: "running" | "completed" | "error",
+  args?: unknown,
+): ToolTaskPresentationFields | undefined {
+  if (toolName !== "task") return undefined;
+  const parsed = parseTaskToolArgs(args);
+  if (!parsed?.tool_task_description) return undefined;
+  return { tool_task_description: parsed.tool_task_description };
+}
+
 /** 日志单行：tool args/result 摘要 */
 export function stringifyToolPayload(value: unknown, max = TOOL_LOG_DETAIL_MAX): string | undefined {
   if (value == null) return undefined;
@@ -148,15 +181,16 @@ function toolMilestoneStatusLabel(status: "started" | "completed" | "failed"): s
 }
 
 /**
- * notify 级工具飞书里程碑单行文案 SSOT（含 shell 命令摘要）
- * shell started 优先展示具体命令；无命令时用明确降级句，禁止裸 `` shell: started ``
+ * notify 级工具飞书里程碑单行文案 SSOT（含 shell 命令 / task 描述摘要）
+ * shell started 优先展示具体命令；task started 优先展示 description；禁止裸 `` tool：已开始 ``
  */
 export function formatToolMilestoneText(
   toolName: string,
   status: "started" | "completed" | "failed",
-  shell?: Pick<ToolShellPresentationFields, "tool_shell_command" | "tool_shell_cwd">,
+  detail?: ToolMilestoneDetail,
 ): string {
-  const command = shell?.tool_shell_command?.trim();
+  const command = detail?.tool_shell_command?.trim();
+  const taskDesc = detail?.tool_task_description?.trim();
   const statusLabel = toolMilestoneStatusLabel(status);
 
   if (toolName === "shell") {
@@ -171,6 +205,19 @@ export function formatToolMilestoneText(
       return `执行命令：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}（${statusLabel}）`;
     }
     return `shell：${statusLabel}`;
+  }
+
+  if (toolName === "task") {
+    if (status === "started") {
+      if (taskDesc) {
+        return `正在执行：${truncateText(taskDesc, TOOL_MILESTONE_TEXT_MAX)}`;
+      }
+      return "子任务已开始（描述暂不可展示）";
+    }
+    if (taskDesc) {
+      return `正在执行：${truncateText(taskDesc, TOOL_MILESTONE_TEXT_MAX)}（${statusLabel}）`;
+    }
+    return `task：${statusLabel}`;
   }
 
   return `${toolName}：${statusLabel}`;

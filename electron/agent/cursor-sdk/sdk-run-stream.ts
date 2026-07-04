@@ -6,6 +6,7 @@ import type { Run, SDKMessage } from "@cursor/sdk"
 import { resolveSdkToolPresentationTier } from "../../../src/shared/sdk-tool-presentation-tier.js"
 import {
   extractShellPresentationFields,
+  extractTaskPresentationFields,
   formatToolCallLogSuffix,
   TOOL_MILESTONE_TEXT_MAX,
 } from "../../../src/shared/tool-presentation"
@@ -153,6 +154,7 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
             tool_status: mapToolPresentationStatus(event.status),
             final: event.status !== "running",
             ...extractShellPresentationFields(event.name, event.status, event.args, event.result),
+            ...extractTaskPresentationFields(event.name, event.status, event.args),
           }),
           session.sessionKey,
           "presentation-event:tool",

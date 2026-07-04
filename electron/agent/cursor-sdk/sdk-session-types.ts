@@ -100,6 +100,8 @@ export interface PresentationEvent {
   tool_shell_command?: string
   tool_shell_cwd?: string
   tool_shell_output?: string
+  /** task 工具 tool_call：子代理任务描述（飞书里程碑摘要） */
+  tool_task_description?: string
   /** task 里程碑状态（如 in_progress / completed） */
   task_status?: string
   /** task 里程碑展示文案 */
