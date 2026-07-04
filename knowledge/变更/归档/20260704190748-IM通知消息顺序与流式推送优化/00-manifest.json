@@ -1,0 +1,242 @@
+{
+  "change_id": "20260704190748-IM通知消息顺序与流式推送优化",
+  "title": "IM通知消息顺序与流式推送优化",
+  "name": "IM通知消息顺序与流式推送优化",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "archived_at": "2026-07-04T20:11:54+08:00",
+  "source": "kb-propose",
+  "created_at": "2026-07-04T19:07:48+0800",
+  "updated_at": "2026-07-04T20:11:54+08:00",
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md",
+    "02-design.md",
+    "03-tasks.md",
+    "04-review.md",
+    "05-summary.md",
+    "06-automation-test.md",
+    "08-verify-issue.md",
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-presentation.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-milestone.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-stream.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "kind": "doc",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "doc",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "doc",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "release",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.13.2.json",
+      "kind": "release",
+      "source": "archive",
+      "status": "added"
+    },
+    {
+      "path": "changelog/1.13.3.json",
+      "kind": "release",
+      "source": "archive",
+      "status": "added"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Electron defer 闩锁统一（markProcessEventSeen）",
+      "status": "done",
+      "depends_on": [],
+      "verification": "静态✅；06§3.3 静态✅；E1/E4 defer 链 E2E 待手工",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-presentation.ts"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "里程碑 sendMilestoneText 返回 sent 布尔",
+      "status": "done",
+      "depends_on": [],
+      "verification": "静态✅；06§3.3 静态✅；sent 语义 E2E 随 E1/E2 验证",
+      "files": [
+        "src/daemon/daemon-presentation-milestone.ts"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "Electron task 分支补 markProcessEventSeen",
+      "status": "done",
+      "depends_on": ["T1"],
+      "verification": "静态✅；06§3.3 静态✅；E2 多 task 顺序 E2E 待手工",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-stream.ts"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "Daemon 飞书里程碑与 task ordering 闩锁",
+      "status": "done",
+      "depends_on": ["T2"],
+      "verification": "静态✅；06§3.3 静态✅；E1/E2/E7 飞书里程碑 E2E 待手工",
+      "files": [
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "AGENTS 与知识库索引同步",
+      "status": "done",
+      "depends_on": ["T3", "T4"],
+      "verification": "文档静态✅；06§3.3 静态✅",
+      "files": [
+        "electron/agent/cursor-sdk/AGENTS.md",
+        "src/daemon/AGENTS.md",
+        "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md"
+      ]
+    },
+    {
+      "id": "T-FIX-1",
+      "title": "Daemon releaseDeferredAssistantStream 串行化与首建占位",
+      "status": "done",
+      "depends_on": [],
+      "verification": "assistantReleaseChain 串行+首建占位回滚；06§3.3 静态✅",
+      "files": [
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T-FIX-2",
+      "title": "Electron Run 收尾取消冗余 non-final flush",
+      "status": "done",
+      "depends_on": [],
+      "verification": "Run 收尾仅 final flush；sdk-run-stream.ts 精读；06§3.3 静态✅",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-stream.ts"
+      ]
+    },
+    {
+      "id": "T-FIX-3",
+      "title": "文档同步 release 串行化与收尾语义",
+      "status": "done",
+      "depends_on": ["T-FIX-1", "T-FIX-2"],
+      "verification": "AGENTS 静态✅；06§3.3 静态✅",
+      "files": [
+        "src/daemon/AGENTS.md",
+        "electron/agent/cursor-sdk/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T-FIX-4",
+      "title": "handleStreamText 飞行窗口门控与 release 异常回滚",
+      "status": "done",
+      "depends_on": ["T-FIX-1"],
+      "verification": "飞行窗口门控+impl try/catch 回滚；06§3.3 静态✅",
+      "files": [
+        "src/daemon/daemon.ts",
+        "src/daemon/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "warning",
+      "status": "fixed",
+      "score": 88,
+      "file": "src/daemon/daemon.ts",
+      "summary": "handleStreamText 与 release 飞行窗口竞态：assistantCardReleased 已占位但 outboundMessageId 未写入时并发 stream-text 仍 isFirst=true 重复首建",
+      "task_id": "T-FIX-4",
+      "resolution": "飞行窗口门控：await assistantReleaseChain 刷新 isFirst；非 final 返回 deferred:true；impl try/catch 回滚占位"
+    },
+    {
+      "id": "R-D1",
+      "severity": "info",
+      "status": "accepted_debt",
+      "score": 55,
+      "file": "electron/agent/cursor-sdk/sdk-run-presentation.ts",
+      "summary": "Electron markProcessEventSeen 与 Daemon sendMilestoneText sent 双侧闩锁触发条件不完全对称",
+      "task_id": null,
+      "resolution": "节流跳过时 Electron defer、Daemon 不置闩属合理；Run final flush 兜底"
+    },
+    {
+      "id": "R-D2",
+      "severity": "info",
+      "status": "accepted_debt",
+      "score": 40,
+      "file": "src/daemon/daemon.ts",
+      "summary": "纯 task 场景 mid-run 不单独 release，依赖 thinking/tool idle 或 Run final",
+      "task_id": null,
+      "resolution": "02 §6 步骤 5 已写明；streamRunEvents 收尾强制 final flush"
+    },
+    {
+      "id": "R-D3",
+      "severity": "info",
+      "status": "accepted_debt",
+      "score": 72,
+      "file": "electron/agent/cursor-sdk/sdk-run-stream.ts",
+      "summary": "Run 收尾跨通道并发：Electron flushStreamPost(final) 与 Daemon enqueueRelease 仍可能近时序叠加",
+      "task_id": null,
+      "resolution": "T-FIX-2 移除 non-final 双 POST；T-FIX-4 飞行窗口门控缓解；E2E 复验优先"
+    },
+    {
+      "id": "R-D4",
+      "severity": "info",
+      "status": "accepted_debt",
+      "score": 58,
+      "file": "src/daemon/daemon.ts",
+      "summary": "enqueueReleaseDeferredAssistantStream 外层 .catch 吞异常仅 WARN，与 Electron streamPostChain 一致",
+      "task_id": null,
+      "resolution": "impl try/catch 回滚 assistantCardReleased 并 rethrow；失败场景依赖后续 release 重试"
+    }
+  ],
+  "revisions": [],
+  "external": {
+    "acceptance": {
+      "rounds": [
+        {
+          "round": 1,
+          "reason": "code",
+          "feedback": "出现相同的消息，重复发送（assistant 答复文案完全相同出现两次）",
+          "created_at": "2026-07-04T19:50:00+0800"
+        }
+      ]
+    }
+  }
+}

@@ -2,18 +2,19 @@
 
 > **变更 ID**：`20260704190748-IM通知消息顺序与流式推送优化`
 > **来源**：`/kb-test`（基于 `01-proposal.md`、`02-design.md`、`03-tasks.md`、`04-review.md`）
-> **实现状态**：T1–T5 done；04-review 通过（无 open 严重/警告；R-D1/R-D2 accepted debt）；本文产出后 `stage=tested`
+> **实现状态**：T1–T5 + T-FIX-1~4 done；04-review 通过（无 open 严重/警告；R-D1/R-D2/R-D3/R-D4 accepted debt）；`stage=tested`
 
 ## 1、测试策略与范围
 
 | 维度 | 说明 |
 |------|------|
-| **层级** | **静态契约**（04-review §5 + defer/闩锁链 grep/精读）+ **编译门禁**（`npx tsc --noEmit`）+ **飞书私聊手工 E2E**（§4 E1–E9）；**无新增** `auto_test/` 脚本 |
-| **目标** | 覆盖 `01-proposal` 验收 1–9、`02-design` §8.2 工程补充 1–8、`03-tasks` T1–T5 全部验收条 |
+| **层级** | **静态契约**（04-review §5 + defer/闩锁链 grep/精读）+ **编译门禁**（`npx tsc --noEmit`）+ **飞书私聊手工 E2E**（§4 E1–E10）；**无新增** `auto_test/` 脚本 |
+| **目标** | 覆盖 `01-proposal` 验收 1–9、`02-design` §8.2 工程补充 1–8、`03-tasks` T1–T5 + T-FIX-1~4 全部验收条 |
+| **最高优先级 E2E** | **E10**（08-verify-issue 第 1 轮「assistant 答复文案完全相同出现两次」复验）+ **E1/E2**（过程先于结论基线）；打回根因 T-FIX-1/2/4，须维护者优先执行 |
 | **MVP 范围** | 主用户飞书私聊 + Cursor SDK；`PRESENTATION_ORDERING` 默认开；里程碑降级 + assistant CardKit defer |
 | **排除范围** | Claude/Codex/OpenCode 引擎；群聊 ordering 扩展；Electron 设置 UI；微信/群聊深度抽检（01·8 可降级为飞书私聊双场景） |
 | **与 review 分工** | 04 已静态确认双侧闩锁、sent 语义与 R-D1/R-D2 accepted debt；IM 时间轴顺序、首包时延、停止/失败须 **应用内手工** |
-| **本轮执行** | 2026-07-04 `tsc` 通过；E2E 待维护者本地执行 |
+| **本轮执行** | 2026-07-04 `tsc`（T-FIX 后）通过；T-FIX-1~4 静态✅；E10 + E1/E2 复验待维护者优先 |
 
 ## 2、局限与未自动化原因
 
@@ -49,7 +50,7 @@
 | **Review** | 04-review 无 open 严重/警告 | `04-review.md` | R-D1/R-D2 accepted | ✅ 静态通过 |
 | **回归** | 工具分级 / MergeBatch / preamble 路径未改 | 04 §4 | diff 范围 | ✅ 静态通过 |
 
-### 3.2 产品验收与工程补充（E1–E9）
+### 3.2 产品验收与工程补充（E1–E10）
 
 | ID | 场景 | 01/02 关联 | 验证方式 | 代码层 | E2E |
 |----|------|------------|----------|--------|-----|
@@ -62,6 +63,16 @@
 | **E7** | MergeBatch 活跃时 deferred 首建锚定 reply | §8.2·8 / NF2 | 连发合并 + tool | ✅ 锚点未改 | ⏳ 待手工 |
 | **E8** | assistant 答复首包后仍流式增长 | 验收 3 / F2 | 长答复 Run 目检 | ✅ release+PATCH | ⏳ 待手工 |
 | **E9** | 过程与结论并存时阅读美观；飞书长+短双场景 | 验收 8–9 / F6 | 滚动会话目检 | ✅ 结构性修复 | ⏳ 待手工 |
+| **E10** | assistant 首段文案不重复（08-verify 第 1 轮复验） | 08-verify §1 / T-FIX-1~4 | kb-admin 类长 Run 目检 | ✅ release 串行+final-only | ⏳ 待手工（**最高优先**） |
+
+### 3.3 修复任务（T-FIX-1~4）
+
+| 来源 | 验收要点 | 验证方式 | 证据类型 | 状态 |
+|------|----------|----------|----------|------|
+| **T-FIX-1** | `assistantReleaseChain` 串行 + 首建占位回滚 | 静态 grep + 04-review | `daemon.ts` release 路径 | ✅ 静态通过 |
+| **T-FIX-2** | Run 收尾仅 final flush（移除冗余 non-final） | `sdk-run-stream.ts` 精读 | 收尾 flush 链 | ✅ 静态通过 |
+| **T-FIX-3** | AGENTS 文档同步 release 串行化与收尾语义 | 静态 | `AGENTS.md` 双侧 | ✅ 静态通过 |
+| **T-FIX-4** | 飞行窗口门控 `await chain` + impl try/catch 回滚 | `daemon.ts` L733+ 精读 | `handleStreamText` | ✅ 静态通过 |
 
 ## 4、场景摘要
 
@@ -80,6 +91,7 @@
 | **E7** MergeBatch | collecting/ready 态 | 连发触发合并 + 带 tool 回复 | 合并 preview/reply 不回归；deferred assistant 首建仍锚定 `getPresentationReplyAnchor` | reply 错位 → MergeBatch 基线 |
 | **E8** 流式保留 | 长答复 Run | 观察 assistant CardKit 首包后 | 单条消息内容持续增长；非过程结束后一次性长文（除非 Run 本身无流式） | 无 PATCH → stream-text 路径 |
 | **E9** 美观与抽检 | 飞书私聊 | 长任务 + 短问答各 1；滚动阅读 | 过程序列稳定于结论之上；无频繁跳动或逻辑颠倒；符合 01·8–9 | 结论顶置过程 → ordering 闩；布局跳动 → 通道形态 |
+| **E10** assistant 不重复（08-verify 复验） | 主用户飞书私聊 SDK；ordering 开 | 含 task 里程碑 + thinking/tool 过程后 assistant 流式答复（如 kb-admin 编排类长任务） | assistant 首段文案**只出现一次**；无完全相同重复消息；过程里程碑仍在结论之上 | 重复 → T-FIX-1/2/4；顺序错 → T1–T4 |
 
 ### 4.2 静态冒烟（本次已执行）
 
@@ -100,6 +112,7 @@
 | 短问答长时间空白 | preamble 竞态或误 defer | 查 `presentationProcessActive` 是否误置 |
 | 节流后仍 defer 过久 | R-D1 双侧闩不对称 | Run final flush 应兜底 |
 | MergeBatch reply 错 | 合并批次基线 | 非本变更 diff 范围 |
+| assistant 首段文案完全相同两次 | 并发 release 双首建 | 查 T-FIX-1/2/4；08-verify 第 1 轮根因 |
 
 ## 5、脚本位置与环境
 
@@ -125,3 +138,5 @@
 | 2026-07-04 | 本地 dev | `npx tsc --noEmit` | 通过 | exit 0；主 Agent 执行 |
 | 2026-07-04 | 本地 dev | 04-review §5 静态 + T1–T5 代码路径 | 通过 | 无 open 问题 |
 | 2026-07-04 | — | E1–E9 飞书私聊手工 E2E | 待维护者执行 | 需飞书 + SDK 已配置 |
+| 2026-07-04 | 本地 dev | `npx tsc --noEmit`（T-FIX 后） | 通过 | exit 0 |
+| 2026-07-04 | — | E10 + E1/E2 08-verify 复验 | 待维护者 | 验收打回后优先 |

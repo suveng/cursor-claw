@@ -253,3 +253,175 @@ T1 已允许 `markProcessEventSeen` 处理 task kind，但 `handleSdkEvent` 的 
 
 - 前置任务: T3, T4
 - 后续任务: 无（实现完成后可 `/kb-test`、`/kb-archive`）
+
+---
+
+## 3、验收修复（08-verify-issue 第 1 轮）
+
+> **来源**：`/kb-repair`（08-verify-issue — assistant 答复文案完全相同重复发送）
+
+### 3.1 依赖图补充
+
+```
+T-FIX-1 ──→ T-FIX-3
+T-FIX-2 ──→ T-FIX-3
+```
+
+### 3.2 分组调度
+
+| 轮次 | 并行任务 | 说明 |
+|------|----------|------|
+| 第一轮 | T-FIX-1, T-FIX-2 | 无前置依赖；Daemon 与 Electron 不同文件可并行 |
+| 第二轮 | T-FIX-3 | 依赖 T-FIX-1、T-FIX-2 全部落地后再同步文档 |
+
+**同文件冲突表**：
+
+| 文件 | 涉及任务 | 调度 |
+|------|----------|------|
+| `src/daemon/daemon.ts` | T-FIX-1 | 第一轮独占 |
+| `electron/agent/cursor-sdk/sdk-run-stream.ts` | T-FIX-2 | 第一轮独占 |
+| `src/daemon/AGENTS.md`、`electron/agent/cursor-sdk/AGENTS.md` | T-FIX-3 | 第二轮独占 |
+
+---
+
+## T-FIX-1: Daemon releaseDeferredAssistantStream 串行化与首建占位
+
+### 背景
+
+08-verify-issue 第 1 轮：并发 `void releaseDeferredAssistantStream` 竞态导致相同 assistant 文案双首建（两条内容完全一致的 assistant 消息）。
+
+### 上下文文件
+
+- 必读: `src/daemon/daemon.ts` — `releaseDeferredAssistantStream`、`handleStreamText`、`SessionProgressState`、`resetPresentationOrderingFields`
+- 参考: `08-verify-issue.md` — 第 1 轮复现与根因分析
+- 参考: T4 已落地的 defer/release 路径（本任务仅串行化与占位，不改闩锁语义）
+
+### 实现范围
+
+- 修改: `src/daemon/daemon.ts` only：
+  - `SessionProgressState` 增加 `assistantReleaseChain?: Promise<void>`
+  - 新增 `enqueueReleaseDeferredAssistantStream` 链式包装；所有 `void`/`await releaseDeferredAssistantStream` 改走 enqueue
+  - 通过链 + 首建前 `assistantCardReleased` 占位（发送失败回滚）消除 check-then-act 竞态
+  - `resetPresentationOrderingFields` 清理 chain
+  - `// ponytail:` 注释说明已知简化
+- 不改: `daemon-presentation-milestone.ts`、里程碑 handler 闩锁逻辑、`handleStreamText` defer 判定条件
+
+### 接口契约
+
+- `enqueueReleaseDeferredAssistantStream(state, ...): Promise<void>` — 同一 session 内 release 调用串行入链；并发调用不并行执行 `releaseDeferredAssistantStream` 首建逻辑
+- 首建前 `assistantCardReleased` 占位：占位成功才发送首包；`sendFn` 失败时回滚占位，允许后续 release 重试
+- `resetPresentationOrderingFields` 须清空 `assistantReleaseChain`，避免跨 Run 链污染
+
+### 验收标准
+
+- [ ] 同一 session 并发 release 只首建一条 assistant 消息（消除 08-verify-issue 第 1 轮双首建）
+- [ ] `handleStreamText` final 路径仍正确更新/关闭已建 CardKit（非首建路径不受影响）
+- [ ] 过程 idle 后 release、Run final/stop 路径均经 enqueue，无裸 `void releaseDeferredAssistantStream` 残留
+- [ ] `PRESENTATION_ORDERING=0` 或 reset 后 chain 不泄漏、不阻塞后续 Run
+- [ ] 无 `02`/`03` 未要求的抽象层、trait/mixin 中间层或未批准的新依赖（Ponytail 口径；`// ponytail:` 注明已知简化）
+
+### 依赖
+
+- 前置任务: 无
+- 后续任务: T-FIX-3
+
+---
+
+## T-FIX-2: Electron Run 收尾取消冗余 non-final flush
+
+### 背景
+
+08-verify-issue：`flushDeferredStreamPost` + `flushStreamPost(true)` 在 Run 收尾叠加，放大双首包风险（与 Daemon 侧并发 release 叠加时更易触发重复 assistant 消息）。
+
+### 上下文文件
+
+- 必读: `electron/agent/cursor-sdk/sdk-run-stream.ts` — `streamRunEvents` 收尾块、`flushDeferredStreamPost`、`flushStreamPost`、`maybeReleaseDeferredAssistant`
+- 参考: `08-verify-issue.md` — 收尾双 flush 分析
+- 参考: T3 已落地的 task 分支置闩（本任务不改 `markProcessEventSeen` 调用）
+
+### 实现范围
+
+- 修改: `electron/agent/cursor-sdk/sdk-run-stream.ts` only：
+  - 移除 `streamRunEvents` 收尾处 `flushDeferredStreamPost` 块
+  - 仅保留 `flushStreamPost(session, true)` 作为 Run 收尾唯一 final POST
+- 不改: `maybeReleaseDeferredAssistant`、`flushDeferredStreamPost` 其他调用点（过程 idle、里程碑 release 等仍由既有路径承担）
+
+### 接口契约
+
+- Run 正常结束/失败收尾：`flushStreamPost(session, true)` 单次 final POST；不再在收尾前额外 `flushDeferredStreamPost`
+- ordering 场景过程 idle 后 release 仍由 daemon / `maybeReleaseDeferredAssistant` 承担，Electron 收尾不重复 non-final flush
+
+### 验收标准
+
+- [ ] Run 收尾只触发一次 final POST（`flushStreamPost(session, true)`），收尾块无 `flushDeferredStreamPost`
+- [ ] ordering 场景：过程 idle 后 deferred assistant 仍由 `maybeReleaseDeferredAssistant` / daemon release 正常出站
+- [ ] 非 ordering 或短问答路径：流式更新与 final 关闭行为与变更前一致
+- [ ] `maybeReleaseDeferredAssistant`、`flushDeferredStreamPost` 非收尾调用点 diff 为零或仅 import 顺序
+- [ ] 无 `02`/`03` 未要求的抽象层、trait/mixin 中间层或未批准的新依赖（Ponytail 口径）
+
+### 依赖
+
+- 前置任务: 无
+- 后续任务: T-FIX-3
+
+---
+
+## T-FIX-3: 文档同步 release 串行化与收尾语义
+
+### 背景
+
+T-FIX-1、T-FIX-2 落地后，须同步 Daemon / Electron SDK 目录 AGENTS，描述 enqueue release 链与 Run 收尾单 final flush，避免实现与文档脱节。不改 knowledge 业务域文件（archive 时合并）。
+
+### 上下文文件
+
+- 必读: T-FIX-1、T-FIX-2 已实现代码（以代码为准更新文档）
+- 必读: `src/daemon/AGENTS.md` — Presentation 时序、defer/release 段落
+- 必读: `electron/agent/cursor-sdk/AGENTS.md` — Run 收尾、流式 POST 段落
+- 参考: T5 已更新内容（本任务在其基础上追加修复说明，不重复臆造）
+
+### 实现范围
+
+- 修改: `src/daemon/AGENTS.md` — 补充 `enqueueReleaseDeferredAssistantStream` 串行语义、`assistantReleaseChain` 与首建占位、`resetPresentationOrderingFields` 清理 chain
+- 修改: `electron/agent/cursor-sdk/AGENTS.md` — 明确 Run 收尾仅 `flushStreamPost(session, true)`，移除收尾双 flush 描述
+- 不改: `knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md`（archive 时合并）；里程碑节流、MergeBatch 等无关段落
+
+### 接口契约
+
+- 文档术语与 `SessionProgressState.assistantReleaseChain`、`enqueueReleaseDeferredAssistantStream` 字段/函数名对齐
+- 文档明确 Run 收尾「单 final flush」与过程 idle release 职责分界（Electron vs Daemon）
+
+### 验收标准
+
+- [ ] `src/daemon/AGENTS.md` 描述 enqueue release 链、首建占位与 chain 清理
+- [ ] `electron/agent/cursor-sdk/AGENTS.md` 描述 Run 收尾单 `flushStreamPost(true)`，无收尾 `flushDeferredStreamPost`
+- [ ] 与 T-FIX-1、T-FIX-2 代码行为一致，无与 08-verify-issue 修复目标矛盾的表述
+- [ ] 无 `02`/`03` 未要求的抽象层、trait/mixin 中间层或未批准的新依赖（Ponytail 口径）
+
+### 依赖
+
+- 前置任务: T-FIX-1, T-FIX-2
+- 后续任务: 无（修复完成后可 `/kb-test`、`/kb-verify-issue` 复验）
+
+---
+
+## T-FIX-4: handleStreamText 飞行窗口门控与 release 异常回滚
+
+### 背景
+
+T-FIX-1 占位后 `outboundMessageId` 未写入时，并发 `handleStreamText` 仍可能 `isFirst=true` 重复首建 assistant 卡。
+
+### 实现范围
+
+- 修改: `src/daemon/daemon.ts` — ordering 路径飞行窗口门控；`releaseDeferredAssistantStreamImpl` try/catch 回滚
+- 修改: `src/daemon/AGENTS.md` — 术语与 `assistantReleaseChain` 字段表
+
+### 验收标准
+
+- [ ] ordering 且 `assistantCardReleased && !outboundMessageId` 时 await chain 并刷新 `isFirst`
+- [ ] 飞行窗口内非 final 返回 `deferred: true`
+- [ ] release impl 任意 throw 回滚 `assistantCardReleased` 并 rethrow
+
+### 依赖
+
+- 前置任务: T-FIX-1
+- 后续任务: 无

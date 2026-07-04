@@ -18,17 +18,13 @@ import {
 import {
   appendAssistantStreamDelta,
   closeThinkingIfOpen,
-  flushDeferredStreamPost,
   flushStreamPost,
   mapToolPresentationStatus,
   markProcessEventSeen,
   maybeReleaseDeferredAssistant,
   postPresentationEvent,
 } from "./sdk-run-presentation"
-import {
-  markSessionActivity,
-  presentationOrderingEligible,
-} from "./sdk-session-registry"
+import { markSessionActivity } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
 
 const LOG_FLUSH_LEN = 400
@@ -216,13 +212,7 @@ export async function streamRunEvents(session: SdkSessionAgent, run: Run): Promi
     }
     flushSdkLog(session)
     closeThinkingIfOpen(session)
-    // Run 收尾：seenProcessEvent 或 daemon deferred 均需 flush 累积 assistant
-    if (
-      presentationOrderingEligible(session)
-      && (session.seenProcessEvent || session.presentationDeferStream)
-    ) {
-      await flushDeferredStreamPost(session)
-    }
+    // Run 收尾仅 final flush，避免 non-final+final 双 POST（08-verify-issue）
     await finalizeRunContextUsage(session, run)
     if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
       await flushStreamPost(session, true)

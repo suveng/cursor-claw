@@ -343,6 +343,8 @@ interface SessionProgressState {
   deferredAssistantText?: string;
   /** 已首建 assistant 卡，防重复 */
   assistantCardReleased?: boolean;
+  /** releaseDeferredAssistantStream 串行链（对齐 Electron streamPostChain） */
+  assistantReleaseChain?: Promise<void>;
   /** 与 Electron runStartedAt 对齐（预留） */
   runPresentationEpoch?: number;
   /** 里程碑降级：上次节流键 */
@@ -419,6 +421,7 @@ function resetPresentationOrderingFields(state: SessionProgressState): void {
   state.thinkingOpen = false;
   state.deferredAssistantText = "";
   state.assistantCardReleased = false;
+  state.assistantReleaseChain = undefined;
   state.runPresentationEpoch = 0;
 }
 
@@ -563,7 +566,7 @@ async function feishuStreamFallbackUpdate(
 }
 
 /** 过程 idle 或 Run final 时首建 assistant CardKit（MergeBatch reply 锚点不变） */
-async function releaseDeferredAssistantStream(
+async function releaseDeferredAssistantStreamImpl(
   sessionKey: string,
   state: SessionProgressState,
   opts?: { force?: boolean; final?: boolean; message_id?: string },
@@ -577,79 +580,105 @@ async function releaseDeferredAssistantStream(
   const ch = resolveChannel(sessionKey);
   if (ch.type === "error") return;
 
-  const title = extractWorkspaceTitle(sessionKey);
-  const sid = state.streamId ?? randomUUID();
-  state.streamId = sid;
-  const now = Date.now();
-  let outId: string | undefined;
+  // ponytail: 异步发送前占位，避免并发 release 重复首建；发送完全失败则回滚
+  state.assistantCardReleased = true;
 
-  if (ch.type === "wechat") {
-    const ok = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
-    if (!ok) {
-      logPresentationFailed(sessionKey, "assistant", "微信发送失败");
-      return;
-    }
-    outId = `wx_stream_${sid}`;
-    state.streamPatchMode = false;
-    state.outboundMessageId = outId;
-    state.streamLastText = text;
-    state.streamSentLength = text.length;
-    state.streamLastPushAt = now;
-  } else {
-    const card = await ch.rt.sender!.createStreamingCardEntity(title);
-    if (card) {
-      const replyAnchor = getPresentationReplyAnchor(sessionKey);
-      const msgId = await ch.rt.sender!.sendStreamingCardMessage(ch.chatId!, card.cardId, replyAnchor);
-      if (msgId) {
-        outId = msgId;
-        state.cardId = card.cardId;
-        state.elementId = card.elementId;
-        state.cardSequence = 1;
-        state.streamCardKitMode = true;
-        trackMessageSession(outId, sessionKey);
-        const updated = await ch.rt.sender!.updateStreamingCardText(
-          card.cardId, card.elementId, text, state.cardSequence,
-        );
-        if (updated) {
-          state.streamLastText = text;
-          state.streamSentLength = text.length;
-          state.streamLastPushAt = now;
-        } else {
-          state.streamCardKitMode = false;
-          log("INFO", `CardKit 首包更新失败，降级 PATCH/分段: session=${sessionKey}`);
-          await feishuStreamFallbackUpdate(ch, state, outId, text, sessionKey, title, !!opts?.final);
-        }
-      }
-    }
-    if (!outId) {
-      outId = await ch.rt.sender!.sendStreamMessage(text, ch.chatId, title);
-      if (!outId) {
-        logPresentationFailed(sessionKey, "assistant", "CardKit 与 sendStreamMessage 均失败");
+  try {
+    const title = extractWorkspaceTitle(sessionKey);
+    const sid = state.streamId ?? randomUUID();
+    state.streamId = sid;
+    const now = Date.now();
+    let outId: string | undefined;
+
+    if (ch.type === "wechat") {
+      const ok = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
+      if (!ok) {
+        state.assistantCardReleased = false;
+        logPresentationFailed(sessionKey, "assistant", "微信发送失败");
         return;
       }
-      state.streamPatchMode = true;
-      trackMessageSession(outId, sessionKey);
+      outId = `wx_stream_${sid}`;
+      state.streamPatchMode = false;
+      state.outboundMessageId = outId;
       state.streamLastText = text;
       state.streamSentLength = text.length;
       state.streamLastPushAt = now;
-    }
-    state.outboundMessageId = outId;
-  }
-
-  state.assistantCardReleased = true;
-  sessionLastReplyAt.set(sessionKey, now);
-
-  if (opts?.final) {
-    if (ch.type === "feishu" && state.streamCardKitMode && state.cardId) {
-      const closeSeq = (state.cardSequence ?? 0) + 1;
-      await ch.rt.sender!.closeStreamingCardMode(state.cardId, closeSeq);
-    }
-    if (opts.message_id) {
-      ackOnReply(opts.message_id, sessionKey);
     } else {
-      stopSessionProgress(sessionKey);
+      const card = await ch.rt.sender!.createStreamingCardEntity(title);
+      if (card) {
+        const replyAnchor = getPresentationReplyAnchor(sessionKey);
+        const msgId = await ch.rt.sender!.sendStreamingCardMessage(ch.chatId!, card.cardId, replyAnchor);
+        if (msgId) {
+          outId = msgId;
+          state.cardId = card.cardId;
+          state.elementId = card.elementId;
+          state.cardSequence = 1;
+          state.streamCardKitMode = true;
+          trackMessageSession(outId, sessionKey);
+          const updated = await ch.rt.sender!.updateStreamingCardText(
+            card.cardId, card.elementId, text, state.cardSequence,
+          );
+          if (updated) {
+            state.streamLastText = text;
+            state.streamSentLength = text.length;
+            state.streamLastPushAt = now;
+          } else {
+            state.streamCardKitMode = false;
+            log("INFO", `CardKit 首包更新失败，降级 PATCH/分段: session=${sessionKey}`);
+            await feishuStreamFallbackUpdate(ch, state, outId, text, sessionKey, title, !!opts?.final);
+          }
+        }
+      }
+      if (!outId) {
+        outId = await ch.rt.sender!.sendStreamMessage(text, ch.chatId, title);
+        if (!outId) {
+          state.assistantCardReleased = false;
+          logPresentationFailed(sessionKey, "assistant", "CardKit 与 sendStreamMessage 均失败");
+          return;
+        }
+        state.streamPatchMode = true;
+        trackMessageSession(outId, sessionKey);
+        state.streamLastText = text;
+        state.streamSentLength = text.length;
+        state.streamLastPushAt = now;
+      }
+      state.outboundMessageId = outId;
     }
+
+    sessionLastReplyAt.set(sessionKey, now);
+
+    if (opts?.final) {
+      if (ch.type === "feishu" && state.streamCardKitMode && state.cardId) {
+        const closeSeq = (state.cardSequence ?? 0) + 1;
+        await ch.rt.sender!.closeStreamingCardMode(state.cardId, closeSeq);
+      }
+      if (opts.message_id) {
+        ackOnReply(opts.message_id, sessionKey);
+      } else {
+        stopSessionProgress(sessionKey);
+      }
+    }
+  } catch (e) {
+    state.assistantCardReleased = false;
+    throw e;
   }
+}
+
+// ponytail: 复用 Electron streamPostChain 模式，串行化 release 避免并发首建重复 assistant 卡
+function enqueueReleaseDeferredAssistantStream(
+  sessionKey: string,
+  state: SessionProgressState,
+  opts?: { force?: boolean; final?: boolean; message_id?: string },
+): Promise<void> {
+  state.assistantReleaseChain = (state.assistantReleaseChain ?? Promise.resolve())
+    .then(() => releaseDeferredAssistantStreamImpl(sessionKey, state, opts))
+    .catch((e: unknown) => {
+      log(
+        "WARN",
+        `assistant-release chain 错误 session=${sessionKey}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    });
+  return state.assistantReleaseChain;
 }
 
 async function handleStreamText(body: {
@@ -689,7 +718,7 @@ async function handleStreamText(body: {
   const sid = stream_id ?? state.streamId ?? randomUUID();
   state.streamId = sid;
 
-  const outIdHint = outbound_message_id ?? state.outboundMessageId;
+  let outIdHint = outbound_message_id ?? state.outboundMessageId;
   let isFirst = !outIdHint;
   const now = Date.now();
   const throttle = streamTextThrottleMs();
@@ -702,16 +731,25 @@ async function handleStreamText(body: {
   }
 
   if (ordering) {
+    // ponytail: 飞行窗口门控 — release 已占位但 outbound 尚未写入时，等待 chain 完成再判 isFirst
+    if (state.assistantCardReleased && !state.outboundMessageId) {
+      await (state.assistantReleaseChain ?? Promise.resolve());
+      outIdHint = outbound_message_id ?? state.outboundMessageId;
+      isFirst = !outIdHint;
+      if (!state.outboundMessageId && !final) {
+        return { ok: true, stream_id: sid, deferred: true };
+      }
+    }
     state.deferredAssistantText = text;
     if (state.presentationProcessActive && !state.assistantCardReleased && isFirst && !final) {
       return { ok: true, stream_id: sid, deferred: true };
     }
     if (!state.assistantCardReleased && final && state.presentationProcessActive) {
-      await releaseDeferredAssistantStream(session_key, state, { force: true, final: true, message_id });
+      await enqueueReleaseDeferredAssistantStream(session_key, state, { force: true, final: true, message_id });
       return { ok: true, stream_id: sid, outbound_message_id: state.outboundMessageId };
     }
     if (!state.assistantCardReleased && final) {
-      await releaseDeferredAssistantStream(session_key, state, { force: true });
+      await enqueueReleaseDeferredAssistantStream(session_key, state, { force: true });
       isFirst = !state.outboundMessageId;
     }
   }
@@ -1432,7 +1470,7 @@ async function handleToolPresentationEvent(
       }
     }
     if (ordering && (status === "completed" || status === "failed") && isPresentationProcessIdle(state)) {
-      void releaseDeferredAssistantStream(sessionKey, state, { force: true });
+      void enqueueReleaseDeferredAssistantStream(sessionKey, state, { force: true });
     }
     return { ok: true };
   }
@@ -1514,7 +1552,7 @@ async function handleToolPresentationEvent(
     }
     trackMessageSession(result.cardMessageId, sessionKey);
     if (ordering && (status === "completed" || status === "failed") && isPresentationProcessIdle(state)) {
-      void releaseDeferredAssistantStream(sessionKey, state, { force: true });
+      void enqueueReleaseDeferredAssistantStream(sessionKey, state, { force: true });
     }
     return { ok: true, outbound_message_id: result.cardMessageId };
   } catch (e: unknown) {
@@ -1544,7 +1582,7 @@ async function handleThinkingPresentationEvent(
 
   const releaseIfProcessIdle = () => {
     if (ordering && event.final && isPresentationProcessIdle(state!)) {
-      void releaseDeferredAssistantStream(sessionKey, state!, { force: true });
+      void enqueueReleaseDeferredAssistantStream(sessionKey, state!, { force: true });
     }
   };
 
@@ -1571,7 +1609,7 @@ async function handleThinkingPresentationEvent(
     if (event.final && ordering) {
       state.thinkingOpen = false;
       if (isPresentationProcessIdle(state)) {
-        void releaseDeferredAssistantStream(sessionKey, state, { force: true });
+        void enqueueReleaseDeferredAssistantStream(sessionKey, state, { force: true });
       }
     }
     return { ok: true, outbound_message_id: event.outbound_message_id ?? state.thinkingCardMessageId };
@@ -1650,7 +1688,7 @@ async function handleThinkingPresentationEvent(
     state.thinkingLastPushAt = now;
     trackMessageSession(result.cardMessageId, sessionKey);
     if (ordering && event.final && isPresentationProcessIdle(state)) {
-      void releaseDeferredAssistantStream(sessionKey, state, { force: true });
+      void enqueueReleaseDeferredAssistantStream(sessionKey, state, { force: true });
     }
     return { ok: true, outbound_message_id: result.cardMessageId };
   } catch (e: unknown) {
