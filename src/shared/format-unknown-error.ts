@@ -1,0 +1,183 @@
+/**
+ * 未知 rejection/exception 的共享诊断格式化（electron 主进程与 daemon 全局 handler 复用）。
+ */
+
+/** JSON 序列化上限（字符） */
+const MAX_JSON_CHARS = 2048;
+
+/** 敏感键名匹配（大小写不敏感） */
+const SENSITIVE_KEY_RE = /token|password|authorization|secret|apikey|api_key|cookie/i;
+
+/** gRPC / Node / SDK 常见诊断字段提取顺序 */
+const DIAGNOSTIC_KEYS = [
+  "code",
+  "details",
+  "message",
+  "errno",
+  "syscall",
+  "name",
+  "status",
+  "errorCode",
+  "metadata",
+  "cause",
+] as const;
+
+export interface FormatUnknownErrorOptions {
+  /** 附加 handler 注册点 stack 帧，便于区分全局捕获与业务抛出 */
+  includeRegistrationHint?: boolean;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isSensitiveKey(key: string): boolean {
+  return SENSITIVE_KEY_RE.test(key);
+}
+
+/** 脱敏对象键后返回浅拷贝 */
+function redactObject(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = isSensitiveKey(k) ? "[redacted]" : v;
+  }
+  return out;
+}
+
+/** 安全 JSON 序列化：脱敏、循环引用标记、超长截断 */
+function safeJsonStringify(obj: unknown, maxLen = MAX_JSON_CHARS): string {
+  const seen = new WeakSet<object>();
+  let json: string;
+  try {
+    json = JSON.stringify(obj, (key, val) => {
+      if (key && isSensitiveKey(key)) return "[redacted]";
+      if (typeof val === "object" && val !== null) {
+        if (seen.has(val)) return "[Circular]";
+        seen.add(val);
+      }
+      return val;
+    });
+  } catch {
+    return String(obj);
+  }
+  if (!json) return String(obj);
+  if (json.length <= maxLen) return json;
+  return `${json.slice(0, maxLen)}…[truncated ${json.length - maxLen} chars]`;
+}
+
+/** 取 stack 首条 at 行（跳过 Error: message 标题行） */
+function firstStackLine(stack?: string): string | undefined {
+  if (!stack) return undefined;
+  const lines = stack
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const atLine = lines.find((l) => l.startsWith("at "));
+  return atLine ?? lines[1];
+}
+
+/** 捕获当前调用栈若干帧，标注为 handler 注册点 */
+function formatRegistrationHint(): string {
+  const stack = new Error().stack;
+  if (!stack) return "";
+  const frames = stack
+    .split(/\r?\n/)
+    .slice(1, 5)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (frames.length === 0) return "";
+  return ` | 注册点: ${frames.join(" ⏎ ")}`;
+}
+
+/** 递归格式化 cause 字段（避免无限嵌套） */
+function formatCause(cause: unknown, depth = 0): string {
+  if (cause == null || depth > 2) return "";
+  const sub = formatUnknownErrorInner(cause);
+  return sub ? `cause=${sub}` : "";
+}
+
+/** 格式化 gRPC metadata 等附属结构 */
+function formatMetadata(metadata: unknown): string {
+  if (metadata == null) return "";
+  if (isPlainObject(metadata) || Array.isArray(metadata)) {
+    return `metadata=${safeJsonStringify(metadata, 512)}`;
+  }
+  return `metadata=${String(metadata)}`;
+}
+
+/** 从 plain object 提取已知诊断字段；无匹配时退化为脱敏 JSON */
+function formatRecordFields(rec: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const key of DIAGNOSTIC_KEYS) {
+    if (!(key in rec)) continue;
+    const val = rec[key];
+    if (val == null) continue;
+    if (key === "cause") {
+      const c = formatCause(val);
+      if (c) parts.push(c);
+      continue;
+    }
+    if (key === "metadata") {
+      const m = formatMetadata(val);
+      if (m) parts.push(m);
+      continue;
+    }
+    if (typeof val === "string" || typeof val === "number" || typeof val === "boolean") {
+      parts.push(`${key}=${val}`);
+    } else if (val instanceof Error) {
+      parts.push(`${key}=${formatUnknownErrorInner(val)}`);
+    } else {
+      parts.push(`${key}=${safeJsonStringify(val, 256)}`);
+    }
+  }
+  if (parts.length > 0) return parts.join(" | ");
+  return safeJsonStringify(redactObject(rec));
+}
+
+/** 内部格式化（不含注册点 hint，供 cause 递归） */
+function formatUnknownErrorInner(reason: unknown): string {
+  if (reason == null) return String(reason);
+
+  if (
+    typeof reason === "string" ||
+    typeof reason === "number" ||
+    typeof reason === "boolean" ||
+    typeof reason === "bigint"
+  ) {
+    return String(reason);
+  }
+
+  if (reason instanceof Error) {
+    const err = reason as Error & { code?: string | number; errno?: number; syscall?: string };
+    const parts: string[] = [err.message || err.name || "Error"];
+    if (err.code != null) parts.push(`code=${err.code}`);
+    if (err.errno != null) parts.push(`errno=${err.errno}`);
+    if (err.syscall) parts.push(`syscall=${err.syscall}`);
+    const stackLine = firstStackLine(err.stack);
+    if (stackLine) parts.push(stackLine);
+    if ("cause" in err && err.cause != null) {
+      const c = formatCause(err.cause);
+      if (c) parts.push(c);
+    }
+    return parts.join(" | ");
+  }
+
+  if (typeof reason === "object") {
+    if (Array.isArray(reason)) return safeJsonStringify(reason);
+    return formatRecordFields(reason as Record<string, unknown>);
+  }
+
+  return String(reason);
+}
+
+/**
+ * 将 unknown rejection/exception 格式化为单行可诊断字符串。
+ * Error、gRPC-like 对象、plain object、原始值均覆盖。
+ */
+export function formatUnknownError(
+  reason: unknown,
+  options?: FormatUnknownErrorOptions,
+): string {
+  const base = formatUnknownErrorInner(reason);
+  return options?.includeRegistrationHint ? base + formatRegistrationHint() : base;
+}

@@ -66,6 +66,10 @@ Renderer → preload IPC → 主进程 → Daemon；`daemon:status-update` 回�
 
 `broadcastLog`/`daemon:log` 推 Dashboard；MCP 探测 stdio 15s/HTTP 30s 缓存。
 
+**全局未捕获异常**：`main.ts` 的 `uncaughtException`/`unhandledRejection` 经 `src/shared/format-unknown-error.ts` 的 `formatUnknownError`（`includeRegistrationHint: true`）写 UI 日志；Daemon 全局 handler 复用同一 formatter 写 `daemon.log`（禁止内联 `instanceof Error` 退化）。
+
+**gRPC/SDK 非标准 rejection**：plain object 按 `code`→`details`→`message`→`errno`→`syscall`→`name`→`status`→`errorCode`→`metadata`→`cause` 顺序提取诊断字段；敏感键脱敏、超长 JSON 截断。
+
 **失败归档**：`electron/agent/shared/crash-log-archiver.ts` 的 `archiveAgentFailureLogs` 挂接 notify/finalizer；`crashAnalysisDir` 配置时写 logBuffer±30。
 
 ## 八、推送
@@ -78,6 +82,7 @@ Renderer → preload IPC → 主进程 → Daemon；`daemon:status-update` 回�
 
 ## 十、变更记录
 
+2026-07-04：§七 补全局 rejection/exception `formatUnknownError` 可诊断日志（electron+daemon 共享 `format-unknown-error.ts`）。
 2026-07-02：§四/§五 Skills 双来源 IPC（`skills-ipc.ts`）、SkillScope 与 project 无工作区契约（archive 20260702120631）。
 2026-07-02：§二 补目录语义与 Agent 调度对齐；正文路径改为 `electron/` 子目录形式（archive 20260702112559）。
 2026-07-02：§四/§五 补 Settings Rules/MCP Tab 与主工作区口径；SDK `agent:mcp-status` 来源标注（archive 20260701212732）。

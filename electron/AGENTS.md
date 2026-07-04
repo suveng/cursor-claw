@@ -27,6 +27,7 @@
 - **IM 调度**：Daemon `POST /api/agent/launch|dispatch` 经四引擎 HTTP 路由；无 CLI spawn。
 - **通道配置**：`MessageChannel` / `AgentResource` 变更须同步 `src/shared/channel-types.ts`、`preload.ts`、`env.d.ts`（详见 [config/AGENTS.md](config/AGENTS.md)）。
 - **SDK 可观测**：`handleSdkEvent` 写 `lastTool`；超时类 `isRunTimeoutFailure` 优先于 CANCELLED 文案（详见 [agent/cursor-sdk/AGENTS.md](agent/cursor-sdk/AGENTS.md)）。
+- **全局异常日志**：`main.ts` 的 `uncaughtException` / `unhandledRejection` **须**经 `src/shared/format-unknown-error` 的 `formatUnknownError` 输出，禁止内联 `instanceof Error` 退化。
 
 ## main-window 模块边界
 

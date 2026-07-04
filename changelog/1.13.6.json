@@ -1,0 +1,8 @@
+{
+  "version": "1.13.6",
+  "date": "2026-07-04",
+  "changes": [
+    "未处理 Promise 拒绝日志输出 code/errno/syscall 等可诊断字段，便于排障",
+    "未捕获异常日志与 daemon 全局 handler 复用同一诊断格式化，不再退化为 [unknown]"
+  ]
+}

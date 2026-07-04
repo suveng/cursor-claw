@@ -11,6 +11,7 @@
 | `tool-presentation.ts` | Shell 工具 CardKit 字段解析、里程碑文案 `formatToolMilestoneText` 与截断常量 | bridge/lark-core、electron、daemon |
 | `sdk-tool-presentation-tier.ts` | SDK `tool_name` → notify/silent 分级 SSOT | electron cursor-sdk |
 | `constants.ts` | `LOCK_FILE_NAME` 等进程级常量 | daemon-entry |
+| `format-unknown-error.ts` | 全局 rejection/exception 诊断格式化 SSOT | daemon、electron |
 
 ## import 约定
 
@@ -32,6 +33,11 @@
 - **飞书过程抑制**：daemon `handleToolPresentationEvent` / `handleThinkingPresentationEvent` 与 electron `postPresentationEvent` **均须**调用 `isFeishuProcessPresentationSuppressed`；禁止在调用方复制通道判断逻辑。
 - **门控范围**：仅抑制飞书 tool/thinking CardKit；assistant `stream-text` 与 `PRESENTATION_ORDERING` 不受影响；微信路径不经此 gate。
 - **tool-presentation**：`TOOL_LOG_DETAIL_MAX`、`TOOL_CARD_SHELL_OUTPUT_MAX`、`TOOL_MILESTONE_TEXT_MAX` 为截断上限 SSOT；`formatToolMilestoneText` 为飞书 tool 里程碑文案 SSOT；`lark-core`、electron agent 与 daemon 里程碑须引用本模块，不重复定义 magic number。
+
+## 全局异常日志
+
+- **格式化 SSOT**：daemon `daemon.ts` 与 electron `main.ts` 的 `uncaughtException` / `unhandledRejection` **须**调用 `formatUnknownError(..., { includeRegistrationHint: true })`；禁止内联 `instanceof Error` 或 `e?.stack` 退化输出 `[unknown]`。
+- **rejection 上下文**：`unhandledRejection` 日志须追加 `promise=[object Promise]`（`Object.prototype.toString.call(promise)`）；daemon 用 `log("ERROR", ...)`，electron 用 `broadcastLog`。
 
 ## 禁止
 

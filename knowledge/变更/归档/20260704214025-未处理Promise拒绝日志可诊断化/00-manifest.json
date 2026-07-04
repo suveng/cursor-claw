@@ -1,0 +1,75 @@
+{
+  "name": "未处理Promise拒绝日志可诊断化",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "实现 formatUnknownError 并改进全局 rejection/exception 日志",
+      "status": "done",
+      "files": [
+        "src/shared/format-unknown-error.ts",
+        "electron/main.ts",
+        "src/daemon/daemon.ts",
+        "src/shared/AGENTS.md",
+        "electron/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "src/shared/format-unknown-error.ts",
+      "kind": "source"
+    },
+    {
+      "path": "electron/main.ts",
+      "kind": "source"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "source"
+    },
+    {
+      "path": "src/shared/AGENTS.md",
+      "kind": "agents"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "kind": "agents"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+      "kind": "knowledge"
+    },
+    {
+      "path": "package.json",
+      "kind": "release"
+    },
+    {
+      "path": "changelog/1.13.6.json",
+      "kind": "release"
+    },
+    {
+      "path": "knowledge/变更/归档/20260704214025-未处理Promise拒绝日志可诊断化/00-manifest.json",
+      "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/变更/归档/20260704214025-未处理Promise拒绝日志可诊断化/01-proposal.md",
+      "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/变更/归档/20260704214025-未处理Promise拒绝日志可诊断化/05-summary.md",
+      "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/变更/归档/20260704214025-未处理Promise拒绝日志可诊断化/06-automation-test.md",
+      "kind": "change_doc"
+    }
+  ],
+  "archived_at": "2026-07-04T21:50:00+08:00",
+  "updated_at": "2026-07-04T21:55:00+08:00"
+}

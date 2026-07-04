@@ -35,6 +35,7 @@ import {
   type QueueMessageMeta,
 } from "../bridge/file-queue.js";
 import { LOCK_FILE_NAME } from "../shared/constants.js";
+import { formatUnknownError } from "../shared/format-unknown-error.js";
 import {
   makeChatKey,
   parseChatKey,
@@ -3523,11 +3524,13 @@ export async function daemonMain(): Promise<void> {
   process.on("exit", removeLockFile);
 
   // 全局兜底：消息桥接守护进程，掉线比带病更糟——漏网异步异常只记录不退出，避免飞书/微信整体掉线
-  process.on("uncaughtException", (e) => {
-    log("ERROR", `未捕获异常: ${e?.stack ?? e}`);
+  process.on("uncaughtException", (err) => {
+    log("ERROR", `未捕获异常: ${formatUnknownError(err, { includeRegistrationHint: true })}`);
   });
-  process.on("unhandledRejection", (reason) => {
-    log("ERROR", `未处理的 Promise 拒绝: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`);
+  process.on("unhandledRejection", (reason, promise) => {
+    const detail = formatUnknownError(reason, { includeRegistrationHint: true });
+    const promiseCtx = promise ? ` | promise=${Object.prototype.toString.call(promise)}` : "";
+    log("ERROR", `未处理的 Promise 拒绝: ${detail}${promiseCtx}`);
   });
 
   initQueue();

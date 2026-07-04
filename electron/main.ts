@@ -36,6 +36,7 @@ import { injectWorkspace } from "./agent/shared/workspace-injector"
 import { initTray, destroyTray } from "./app/tray"
 import { initAppUpdater } from "./config/updater"
 import { broadcastLog } from "./app/ui-logger"
+import { formatUnknownError } from "../src/shared/format-unknown-error"
 import { createWindow, mainWindow, setCloseConfirmDialogOpen } from "./app/main-window"
 
 const profileArg = process.argv.find((a) => a.startsWith("--profile="))
@@ -192,12 +193,17 @@ let isQuitting = false
 // 全局兜底记日志，避免 Electron 默认弹出 "JavaScript error in main process" 并中断运行
 process.on("uncaughtException", (err) => {
   try {
-    broadcastLog(`[Main] 未捕获异常: ${err?.message ?? err}`, "ERROR")
+    broadcastLog(
+      `[Main] 未捕获异常: ${formatUnknownError(err, { includeRegistrationHint: true })}`,
+      "ERROR",
+    )
   } catch { console.error("[Main] uncaughtException:", err) }
 })
-process.on("unhandledRejection", (reason) => {
+process.on("unhandledRejection", (reason, promise) => {
   try {
-    broadcastLog(`[Main] 未处理的 Promise 拒绝: ${reason instanceof Error ? reason.message : reason}`, "ERROR")
+    const detail = formatUnknownError(reason, { includeRegistrationHint: true })
+    const promiseCtx = promise ? ` | promise=${Object.prototype.toString.call(promise)}` : ""
+    broadcastLog(`[Main] 未处理的 Promise 拒绝: ${detail}${promiseCtx}`, "ERROR")
   } catch { console.error("[Main] unhandledRejection:", reason) }
 })
 
