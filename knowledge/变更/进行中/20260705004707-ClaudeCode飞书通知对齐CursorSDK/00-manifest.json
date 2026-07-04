@@ -1,0 +1,26 @@
+{
+  "change_id": "20260705004707-ClaudeCode飞书通知对齐CursorSDK",
+  "title": "ClaudeCode飞书通知对齐CursorSDK",
+  "name": "ClaudeCode飞书通知对齐CursorSDK",
+  "flow": "standard",
+  "stage": "proposed",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-05T00:47:07+0800",
+  "updated_at": "2026-07-05T00:47:22+0800",
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md"
+  ],
+  "tasks": [],
+  "reviews": [],
+  "revisions": [],
+  "external": {
+    "task_type": "功能对齐/体验修复",
+    "priority": "P1",
+    "prd_doc_url": "无",
+    "registry_record_url": "无",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  }
+}
