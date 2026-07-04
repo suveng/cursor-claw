@@ -86,7 +86,7 @@ export interface SdkSessionAgent {
   lastInjectedMcpServers?: Record<string, McpServerConfig>
 }
 
-export type PresentationKind = "assistant" | "thinking" | "tool" | "diff" | "merge_batch"
+export type PresentationKind = "assistant" | "thinking" | "tool" | "diff" | "merge_batch" | "task"
 
 export interface PresentationEvent {
   session_key: string
@@ -98,6 +98,10 @@ export interface PresentationEvent {
   tool_shell_command?: string
   tool_shell_cwd?: string
   tool_shell_output?: string
+  /** task 里程碑状态（如 in_progress / completed） */
+  task_status?: string
+  /** task 里程碑展示文案 */
+  task_text?: string
   final?: boolean
   outbound_message_id?: string
 }

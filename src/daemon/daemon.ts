@@ -44,6 +44,10 @@ import {
 import {
   isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind,
 } from "../shared/feishu-presentation-gate.js";
+import {
+  sendMilestoneText,
+  clearMilestoneState,
+} from "./daemon-presentation-milestone.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
@@ -341,6 +345,12 @@ interface SessionProgressState {
   assistantCardReleased?: boolean;
   /** 与 Electron runStartedAt 对齐（预留） */
   runPresentationEpoch?: number;
+  /** 里程碑降级：上次节流键 */
+  lastMilestoneText?: string;
+  /** 里程碑降级：上次发送时间（ms） */
+  lastMilestoneAt?: number;
+  /** 里程碑降级：Run 级去重集合 */
+  milestoneDedupSet?: Set<string>;
 }
 
 /** 流式更新节流间隔（ms），默认 1000，可配置范围 500–1500（NF6） */
@@ -437,11 +447,31 @@ function isPresentationEligible(sessionKey: string): boolean {
   return isStreamTextEligible(sessionKey);
 }
 
-/** 飞书全通道：tool/thinking 不渲染 CardKit，静默 ok；ordering 闩锁仍须更新 */
+/** 飞书全通道：tool/thinking/task 不渲染 CardKit，改里程碑降级，不置 ordering 闩 */
 function isFeishuProcessPresentationSuppressed(sessionKey: string, kind: string): boolean {
   const ch = resolveChannel(sessionKey);
   if (ch.type === "error") return false;
   return feishuSuppressesProcessKind(ch.type, kind);
+}
+
+/** 里程碑 send-text：不带 message_id/stop_progress，与三态进度区分 */
+async function sendMilestonePlainText(sessionKey: string, text: string): Promise<boolean> {
+  const ch = resolveChannel(sessionKey);
+  if (ch.type === "error") return false;
+  const title = extractWorkspaceTitle(sessionKey);
+  if (ch.type === "wechat") {
+    return ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
+  }
+  const sentMsgId = await ch.rt.sender!.sendMessage(text, undefined, ch.chatId, title);
+  if (sentMsgId) {
+    trackMessageSession(sentMsgId, sessionKey);
+    sessionLastReplyAt.set(sessionKey, Date.now());
+  }
+  return !!sentMsgId;
+}
+
+function milestoneLogFn(message: string): void {
+  log("WARN", message);
 }
 
 /** NF2：活跃合并批次时 stream/tool/thinking 首包 reply 到首条 inbound */
@@ -821,7 +851,7 @@ interface MergeBatch {
   updatedAt: number;
 }
 
-type PresentationKind = "assistant" | "thinking" | "tool" | "diff" | "merge_batch";
+type PresentationKind = "assistant" | "thinking" | "tool" | "diff" | "merge_batch" | "task";
 
 /** 工具卡状态：缓存 shell 命令供 completed PATCH */
 interface ToolProgressCardState extends PresentationCardState {
@@ -839,6 +869,10 @@ interface PresentationEvent {
   tool_shell_command?: string;
   tool_shell_cwd?: string;
   tool_shell_output?: string;
+  /** task 里程碑状态（如 in_progress / completed） */
+  task_status?: string;
+  /** task 里程碑展示文案 */
+  task_text?: string;
   final?: boolean;
   outbound_message_id?: string;
 }
@@ -1378,6 +1412,20 @@ async function handleToolPresentationEvent(
     state.toolCards.delete(toolName);
   }
 
+  // 飞书全通道抑制 tool CardKit：仅发里程碑文本，不置 ordering 闩（无 CardKit 过程卡可先于 assistant）
+  if (isFeishuProcessPresentationSuppressed(sessionKey, "tool")) {
+    await sendMilestoneText(
+      sessionKey,
+      "tool",
+      `${toolName}: ${status}`,
+      state,
+      sendMilestonePlainText,
+      milestoneLogFn,
+    );
+    return { ok: true };
+  }
+
+  // CardKit 路径：ordering 闩与 activeToolNames 仅在此处更新
   if (ordering) {
     if (!state.activeToolNames) state.activeToolNames = new Set();
     if (status === "started") {
@@ -1386,14 +1434,6 @@ async function handleToolPresentationEvent(
     } else if (status === "completed" || status === "failed") {
       state.activeToolNames.delete(toolName);
     }
-  }
-
-  // 飞书全通道抑制 tool CardKit；ordering 闩锁已在上方更新
-  if (isFeishuProcessPresentationSuppressed(sessionKey, "tool")) {
-    if (ordering && (status === "completed" || status === "failed") && isPresentationProcessIdle(state)) {
-      void releaseDeferredAssistantStream(sessionKey, state, { force: true });
-    }
-    return { ok: true };
   }
 
   const ch = resolveChannel(sessionKey);
@@ -1489,6 +1529,33 @@ async function handleThinkingPresentationEvent(
   }
 
   const ordering = presentationOrderingEnabled(sessionKey);
+
+  const releaseIfProcessIdle = () => {
+    if (ordering && event.final && isPresentationProcessIdle(state!)) {
+      void releaseDeferredAssistantStream(sessionKey, state!, { force: true });
+    }
+  };
+
+  // 飞书全通道抑制 thinking CardKit：仅发里程碑文本，不置 ordering 闩
+  if (isFeishuProcessPresentationSuppressed(sessionKey, "thinking")) {
+    if (event.delta) {
+      state.thinkingBuffer = (state.thinkingBuffer ?? "") + event.delta;
+      const summary = state.thinkingBuffer.length > THINKING_SUMMARY_MAX_CHARS
+        ? `…${state.thinkingBuffer.slice(-THINKING_SUMMARY_MAX_CHARS)}`
+        : state.thinkingBuffer;
+      await sendMilestoneText(
+        sessionKey,
+        "thinking",
+        summary.trim() ? summary : "正在思考…",
+        state,
+        sendMilestonePlainText,
+        milestoneLogFn,
+      );
+    }
+    return { ok: true, outbound_message_id: event.outbound_message_id ?? state.thinkingCardMessageId };
+  }
+
+  // CardKit 路径：ordering 闩与 thinkingOpen 仅在此处更新
   if (ordering) {
     if (event.delta && !state.thinkingOpen) {
       state.thinkingOpen = true;
@@ -1497,18 +1564,6 @@ async function handleThinkingPresentationEvent(
     if (event.final) {
       state.thinkingOpen = false;
     }
-  }
-
-  const releaseIfProcessIdle = () => {
-    if (ordering && event.final && isPresentationProcessIdle(state!)) {
-      void releaseDeferredAssistantStream(sessionKey, state!, { force: true });
-    }
-  };
-
-  // 飞书全通道抑制 thinking CardKit；无 delta 的 final 仍闭合 thinkingOpen（上方已处理）
-  if (isFeishuProcessPresentationSuppressed(sessionKey, "thinking")) {
-    releaseIfProcessIdle();
-    return { ok: true, outbound_message_id: event.outbound_message_id ?? state.thinkingCardMessageId };
   }
 
   if (!event.delta) {
@@ -1618,6 +1673,46 @@ async function handleAssistantPresentationEvent(
   return result;
 }
 
+/** task_status 兜底文案（task_text 缺失时） */
+function buildTaskFallbackText(taskStatus?: string): string {
+  const normalized = (taskStatus ?? "").toLowerCase();
+  if (!normalized || normalized === "started") return "子任务进行中…";
+  if (normalized === "completed") return "子任务已完成";
+  if (normalized === "failed") return "子任务失败";
+  return `子任务更新（${taskStatus}）`;
+}
+
+async function handleTaskPresentationEvent(
+  event: PresentationEvent,
+): Promise<{ ok: boolean; error?: string }> {
+  const sessionKey = event.session_key?.trim();
+  if (!sessionKey) return { ok: false, error: "session_key is required" };
+  if (!isPresentationEligible(sessionKey)) {
+    return { ok: false, error: "presentation not supported for this session" };
+  }
+
+  const text = (event.task_text ?? "").trim() || buildTaskFallbackText(event.task_status);
+  if (!text) return { ok: false, error: "task_text is required" };
+
+  let state = sessionProgressMap.get(sessionKey);
+  if (!state) {
+    state = { typingActive: false };
+    resetPresentationOrderingFields(state);
+    sessionProgressMap.set(sessionKey, state);
+  }
+
+  // task 不参与 presentationProcessActive / assistant defer
+  await sendMilestoneText(
+    sessionKey,
+    "task",
+    text,
+    state,
+    sendMilestonePlainText,
+    milestoneLogFn,
+  );
+  return { ok: true };
+}
+
 async function handleMergeBatchPresentationEvent(
   event: PresentationEvent,
 ): Promise<{ ok: boolean; outbound_message_id?: string; error?: string }> {
@@ -1651,6 +1746,8 @@ async function handlePresentationEvent(
       return handleThinkingPresentationEvent(body);
     case "assistant":
       return handleAssistantPresentationEvent(body);
+    case "task":
+      return handleTaskPresentationEvent(body);
     default:
       logPresentationFailed(body.session_key ?? "?", body.kind, "unsupported kind");
       return { ok: false, error: "unsupported presentation kind" };
@@ -1775,6 +1872,7 @@ function stopSessionProgress(sessionKey: string): void {
       });
     }
   }
+  clearMilestoneState(state);
   sessionProgressMap.delete(sessionKey);
 }
 

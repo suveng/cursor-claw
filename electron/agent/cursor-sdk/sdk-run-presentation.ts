@@ -12,7 +12,7 @@ import {
   presentationOrderingEligible,
   resolveSessionChannelType,
 } from "./sdk-session-registry"
-import type { PresentationEvent, SdkSessionAgent } from "./sdk-session-types"
+import type { PresentationEvent, PresentationKind, SdkSessionAgent } from "./sdk-session-types"
 
 /** stream-text 节流间隔（与 AGENTS f41 约定一致） */
 export const STREAM_POST_INTERVAL_MS = 400
@@ -33,19 +33,11 @@ export function mapToolPresentationStatus(status: "running" | "completed" | "err
   return "failed"
 }
 
-/** 飞书全通道：tool/thinking 不 POST presentation-event；assistant 仍走 stream-text */
-function isFeishuProcessPresentationSuppressed(
-  session: SdkSessionAgent,
-  event: Omit<PresentationEvent, "session_key">,
-): boolean {
-  return feishuSuppressesProcessKind(resolveSessionChannelType(session.sessionKey), event.kind)
-}
-
+/** 出站 presentation-event；飞书抑制由 daemon 降级为里程碑文本，electron 侧仍 POST */
 export async function postPresentationEvent(
   session: SdkSessionAgent,
   event: Omit<PresentationEvent, "session_key">,
 ): Promise<void> {
-  if (isFeishuProcessPresentationSuppressed(session, event)) return
   const lock = readLockFile()
   if (!lock?.port) return
   const payload: PresentationEvent = {
@@ -218,12 +210,18 @@ export function closeThinkingIfOpen(session: SdkSessionAgent): void {
   maybeReleaseDeferredAssistant(session)
 }
 
-export function markProcessEventSeen(session: SdkSessionAgent): void {
+/**
+ * 过程事件可见时置 ordering 闩（seenProcessEvent / presentationDeferStream）。
+ * task 里程碑与飞书抑制 kind 不参与 assistant defer。
+ */
+export function markProcessEventSeen(session: SdkSessionAgent, kind: PresentationKind): void {
+  if (kind === "task") return
+  const channelType = resolveSessionChannelType(session.sessionKey)
+  if (feishuSuppressesProcessKind(channelType, kind)) return
+  if (!presentationOrderingEligible(session)) return
   clearStreamPostTimer(session)
   session.seenProcessEvent = true
-  if (presentationOrderingEligible(session)) {
-    session.presentationDeferStream = true
-  }
+  session.presentationDeferStream = true
 }
 
 export async function flushDeferredStreamPost(session: SdkSessionAgent): Promise<void> {
@@ -231,8 +229,9 @@ export async function flushDeferredStreamPost(session: SdkSessionAgent): Promise
   await flushStreamPost(session, false)
 }
 
+/** 过程结束或 daemon 已 deferred 时释放 assistant 缓冲（对齐 presentationDeferStream） */
 export function maybeReleaseDeferredAssistant(session: SdkSessionAgent): void {
   if (!presentationOrderingEligible(session)) return
-  if (!session.seenProcessEvent) return
+  if (!session.seenProcessEvent && !session.presentationDeferStream) return
   void flushDeferredStreamPost(session)
 }

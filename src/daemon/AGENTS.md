@@ -5,6 +5,7 @@
 ## 目录职责
 
 - `daemon.ts` — 守护进程枢纽（HTTP 路由、orchestrator、Presentation、stream-text）
+- `daemon-presentation-milestone.ts` — 飞书 CardKit 抑制时的里程碑 `send-text` 降级（节流/去重；不 import `daemon.ts`）
 - `daemon-scheduled-tasks.ts` — 定时任务调度
 - `server-admin.ts` — MCP admin 工具注册
 
@@ -13,7 +14,7 @@
 - bridge 域：`../bridge/file-queue.js`、`../bridge/wechat-manager.js`、`../bridge/lark-core.js`
 - workflow 域：`../workflow/server-workflow.js`
 - shared 跨域类型：`../shared/channel-types.js`、`../shared/feishu-presentation-gate.js`、`../shared/tool-presentation.js`、`../shared/constants.js`
-- 域内同目录：`./daemon-scheduled-tasks.js`、`./server-admin.js`
+- 域内同目录：`./daemon-presentation-milestone.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`
 
 ## 禁止
 
@@ -55,8 +56,8 @@
 - **HTTP**：`POST /api/merge-batch/action`（send_now|edit|split）；`POST /api/orchestrator/claim-and-merge` → `{ text, message_ids[] }`。
 - **编辑 fallback**：`mergeCardRegistry` 仅注册 `cardMessageId`；`tryHandleMergePreviewReply` 只认合并卡 outbound id，更新 `overrideText`。
 - **清理**：`clearMergeBatchState` 在 `ackOnReply` 与 claim 后调用。
-- **Presentation**：`POST /api/presentation-event` 路由 `tool`/`thinking`/`assistant`/`merge_batch`；失败日志含可检索字段 `presentation_failed`。
-- **飞书 Presentation 门控**：`handleToolPresentationEvent` / `handleThinkingPresentationEvent` 经 `isFeishuProcessPresentationSuppressed` — 飞书全通道抑制 tool/thinking CardKit，静默 `{ ok: true }`；ordering 开启时仍更新 `presentationProcessActive`、`activeToolNames`、`thinkingOpen`。assistant stream-text 与 PRESENTATION_ORDERING（仅 p2p）不受影响。微信路径不变。
+- **Presentation**：`POST /api/presentation-event` 路由 `tool`/`thinking`/`task`/`assistant`/`merge_batch`；`task` → `handleTaskPresentationEvent`；失败日志含可检索字段 `presentation_failed`。
+- **飞书 Presentation 门控**：`handleToolPresentationEvent` / `handleThinkingPresentationEvent` / `handleTaskPresentationEvent` 经 `isFeishuProcessPresentationSuppressed` — 飞书全通道抑制 tool/thinking/task CardKit，改 `sendMilestoneText` 降级（**非**静默 `{ ok: true }`）；抑制路径**不**置 ordering 闩。CardKit 路径才更新 `presentationProcessActive`、`activeToolNames`、`thinkingOpen`；`task` 永不参与 assistant defer。assistant stream-text 与 PRESENTATION_ORDERING（仅 p2p）不受影响。微信路径不变。
 - **eligible 分层**：`isMainUserP2pEligible`（合并批次）⊂ `isStreamTextEligible`（+ S1.8 飞书群聊且 `allowOthers`）；`sessionChatTypeMap` 在 `pushMessage` 写入。
 - **NF2**：活跃 MergeBatch 时 stream/tool/thinking 首包经 `getPresentationReplyAnchor` → `sendStreamingCardMessage` reply 到 `lastInboundMessageId`，不争用合并卡首屏。
 
@@ -65,7 +66,7 @@
 - **开关**：`PRESENTATION_ORDERING` 环境变量；未设置或 `1`/`true` 为开启，`0`/`false` 关闭（回滚至先到先展示）。默认开启。
 - **MVP 范围**：`presentationOrderingEnabled(sessionKey)` = 开关开启 **且** `isMainUserP2pEligible`；群聊/CLI 不在本阶段。
 - **编排字段**（`SessionProgressState`）：`presentationProcessActive`、`activeToolNames`、`thinkingOpen`、`deferredAssistantText`、`assistantCardReleased`、`runPresentationEpoch`。
-- **规则**：本 Run 一旦过程活跃（tool/thinking），assistant CardKit **延迟首建**；过程 idle 或 Run `final` 时 `releaseDeferredAssistantStream` 首建并 PATCH；纯对话（从未过程活跃）首 delta 仍立即建卡。
+- **规则**：本 Run 一旦过程活跃（tool/thinking，**仅 CardKit 路径**置闩），assistant CardKit **延迟首建**；过程 idle 或 Run `final` 时 `releaseDeferredAssistantStream` 首建并 PATCH；纯对话（从未过程活跃）首 delta 仍立即建卡。飞书抑制 milestone 与 `task` 不置 `presentationProcessActive`。
 - **defer 响应**：`POST /api/stream-text` 可返回 `{ ok: true, deferred: true }`（无 `outbound_message_id`）；Electron 据此设 `presentationDeferStream`。
 - **NF1**：assistant 已建卡后再首建过程卡 → WARN 日志 `presentation_order_violation`（字段：`session_key`、`stream_id`、`assistant_msg_id`、`process_kind`、`process_msg_id`、`ordering_enabled`）；不阻断出站。
 - **MergeBatch 不变**：`getPresentationReplyAnchor` / `MergeBatchController` 逻辑**未改**；defer release 首建仍带 reply 锚点。

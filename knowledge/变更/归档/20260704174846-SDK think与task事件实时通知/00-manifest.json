@@ -1,0 +1,118 @@
+{
+  "change_id": "20260704174846-SDK think与task事件实时通知",
+  "title": "SDK think与task事件实时通知",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-04T17:48:46+0800",
+  "updated_at": "2026-07-04T18:27:26+0800",
+  "archived_at": "2026-07-04T18:27:26+0800",
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md",
+    "02-design.md",
+    "03-tasks.md",
+    "04-review.md",
+    "05-summary.md",
+    "06-automation-test.md",
+    "electron/agent/cursor-sdk/sdk-session-types.ts",
+    "electron/agent/cursor-sdk/sdk-run-presentation.ts",
+    "electron/agent/cursor-sdk/sdk-run-stream.ts",
+    "src/shared/feishu-presentation-gate.ts",
+    "src/daemon/daemon-presentation-milestone.ts",
+    "src/daemon/daemon.ts",
+    "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+    "knowledge/业务域/消息桥接/02-飞书通道.md",
+    "electron/agent/cursor-sdk/AGENTS.md",
+    "src/daemon/AGENTS.md",
+    "package.json",
+    "changelog/1.13.0.json"
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "共享类型与飞书门控扩展",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/agent/cursor-sdk/sdk-session-types.ts",
+        "src/shared/feishu-presentation-gate.ts",
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "Electron 出站与 defer 联动",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-presentation.ts",
+        "electron/agent/cursor-sdk/sdk-run-stream.ts"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "SDK task 事件消费与文案映射",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-stream.ts"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "Daemon 里程碑降级模块",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": [
+        "src/daemon/daemon-presentation-milestone.ts"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "Daemon presentation 接线",
+      "status": "done",
+      "depends_on": ["T2", "T3", "T4"],
+      "files": [
+        "src/daemon/daemon.ts",
+        "src/daemon/daemon-presentation-milestone.ts"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "静态验收与残留检查",
+      "status": "done",
+      "depends_on": ["T5"],
+      "files": []
+    }
+  ],
+  "external": {
+    "task_type": "体验优化",
+    "priority": "P1",
+    "prd_doc_url": "无",
+    "registry_record_url": "无",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  },
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "critical",
+      "status": "fixed",
+      "file": "src/daemon/daemon.ts",
+      "summary": "daemon ordering 闩不应在飞书抑制路径置 presentationProcessActive",
+      "task_id": null,
+      "resolution": "飞书抑制分支仅 sendMilestoneText；ordering 闩/activeToolNames/thinkingOpen 移至 CardKit 路径；移除无意义 releaseDeferredAssistantStream"
+    },
+    {
+      "id": "R2",
+      "severity": "critical",
+      "status": "fixed",
+      "file": "electron/agent/cursor-sdk/sdk-run-presentation.ts",
+      "summary": "Electron 释放 defer 应对齐 presentationDeferStream",
+      "task_id": null,
+      "resolution": "maybeReleaseDeferredAssistant 与 Run 收尾 flush 条件扩展为 seenProcessEvent || presentationDeferStream"
+    }
+  ]
+}

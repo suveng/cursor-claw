@@ -54,6 +54,22 @@ function appendSdkLog(session: SdkSessionAgent, kind: "thinking" | "text", delta
   if (agg.buf.length >= LOG_FLUSH_LEN) flushSdkLog(session)
 }
 
+/** SDK task 事件 status/text → 用户可见里程碑文案 */
+function mapTaskMilestoneText(status?: string, text?: string): string {
+  const normalized = (status ?? "").toLowerCase()
+  const trimmed = (text ?? "").trim()
+  if (!normalized || normalized === "started") {
+    return trimmed ? `正在执行：${trimmed}` : "子任务进行中…"
+  }
+  if (normalized === "completed") {
+    return `已完成：${trimmed}`
+  }
+  if (normalized === "failed") {
+    return `子任务失败：${trimmed}`
+  }
+  return trimmed || `子任务更新（${status}）`
+}
+
 /** SDK status 事件 best-effort 推断 runPhase */
 function applyRunPhaseFromStatus(
   session: SdkSessionAgent,
@@ -97,7 +113,7 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       session.runPhase = "executing"
       if (event.text) {
         appendSdkLog(session, "thinking", event.text)
-        markProcessEventSeen(session)
+        markProcessEventSeen(session, "thinking")
         session.thinkingOpen = true
         void postPresentationEvent(session, { kind: "thinking", delta: event.text })
       }
@@ -110,7 +126,7 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       session.runPhase = event.status === "running" ? "tool_running" : "executing"
       const toolDetail = formatToolCallLogSuffix(event.status, event.args, event.result, event.truncated)
       pushUiLog("SDK", "INFO", `[${session.sessionKey}] [tool] ${event.name}: ${event.status}${toolDetail}`)
-      markProcessEventSeen(session)
+      markProcessEventSeen(session, "tool")
       if (event.status === "running") session.toolPresentationOutboundIds?.delete(event.name)
       void postPresentationEvent(session, {
         kind: "tool",
@@ -146,8 +162,19 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       markSessionActivity(session, "request")
       session.runPhase = "awaiting_user"
       break
+    case "task": {
+      markSessionActivity(session, "task")
+      const mappedText = mapTaskMilestoneText(event.status, event.text)
+      // task_text 传映射后全文，daemon 直接用于里程碑展示（非 SDK 原始 text）
+      void postPresentationEvent(session, {
+        kind: "task",
+        task_status: event.status,
+        task_text: mappedText,
+      })
+      pushUiLog("SDK", "INFO", `[${session.sessionKey}] [task] ${mappedText}`)
+      break
+    }
     case "usage":
-    case "task":
     case "system":
     case "user":
       markSessionActivity(session, event.type)
@@ -182,7 +209,11 @@ export async function streamRunEvents(session: SdkSessionAgent, run: Run): Promi
     }
     flushSdkLog(session)
     closeThinkingIfOpen(session)
-    if (presentationOrderingEligible(session) && session.seenProcessEvent) {
+    // Run 收尾：seenProcessEvent 或 daemon deferred 均需 flush 累积 assistant
+    if (
+      presentationOrderingEligible(session)
+      && (session.seenProcessEvent || session.presentationDeferStream)
+    ) {
       await flushDeferredStreamPost(session)
     }
     await finalizeRunContextUsage(session, run)
