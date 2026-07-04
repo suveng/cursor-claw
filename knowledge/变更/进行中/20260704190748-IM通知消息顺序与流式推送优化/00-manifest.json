@@ -3,11 +3,10 @@
   "title": "IM通知消息顺序与流式推送优化",
   "name": "IM通知消息顺序与流式推送优化",
   "flow": "standard",
-  "stage": "archived_with_debt",
-  "archived_at": "2026-07-04T20:11:54+08:00",
+  "stage": "acceptance_reopened",
   "source": "kb-propose",
   "created_at": "2026-07-04T19:07:48+0800",
-  "updated_at": "2026-07-04T20:11:54+08:00",
+  "updated_at": "2026-07-04T21:21:00+0800",
   "files": [
     "00-manifest.json",
     "01-proposal.md",
@@ -235,6 +234,12 @@
           "reason": "code",
           "feedback": "出现相同的消息，重复发送（assistant 答复文案完全相同出现两次）",
           "created_at": "2026-07-04T19:50:00+0800"
+        },
+        {
+          "round": 2,
+          "reason": "requirement",
+          "feedback": "还是存在 IM 消息重复；建议工具实时推送、assistant 输出放到最后才流式发送飞书",
+          "created_at": "2026-07-04T21:21:00+0800"
         }
       ]
     }
