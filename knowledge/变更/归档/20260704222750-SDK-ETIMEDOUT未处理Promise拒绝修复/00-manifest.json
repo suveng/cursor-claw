@@ -7,7 +7,7 @@
   "tasks": [
     {
       "id": "LITE-01",
-      "title": "SDK fire-and-forget promise 补 catch + ConnectError 日志格式化 + Task 工具描述补全",
+      "title": "SDK fire-and-forget promise 补 catch + ConnectError 日志格式化",
       "status": "done",
       "files": [
         "electron/agent/cursor-sdk/sdk-async-guard.ts",
@@ -15,17 +15,15 @@
         "electron/agent/cursor-sdk/sdk-run-watchdog.ts",
         "electron/agent/cursor-sdk/sdk-run-stream.ts",
         "electron/agent/cursor-sdk/sdk-run-presentation.ts",
-        "electron/agent/cursor-sdk/sdk-session-types.ts",
         "src/shared/format-unknown-error.ts",
-        "src/shared/tool-presentation.ts",
-        "src/daemon/daemon.ts",
         "electron/agent/cursor-sdk/AGENTS.md",
         "src/shared/AGENTS.md",
         "package.json",
         "changelog/1.13.7.json",
         "knowledge/变更/归档/20260704222750-SDK-ETIMEDOUT未处理Promise拒绝修复/01-proposal.md",
         "knowledge/变更/归档/20260704222750-SDK-ETIMEDOUT未处理Promise拒绝修复/00-manifest.json",
-        "knowledge/变更/归档/20260704222750-SDK-ETIMEDOUT未处理Promise拒绝修复/05-summary.md"
+        "knowledge/变更/归档/20260704222750-SDK-ETIMEDOUT未处理Promise拒绝修复/05-summary.md",
+        "knowledge/变更/归档/20260704222750-SDK-ETIMEDOUT未处理Promise拒绝修复/06-automation-test.md"
       ]
     }
   ],
@@ -53,19 +51,7 @@
       "kind": "code"
     },
     {
-      "path": "electron/agent/cursor-sdk/sdk-session-types.ts",
-      "kind": "code"
-    },
-    {
       "path": "src/shared/format-unknown-error.ts",
-      "kind": "code"
-    },
-    {
-      "path": "src/shared/tool-presentation.ts",
-      "kind": "code"
-    },
-    {
-      "path": "src/daemon/daemon.ts",
       "kind": "code"
     },
     {
@@ -95,7 +81,11 @@
     {
       "path": "knowledge/变更/归档/20260704222750-SDK-ETIMEDOUT未处理Promise拒绝修复/05-summary.md",
       "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/变更/归档/20260704222750-SDK-ETIMEDOUT未处理Promise拒绝修复/06-automation-test.md",
+      "kind": "change_doc"
     }
   ],
-  "updated_at": "2026-07-04T22:50:00+08:00"
+  "updated_at": "2026-07-04T22:48:00+08:00"
 }
