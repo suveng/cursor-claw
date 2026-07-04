@@ -33,8 +33,8 @@
 - **飞书过程抑制**：daemon `handleToolPresentationEvent` / `handleThinkingPresentationEvent` 与 electron `postPresentationEvent` **均须**调用 `isFeishuProcessPresentationSuppressed`；禁止在调用方复制通道判断逻辑。
 - **门控范围**：仅抑制飞书 tool/thinking CardKit；assistant `stream-text` 与 `PRESENTATION_ORDERING` 不受影响；微信路径不经此 gate。
 - **tool-presentation**：`TOOL_LOG_DETAIL_MAX`、`TOOL_CARD_SHELL_OUTPUT_MAX`、`TOOL_MILESTONE_TEXT_MAX` 为截断上限 SSOT；`formatToolMilestoneText` 为飞书 tool 里程碑文案 SSOT；`lark-core`、electron agent 与 daemon 里程碑须引用本模块，不重复定义 magic number。
-- **shell 工具里程碑**：`extractShellPresentationFields` 从 args 解析 `command` → `tool_shell_command`；`formatToolMilestoneText` shell `started` 优先 `执行命令：{截断}`，无命令时 `命令执行已开始（具体命令暂不可展示）`；禁止裸 `shell：已开始`；completed/failed 仍保留命令摘要（有字段时）。
-- **task 工具里程碑**：`tool_call` 名 `task` 时，`extractTaskPresentationFields` 从 args 解析 `description` → `tool_task_description`；`formatToolMilestoneText` task `started` 优先 `正在执行：{截断描述}`，无描述时 `子任务已开始（描述暂不可展示）`；禁止裸 `task：已开始`；daemon 与 electron 须透传该字段，不重复解析 args。
+- **shell 工具里程碑**：`extractShellPresentationFields` 从 args 解析 `command` → `tool_shell_command`；`formatToolMilestoneText` shell `started` 优先 `shell执行：{截断}`，无命令时 `命令执行已开始（具体命令暂不可展示）`；禁止裸 `shell：已开始`；completed/failed 分别为 `shell完成：{截断}` / `shell失败：{截断}`（有命令字段时）。
+- **task 工具里程碑**：`tool_call` 名 `task` 时，`extractTaskPresentationFields` 从 args 解析 `description` → `tool_task_description`；`formatToolMilestoneText` task `started` 优先 `task开始：{截断描述}`，无描述时 `子任务已开始（描述暂不可展示）`；禁止裸 `task：已开始`；completed/failed 分别为 `task完成：{截断}` / `task失败：{截断}`（有描述字段时）。task **事件**路径文案见 `mapTaskMilestoneText`（`sdk-tool-event-dedup.ts`）。
 
 ## 全局异常日志
 

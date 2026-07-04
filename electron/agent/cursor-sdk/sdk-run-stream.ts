@@ -8,7 +8,6 @@ import {
   extractShellPresentationFields,
   extractTaskPresentationFields,
   formatToolCallLogSuffix,
-  TOOL_MILESTONE_TEXT_MAX,
 } from "../../../src/shared/tool-presentation"
 import { finalizeContextUsageAtRunEnd } from "./context-usage-run-end"
 import { pushUiLog } from "../../app/ui-logger"
@@ -29,6 +28,12 @@ import {
 } from "./sdk-run-presentation"
 import { markSessionActivity } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
+import {
+  clearToolCallRunningDedup,
+  isDuplicateToolCallRunning,
+  isRedundantTaskEventAfterToolCall,
+  mapTaskMilestoneText,
+} from "./sdk-tool-event-dedup"
 
 const LOG_FLUSH_LEN = 400
 
@@ -52,35 +57,6 @@ function appendSdkLog(session: SdkSessionAgent, kind: "thinking" | "text", delta
   agg.kind = kind
   agg.buf += delta
   if (agg.buf.length >= LOG_FLUSH_LEN) flushSdkLog(session)
-}
-
-/** 里程碑文案截断（与 shared/tool-presentation truncateText 口径一致） */
-function truncateMilestoneText(text: string, max: number): string {
-  const compact = text.replace(/\s+/g, " ").trim()
-  if (compact.length <= max) return compact
-  return `${compact.slice(0, max)} …(+${compact.length - max} chars)`
-}
-
-/** SDK task 事件 status/text → 用户可见里程碑文案；taskSeq 用于无 text 时区分步骤 */
-function mapTaskMilestoneText(status?: string, text?: string, taskSeq?: number): string {
-  const normalized = (status ?? "").toLowerCase()
-  const trimmed = (text ?? "").trim()
-  if (!normalized || normalized === "started") {
-    if (trimmed) {
-      return `正在执行：${truncateMilestoneText(trimmed, TOOL_MILESTONE_TEXT_MAX)}`
-    }
-    if (taskSeq != null) return `子任务 #${taskSeq} 已开始`
-    return "子任务已开始"
-  }
-  if (normalized === "completed") {
-    return trimmed ? `已完成：${truncateMilestoneText(trimmed, TOOL_MILESTONE_TEXT_MAX)}` : "子任务已完成"
-  }
-  if (normalized === "failed") {
-    return trimmed
-      ? `子任务失败：${truncateMilestoneText(trimmed, TOOL_MILESTONE_TEXT_MAX)}`
-      : "子任务失败"
-  }
-  return trimmed || `子任务更新（${status}）`
 }
 
 /** SDK status 事件 best-effort 推断 runPhase */
@@ -142,26 +118,33 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       closeThinkingIfOpen(session)
       session.lastTool = { name: event.name, status: event.status }
       session.runPhase = event.status === "running" ? "tool_running" : "executing"
-      const toolDetail = formatToolCallLogSuffix(event.status, event.args, event.result, event.truncated)
-      pushUiLog("SDK", "INFO", `[${session.sessionKey}] [tool] ${event.name}: ${event.status}${toolDetail}`)
-      const tier = resolveSdkToolPresentationTier(event.name)
-      if (tier === "notify") {
-        markProcessEventSeen(session, "tool")
-        if (event.status === "running") session.toolPresentationOutboundIds?.delete(event.name)
-        guardSdkPromise(
-          postPresentationEvent(session, {
-            kind: "tool",
-            tool_name: event.name,
-            tool_status: mapToolPresentationStatus(event.status),
-            final: event.status !== "running",
-            ...extractShellPresentationFields(event.name, event.status, event.args, event.result),
-            ...extractTaskPresentationFields(event.name, event.status, event.args),
-          }),
-          session.sessionKey,
-          "presentation-event:tool",
-        )
-        if (event.status !== "running") {
-          maybeReleaseDeferredAssistant(session)
+      if (event.status !== "running") {
+        clearToolCallRunningDedup(session)
+      }
+      const duplicateRunning =
+        event.status === "running" && isDuplicateToolCallRunning(session, event.name, event.args)
+      if (!duplicateRunning) {
+        const toolDetail = formatToolCallLogSuffix(event.status, event.args, event.result, event.truncated)
+        pushUiLog("SDK", "INFO", `[${session.sessionKey}] [tool] ${event.name}: ${event.status}${toolDetail}`)
+        const tier = resolveSdkToolPresentationTier(event.name)
+        if (tier === "notify") {
+          markProcessEventSeen(session, "tool")
+          if (event.status === "running") session.toolPresentationOutboundIds?.delete(event.name)
+          guardSdkPromise(
+            postPresentationEvent(session, {
+              kind: "tool",
+              tool_name: event.name,
+              tool_status: mapToolPresentationStatus(event.status),
+              final: event.status !== "running",
+              ...extractShellPresentationFields(event.name, event.status, event.args, event.result),
+              ...extractTaskPresentationFields(event.name, event.status, event.args),
+            }),
+            session.sessionKey,
+            "presentation-event:tool",
+          )
+          if (event.status !== "running") {
+            maybeReleaseDeferredAssistant(session)
+          }
         }
       }
       break
@@ -211,6 +194,10 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       // Run 级递增序号：无 text 的 started 里程碑可区分步骤
       if (!normalizedStatus || normalizedStatus === "started") {
         session.taskSeq = (session.taskSeq ?? 0) + 1
+      }
+      // task 工具 notify 级 tool_call 已出站时，跳过等价 task 事件（防日志/飞书双推）
+      if (isRedundantTaskEventAfterToolCall(session, event.status)) {
+        break
       }
       const mappedText = mapTaskMilestoneText(event.status, event.text, session.taskSeq)
       // task 里程碑参与 ordering defer，与 thinking/tool 对称置闩（不单独 release）

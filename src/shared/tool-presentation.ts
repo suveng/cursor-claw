@@ -201,13 +201,16 @@ export function formatToolMilestoneText(
   if (toolName === "shell") {
     if (status === "started") {
       if (command) {
-        return `执行命令：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}`;
+        return `shell执行：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}`;
       }
       return "命令执行已开始（具体命令暂不可展示）";
     }
     // completed/failed：仍保留命令摘要，便于与 started 里程碑对照
     if (command) {
-      return `执行命令：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}（${statusLabel}）`;
+      if (status === "completed") {
+        return `shell完成：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}`;
+      }
+      return `shell失败：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}`;
     }
     return `shell：${statusLabel}`;
   }
@@ -215,12 +218,15 @@ export function formatToolMilestoneText(
   if (toolName === "task") {
     if (status === "started") {
       if (taskDesc) {
-        return `正在执行：${truncateText(taskDesc, TOOL_MILESTONE_TEXT_MAX)}`;
+        return `task开始：${truncateText(taskDesc, TOOL_MILESTONE_TEXT_MAX)}`;
       }
       return "子任务已开始（描述暂不可展示）";
     }
     if (taskDesc) {
-      return `正在执行：${truncateText(taskDesc, TOOL_MILESTONE_TEXT_MAX)}（${statusLabel}）`;
+      if (status === "completed") {
+        return `task完成：${truncateText(taskDesc, TOOL_MILESTONE_TEXT_MAX)}`;
+      }
+      return `task失败：${truncateText(taskDesc, TOOL_MILESTONE_TEXT_MAX)}`;
     }
     return `task：${statusLabel}`;
   }

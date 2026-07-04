@@ -29,6 +29,7 @@ export function resetSdkRunPresentationState(session: SdkSessionAgent): void {
   session.errorNotified = false
   session.lastStatus = undefined
   session.lastTool = undefined
+  session.lastToolCallRunningDedupKey = undefined
   session.runPhase = undefined
   session.runStartedAt = undefined
   session.streamBuffer = ""

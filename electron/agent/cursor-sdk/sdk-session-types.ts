@@ -36,6 +36,8 @@ export interface SdkSessionAgent {
   lastStatus?: { status: string; message?: string }
   /** 末次 tool 事件快照，供 error 日志与保活失败分类 */
   lastTool?: { name: string; status: string }
+  /** 相邻 tool_call running 去重键（防 SDK 重复 tool_call 日志/飞书） */
+  lastToolCallRunningDedupKey?: string
   /** 运行阶段：供 watchdog 区分长工具/等待用户 */
   runPhase?: "executing" | "awaiting_user" | "tool_running"
   /** Feature flag SDK_RESIDENT_AGENT：Run 结束后保持 Agent 实例 */
