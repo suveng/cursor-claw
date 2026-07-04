@@ -9,6 +9,7 @@
 | `channel-types.ts` | `MessageChannel`、`AgentResource`、`makeChatKey` 等通道 SSOT | daemon、electron、renderer |
 | `feishu-presentation-gate.ts` | `isFeishuProcessPresentationSuppressed` 飞书过程展示门控 | daemon、electron |
 | `tool-presentation.ts` | Shell 工具 CardKit 字段解析与截断常量 | bridge/lark-core、electron |
+| `sdk-tool-presentation-tier.ts` | SDK `tool_name` → notify/silent 分级 SSOT | electron cursor-sdk |
 | `constants.ts` | `LOCK_FILE_NAME` 等进程级常量 | daemon-entry |
 
 ## import 约定

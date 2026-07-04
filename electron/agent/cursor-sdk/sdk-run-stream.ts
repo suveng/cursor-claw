@@ -3,6 +3,7 @@
  * 运行期间仅经 `for await (run.stream())` 驱动呈现与活跃时钟。
  */
 import type { Run, SDKMessage } from "@cursor/sdk"
+import { resolveSdkToolPresentationTier } from "../../../src/shared/sdk-tool-presentation-tier.js"
 import {
   extractShellPresentationFields,
   formatToolCallLogSuffix,
@@ -118,7 +119,7 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
         void postPresentationEvent(session, { kind: "thinking", delta: event.text })
       }
       break
-    case "tool_call":
+    case "tool_call": {
       markSessionActivity(session, "tool_call")
       flushSdkLog(session)
       closeThinkingIfOpen(session)
@@ -126,19 +127,23 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       session.runPhase = event.status === "running" ? "tool_running" : "executing"
       const toolDetail = formatToolCallLogSuffix(event.status, event.args, event.result, event.truncated)
       pushUiLog("SDK", "INFO", `[${session.sessionKey}] [tool] ${event.name}: ${event.status}${toolDetail}`)
-      markProcessEventSeen(session, "tool")
-      if (event.status === "running") session.toolPresentationOutboundIds?.delete(event.name)
-      void postPresentationEvent(session, {
-        kind: "tool",
-        tool_name: event.name,
-        tool_status: mapToolPresentationStatus(event.status),
-        final: event.status !== "running",
-        ...extractShellPresentationFields(event.name, event.status, event.args, event.result),
-      })
-      if (event.status !== "running") {
-        maybeReleaseDeferredAssistant(session)
+      const tier = resolveSdkToolPresentationTier(event.name)
+      if (tier === "notify") {
+        markProcessEventSeen(session, "tool")
+        if (event.status === "running") session.toolPresentationOutboundIds?.delete(event.name)
+        void postPresentationEvent(session, {
+          kind: "tool",
+          tool_name: event.name,
+          tool_status: mapToolPresentationStatus(event.status),
+          final: event.status !== "running",
+          ...extractShellPresentationFields(event.name, event.status, event.args, event.result),
+        })
+        if (event.status !== "running") {
+          maybeReleaseDeferredAssistant(session)
+        }
       }
       break
+    }
     case "status": {
       markSessionActivity(session, "status")
       applyRunPhaseFromStatus(session, event.status, event.message)

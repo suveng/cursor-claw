@@ -1,0 +1,117 @@
+{
+  "change_id": "20260704183752-SDK工具调用通知分级",
+  "title": "SDK工具调用通知分级",
+  "name": "SDK工具调用通知分级",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-04T18:37:52+0800",
+  "updated_at": "2026-07-04T19:00:57+0800",
+  "archived_at": "2026-07-04T19:00:57+0800",
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md",
+    "02-design.md",
+    "03-tasks.md",
+    "04-review.md",
+    "05-summary.md",
+    "06-automation-test.md",
+    {
+      "path": "src/shared/sdk-tool-presentation-tier.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-stream.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/shared/AGENTS.md",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "release",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.13.1.json",
+      "kind": "release",
+      "source": "archive",
+      "status": "added"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "SDK 工具呈现分级 SSOT",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/shared/sdk-tool-presentation-tier.ts"
+      ],
+      "verification": "S-A tier 冒烟 PASS（notify×5 + silent×7）"
+    },
+    {
+      "id": "T2",
+      "title": "sdk-run-stream tool_call 呈现门控",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-stream.ts"
+      ],
+      "verification": "04-review 代码路径 PASS；IM E2E 待维护者手测（S-B～S-C）"
+    },
+    {
+      "id": "T3",
+      "title": "AGENTS.md 分级门控文档",
+      "status": "done",
+      "depends_on": ["T2"],
+      "files": [
+        "electron/agent/cursor-sdk/AGENTS.md",
+        "src/shared/AGENTS.md"
+      ],
+      "verification": "04-review PASS"
+    }
+  ],
+  "external": {
+    "task_type": "体验优化",
+    "priority": "P1",
+    "prd_doc_url": "无",
+    "registry_record_url": "无",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  },
+  "reviews": [
+    {
+      "id": "R-compliance-1",
+      "reviewer": "kb-reviewer #1 规范合规",
+      "severity": "pass",
+      "status": "closed",
+      "summary": "通过：T1–T3 与 02/03 对齐；W1 文档已修；open≥75=0",
+      "open_critical": 0,
+      "open_warning_ge75": 0,
+      "archive_ready": true,
+      "next_step": "/kb-archive（IM E2E S-B～S-E 待维护者手测残留，不阻断归档）"
+    }
+  ]
+}
