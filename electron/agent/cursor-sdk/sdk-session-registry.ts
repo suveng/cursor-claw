@@ -112,10 +112,10 @@ function presentationOrderingEnvEnabled(): boolean {
   return true
 }
 
-/** Presentation 时序编排：PRESENTATION_ORDERING 开启且主用户私聊 SDK 流式 */
+/** Presentation 时序编排：PRESENTATION_ORDERING 开启且 f41 流式（主用户私聊或飞书群聊） */
 export function presentationOrderingEligible(session: SdkSessionAgent): boolean {
   if (!presentationOrderingEnvEnabled()) return false
-  return session.f41Stream && session.chatType === "p2p"
+  return session.f41Stream
 }
 
 export function resolveRunDurationMs(session: SdkSessionAgent, run?: Run | null): number | undefined {

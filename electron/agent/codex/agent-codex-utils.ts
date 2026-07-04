@@ -140,9 +140,9 @@ export function codexResidentModeEnabled(): boolean {
   return v !== "0" && v !== "false"
 }
 
-/** Presentation 时序：开关开启且主用户私聊 f41 流式 */
+/** Presentation 时序：开关开启且 f41 流式（主用户私聊或飞书群聊） */
 export function presentationOrderingEligible(session: CodexSessionAgent): boolean {
-  return presentationOrderingEnvEnabled() && session.f41Stream && session.chatType === "p2p"
+  return presentationOrderingEnvEnabled() && session.f41Stream
 }
 
 /** 重置单次 run 的 presentation 状态（保留 codexSessionId / activeThread） */

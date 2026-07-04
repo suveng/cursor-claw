@@ -406,10 +406,10 @@ function presentationOrderingEnvEnabled(): boolean {
   return true;
 }
 
-/** Presentation 时序编排总开关（默认开，仅主用户私聊） */
+/** Presentation 时序编排总开关（默认开，与 stream-text eligible 对齐：主用户私聊 + 飞书群聊） */
 function presentationOrderingEnabled(sessionKey: string): boolean {
   if (!presentationOrderingEnvEnabled()) return false;
-  return isMainUserP2pEligible(sessionKey);
+  return isStreamTextEligible(sessionKey);
 }
 
 function isPresentationProcessIdle(state: SessionProgressState): boolean {

@@ -97,8 +97,9 @@ export function opencodeResidentModeEnabled(): boolean {
   return v !== "0" && v !== "false"
 }
 
+/** Presentation 时序：开关开启且 f41 流式（主用户私聊或飞书群聊） */
 export function presentationOrderingEligible(session: OpencodeSessionAgent): boolean {
-  return presentationOrderingEnvEnabled() && session.f41Stream && session.chatType === "p2p"
+  return presentationOrderingEnvEnabled() && session.f41Stream
 }
 
 /** 重置单次 run 的 presentation 状态 */
