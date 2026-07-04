@@ -286,6 +286,8 @@ T-FIX-2 ──→ T-FIX-3
 
 ## T-FIX-1: Daemon releaseDeferredAssistantStream 串行化与首建占位
 
+> **Rev2 注记**：T-FIX-1 串行化与占位保留；**mid-run process-idle release 路径由 T-Rev2-02 废弃**，不再作为 ordering 场景 assistant 首建主路径。
+
 ### 背景
 
 08-verify-issue 第 1 轮：并发 `void releaseDeferredAssistantStream` 竞态导致相同 assistant 文案双首建（两条内容完全一致的 assistant 消息）。
@@ -329,6 +331,8 @@ T-FIX-2 ──→ T-FIX-3
 
 ## T-FIX-2: Electron Run 收尾取消冗余 non-final flush
 
+> **Rev2 注记**：T-FIX-2 收尾单 final flush 保留；**ordering 场景 mid-run `maybeReleaseDeferredAssistant` / `flushDeferredStreamPost` 由 T-Rev2-01 禁止**。
+
 ### 背景
 
 08-verify-issue：`flushDeferredStreamPost` + `flushStreamPost(true)` 在 Run 收尾叠加，放大双首包风险（与 Daemon 侧并发 release 叠加时更易触发重复 assistant 消息）。
@@ -368,6 +372,8 @@ T-FIX-2 ──→ T-FIX-3
 
 ## T-FIX-3: 文档同步 release 串行化与收尾语义
 
+> **Rev2 注记**：T-FIX-3 内容已被 T-Rev2-04 部分 supersede；Rev2 apply 后须同步 end-only 语义。
+
 ### 背景
 
 T-FIX-1、T-FIX-2 落地后，须同步 Daemon / Electron SDK 目录 AGENTS，描述 enqueue release 链与 Run 收尾单 final flush，避免实现与文档脱节。不改 knowledge 业务域文件（archive 时合并）。
@@ -406,6 +412,8 @@ T-FIX-1、T-FIX-2 落地后，须同步 Daemon / Electron SDK 目录 AGENTS，�
 
 ## T-FIX-4: handleStreamText 飞行窗口门控与 release 异常回滚
 
+> **Rev2 注记**：T-FIX-4 飞行窗口门控保留；**process-idle enqueueRelease 由 T-Rev2-02 移除**，Run 期间仅 defer 累积。
+
 ### 背景
 
 T-FIX-1 占位后 `outboundMessageId` 未写入时，并发 `handleStreamText` 仍可能 `isFirst=true` 重复首建 assistant 卡。
@@ -425,3 +433,183 @@ T-FIX-1 占位后 `outboundMessageId` 未写入时，并发 `handleStreamText` �
 
 - 前置任务: T-FIX-1
 - 后续任务: 无
+
+---
+
+## 4、PRD 修订 Rev2（08-verify-issue 第 2 轮）
+
+> **来源**：`/kb-revise`（`reason=requirement`）；业务口径见 `01-proposal.md` F8、`07-prd-revisions.md` Rev2。
+
+### 4.1 依赖图
+
+```
+T-Rev2-01 ──┐
+T-Rev2-02 ──┼──→ T-Rev2-04
+            └──→ T-Rev2-03（验收，依赖 01/02 实现落地）
+```
+
+### 4.2 分组调度
+
+| 轮次 | 并行任务 | 说明 |
+|------|----------|------|
+| 第一轮 | T-Rev2-01, T-Rev2-02 | Electron 与 Daemon 不同文件，可并行 |
+| 第二轮 | T-Rev2-04 | 依赖 01/02 代码落地后同步文档 |
+| 验收 | T-Rev2-03 | 与 08-verify E10 对齐，可在 01/02 完成后执行 |
+
+---
+
+## T-Rev2-01: Electron end-only assistant IM
+
+### 背景
+
+Rev2 要求含实质过程的 ordering Run 期间 assistant **零 IM 出站**；现网 `maybeReleaseDeferredAssistant` / `flushDeferredStreamPost` 在 process-idle 仍会向 Daemon 发送 non-final 首建，与 F8.2 冲突并叠加重复消息风险。本任务在 ordering 且已见过程时禁止 mid-run release，仅 Run 收尾 `flushStreamPost(true)` 出站。
+
+### 上下文文件
+
+- 必读: `electron/agent/cursor-sdk/sdk-run-presentation.ts` — `maybeReleaseDeferredAssistant`、`flushDeferredStreamPost`、`appendAssistantStreamDelta`、`shouldDeferAssistantPost`
+- 必读: `electron/agent/cursor-sdk/sdk-run-stream.ts` — `streamRunEvents` 收尾、`flushStreamPost`
+- 参考: `01-proposal.md` F8、`02-design.md` §2 Rev2、`07-prd-revisions.md` Rev2
+
+### 实现范围
+
+- 修改: `electron/agent/cursor-sdk/sdk-run-presentation.ts`：
+  - ordering 且 `seenProcessEvent`（或等价「已见过程」）为 true 时，`maybeReleaseDeferredAssistant` **no-op**（不 POST non-final stream-text）
+  - 同上条件下 `flushDeferredStreamPost` **no-op** 或仅本地累积，不向 Daemon 首建
+  - 过程期间 assistant delta 仅累积 buffer / defer
+- 修改: `electron/agent/cursor-sdk/sdk-run-stream.ts`（若需）：
+  - 确认 Run 收尾 `flushStreamPost(session, true)` 为 ordering+含过程场景**唯一** assistant IM 出站路径
+- 不改: 无实质过程 preamble 400ms 短窗路径（F5/F8.4）；过程里程碑 `postPresentationEvent` 实时出站
+
+### 接口契约
+
+- ordering + 已见过程：mid-run **零** `POST /api/stream-text` 首建/non-final 更新
+- Run 收尾：`flushStreamPost(session, true)` 单次 final POST，兼首建与流式完结
+
+### 验收标准
+
+- [ ] 含 thinking/task/notify 工具 Run：过程全部结束前飞书无 assistant IM 首建或 PATCH（01 验收 10；F8.2）
+- [ ] Run 收尾后 assistant 首建并以流式 PATCH 增长至 final（F8.3/F8.5；01 验收 3）
+- [ ] 无实质过程短问答：preamble ≤400ms 及时首包仍生效（F5/F8.4；01 验收 5/6）
+- [ ] `PRESENTATION_ORDERING=0` 回滚路径行为与变更前一致
+- [ ] 无 `02`/`03` 未要求的抽象层或未批准的新依赖
+
+### 依赖
+
+- 前置任务: 无（Rev2 独立于 T1–T5 已完成项）
+- 后续任务: T-Rev2-03, T-Rev2-04
+
+---
+
+## T-Rev2-02: Daemon end-only release
+
+### 背景
+
+Rev2 要求 Daemon 侧 ordering 场景禁用 process-idle `enqueueReleaseDeferredAssistantStream`；`handleStreamText` 在 Run 过程未结束前仅累积 `deferredAssistantText` 并返回 `deferred: true`；assistant CardKit **首建仅**在 final 或 Run 结束等价信号。T-FIX-1 串行链保留，但 idle release 调用点须移除或门控。
+
+### 上下文文件
+
+- 必读: `src/daemon/daemon.ts` — `handleStreamText`、`enqueueReleaseDeferredAssistantStream`、`releaseDeferredAssistantStream`、presentation handler idle release 调用点
+- 参考: `01-proposal.md` F8、`02-design.md` §2 Rev2 S7/S8/S9
+- 参考: T-FIX-1/T-FIX-4 已落地串行化与飞行窗口（保留，不 regress）
+
+### 实现范围
+
+- 修改: `src/daemon/daemon.ts`：
+  - ordering 场景：`handleThinkingPresentationEvent` / `handleToolPresentationEvent` 等 **移除** process-idle 时 `enqueueReleaseDeferredAssistantStream` 调用
+  - `handleStreamText`：过程未结束（`presentationProcessActive` 或等价）且 non-final → 仅累积 `deferredAssistantText`，返回 `{ deferred: true }`；**禁止** mid-run 首建
+  - final 或 Run 结束信号 → 经既有 `assistantReleaseChain` 首建 + PATCH 至 final
+- 不改: 里程碑 `sendMilestoneText` 实时出站；T-FIX-4 飞行窗口门控；MergeBatch reply 锚点
+
+### 接口契约
+
+- ordering + 含过程 + non-final `stream-text` → `{ ok: true, deferred: true }`，无 CardKit 首建
+- final `stream-text` 或 Run 收尾等价 → 首建（若未建）+ 流式 PATCH/关闭
+
+### 验收标准
+
+- [ ] 含工具 Run 过程结束前 Daemon 不向飞书发送 assistant 消息（01 验收 10）
+- [ ] Run final 路径首建单条 assistant CardKit 并流式完结（01 验收 11；F8.3）
+- [ ] 过程里程碑仍实时出站，时序在 assistant 之上（F8.1；01 验收 1）
+- [ ] T-FIX-1 串行链与 T-FIX-4 飞行窗口无 regress
+- [ ] `PRESENTATION_ORDERING=0` 回滚行为一致
+- [ ] 无 `02`/`03` 未要求的抽象层或未批准的新依赖
+
+### 依赖
+
+- 前置任务: 无
+- 后续任务: T-Rev2-03, T-Rev2-04
+
+---
+
+## T-Rev2-03: 去重验收（单 Run 单条 assistant）
+
+### 背景
+
+08-verify-issue 第 2 轮核心诉求：消除 assistant 文案完全相同重复发送。Rev2 以 end-only 首建 + 单 Run 单条 IM 为产品口径；本任务定义可执行验收清单，与 08-verify E10 对齐。
+
+### 上下文文件
+
+- 必读: `01-proposal.md` 验收 10–11、`08-verify-issue.md` 第 2 轮
+- 必读: T-Rev2-01、T-Rev2-02 落地代码
+- 参考: `06-automation-test.md`（若已有 E10 用例则对齐）
+
+### 实现范围
+
+- 无代码变更（验收任务）；可补充 `06-automation-test.md` E10 步骤描述（若 apply 阶段需要，由 kb-recorder 协同）
+- 手工/E2E：飞书私聊含 task+工具长任务 + 短问答各 1 场景
+
+### 接口契约
+
+- 单 Run 飞书 assistant 消息计数 = 1
+- 无内容完全相同的 assistant 重复条
+
+### 验收标准
+
+- [ ] 含 ≥1 task + notify 工具 Run：飞书仅 1 条 assistant 消息，文案无完全重复（08-verify E10；01 验收 11）
+- [ ] 过程全部结束前无 assistant IM 出站（01 验收 10）
+- [ ] 首建后内容流式增长至 final，非一次性长文（F8.5；01 验收 3）
+- [ ] 短问答场景仍及时首包（01 验收 5/6）
+
+### 依赖
+
+- 前置任务: T-Rev2-01, T-Rev2-02
+- 后续任务: 无（通过后 `/kb-verify-issue` 复验）
+
+---
+
+## T-Rev2-04: AGENTS + 06-CursorSDK执行引擎 同步
+
+### 背景
+
+Rev2 将 defer-on-idle 改为 end-only assistant IM；须同步 Electron SDK、Daemon AGENTS 及业务域 `06-CursorSDK执行引擎.md`，避免文档仍描述 process-idle release 为主路径。
+
+### 上下文文件
+
+- 必读: T-Rev2-01、T-Rev2-02 已实现代码
+- 必读: `electron/agent/cursor-sdk/AGENTS.md`、`src/daemon/AGENTS.md`
+- 必读: `knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md`
+- 参考: `02-design.md` §10.1 Rev2 条目、`07-prd-revisions.md` Rev2
+
+### 实现范围
+
+- 修改: `electron/agent/cursor-sdk/AGENTS.md` — end-only：ordering+含过程禁止 mid-run release；Run 收尾 `flushStreamPost(true)` 唯一出站
+- 修改: `src/daemon/AGENTS.md` — 禁用 process-idle `enqueueRelease`；`handleStreamText` defer-only 直至 final
+- 修改: `knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md` — §二/§三 同步 Rev2 口径
+- 标注: T-FIX-3 中 idle release 描述改为历史/被 Rev2 取代
+
+### 接口契约
+
+- 三份文档与 T-Rev2-01/02 代码一致；术语对齐 F8、`SessionProgressState` 字段
+
+### 验收标准
+
+- [ ] 三份文档均明确 end-only assistant IM，无「process-idle 即 release」为主路径表述
+- [ ] 过程实时 + 答复收尾流式（F8.1/F8.3）描述清晰
+- [ ] 与 01 F8、02 §2 Rev2 无矛盾
+- [ ] 各文件变更记录追加 2026-07-04 Rev2 摘要（若有变更记录段）
+
+### 依赖
+
+- 前置任务: T-Rev2-01, T-Rev2-02
+- 后续任务: 无（完成后可 `/kb-revise-apply` 收尾、`/kb-verify-issue` 复验）
+

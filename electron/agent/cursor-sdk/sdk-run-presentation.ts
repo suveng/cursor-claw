@@ -111,10 +111,19 @@ export function applyContextFooterToBuffer(session: SdkSessionAgent): void {
   session.streamBuffer = appendContextFooter(session.streamBuffer, footer)
 }
 
+/** Rev2：ordering 且已见过程、尚未首建时，assistant 仅 Run 收尾 final 出站 */
+function shouldEndOnlyAssistantDefer(session: SdkSessionAgent): boolean {
+  if (!presentationOrderingEligible(session)) return false
+  if (session.outboundMessageId) return false
+  return !!(session.seenProcessEvent || session.presentationDeferStream)
+}
+
 async function doFlushStreamPost(session: SdkSessionAgent, final: boolean): Promise<void> {
   clearStreamPostTimer(session)
   if (!session.f41Stream) return
   if (!final && shouldDeferAssistantPost(session)) return
+  // ponytail: Rev2 end-only，含过程 Run 仅 Run 收尾 flushStreamPost(true) 出站
+  if (!final && shouldEndOnlyAssistantDefer(session)) return
   if (final) applyContextFooterToBuffer(session)
   const text = session.streamBuffer
   if (!text.trim() && !final) return
@@ -216,12 +225,16 @@ export function markProcessEventSeen(session: SdkSessionAgent, _kind: Presentati
 }
 
 export async function flushDeferredStreamPost(session: SdkSessionAgent): Promise<void> {
+  // ponytail: Rev2 end-only，含过程 Run 仅 Run 收尾 flushStreamPost(true) 出站
+  if (shouldEndOnlyAssistantDefer(session)) return
   if (!session.streamBuffer.trim()) return
   await flushStreamPost(session, false)
 }
 
 /** 过程结束或 daemon 已 deferred 时释放 assistant 缓冲（对齐 presentationDeferStream） */
 export function maybeReleaseDeferredAssistant(session: SdkSessionAgent): void {
+  // ponytail: Rev2 end-only，含过程 Run 仅 Run 收尾 flushStreamPost(true) 出站
+  if (shouldEndOnlyAssistantDefer(session)) return
   if (!presentationOrderingEligible(session)) return
   if (!session.seenProcessEvent && !session.presentationDeferStream) return
   void flushDeferredStreamPost(session)

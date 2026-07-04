@@ -214,6 +214,7 @@ export async function streamRunEvents(session: SdkSessionAgent, run: Run): Promi
     closeThinkingIfOpen(session)
     // Run 收尾仅 final flush，避免 non-final+final 双 POST（08-verify-issue）
     await finalizeRunContextUsage(session, run)
+    // Rev2：ordering+含过程场景 assistant IM 唯一出站路径（mid-run release 已由 shouldEndOnlyAssistantDefer 禁止）
     if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
       await flushStreamPost(session, true)
     }

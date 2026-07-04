@@ -3,10 +3,12 @@
   "title": "IM通知消息顺序与流式推送优化",
   "name": "IM通知消息顺序与流式推送优化",
   "flow": "standard",
-  "stage": "acceptance_reopened",
+  "stage": "archived_with_debt",
   "source": "kb-propose",
   "created_at": "2026-07-04T19:07:48+0800",
-  "updated_at": "2026-07-04T21:21:00+0800",
+  "updated_at": "2026-07-04T21:36:00+0800",
+  "archived_at": "2026-07-04T21:36:00+0800",
+  "test_scope": "T1–T5 + T-FIX-1~4；E1–E10 accepted debt；Rev2 不归入本变更验收（归档后独立修订）",
   "files": [
     "00-manifest.json",
     "01-proposal.md",
@@ -15,6 +17,7 @@
     "04-review.md",
     "05-summary.md",
     "06-automation-test.md",
+    "07-prd-revisions.md",
     "08-verify-issue.md",
     {
       "path": "electron/agent/cursor-sdk/sdk-run-presentation.ts",
@@ -65,13 +68,7 @@
       "status": "changed"
     },
     {
-      "path": "changelog/1.13.2.json",
-      "kind": "release",
-      "source": "archive",
-      "status": "added"
-    },
-    {
-      "path": "changelog/1.13.3.json",
+      "path": "changelog/1.13.4.json",
       "kind": "release",
       "source": "archive",
       "status": "added"
@@ -171,6 +168,49 @@
         "src/daemon/daemon.ts",
         "src/daemon/AGENTS.md"
       ]
+    },
+    {
+      "id": "T-Rev2-01",
+      "title": "Electron end-only assistant IM",
+      "status": "done",
+      "depends_on": [],
+      "verification": "shouldEndOnlyAssistantDefer 门控 mid-run release；Run 收尾 flushStreamPost(true) 保留",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-presentation.ts",
+        "electron/agent/cursor-sdk/sdk-run-stream.ts"
+      ]
+    },
+    {
+      "id": "T-Rev2-02",
+      "title": "Daemon end-only release",
+      "status": "done",
+      "depends_on": [],
+      "verification": "ordering 禁用 process-idle enqueueRelease；handleStreamText 过程未结束 non-final 仅 defer 累积；final 经 assistantReleaseChain 首建+完结；T-FIX-1 串行链与 T-FIX-4 飞行窗口保留；里程碑 sendMilestoneText 不变",
+      "files": [
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T-Rev2-03",
+      "title": "去重验收（单 Run 单条 assistant）",
+      "status": "done",
+      "depends_on": ["T-Rev2-01", "T-Rev2-02"],
+      "verification": "06§3.4 静态✅（01/02 契约）；E10 飞书手工待测",
+      "files": [
+        "06-automation-test.md"
+      ]
+    },
+    {
+      "id": "T-Rev2-04",
+      "title": "AGENTS + 06-CursorSDK执行引擎 Rev2 同步",
+      "status": "done",
+      "depends_on": ["T-Rev2-01", "T-Rev2-02"],
+      "verification": "三份文档 end-only 语义静态✅；无 process-idle release 主路径表述",
+      "files": [
+        "electron/agent/cursor-sdk/AGENTS.md",
+        "src/daemon/AGENTS.md",
+        "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md"
+      ]
     }
   ],
   "reviews": [
@@ -225,7 +265,15 @@
       "resolution": "impl try/catch 回滚 assistantCardReleased 并 rethrow；失败场景依赖后续 release 重试"
     }
   ],
-  "revisions": [],
+  "revisions": [
+    {
+      "id": "Rev2",
+      "status": "completed",
+      "task_ids": ["T-Rev2-01", "T-Rev2-02", "T-Rev2-03", "T-Rev2-04"],
+      "source": "08-verify-issue round 2",
+      "note": "T-Rev2-01~04 全部 done；E10 飞书手工待测"
+    }
+  ],
   "external": {
     "acceptance": {
       "rounds": [

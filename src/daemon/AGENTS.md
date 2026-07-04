@@ -57,7 +57,7 @@
 - **编辑 fallback**：`mergeCardRegistry` 仅注册 `cardMessageId`；`tryHandleMergePreviewReply` 只认合并卡 outbound id，更新 `overrideText`。
 - **清理**：`clearMergeBatchState` 在 `ackOnReply` 与 claim 后调用。
 - **Presentation**：`POST /api/presentation-event` 路由 `tool`/`thinking`/`task`/`assistant`/`merge_batch`；`task` → `handleTaskPresentationEvent`；失败日志含可检索字段 `presentation_failed`。
-- **飞书 Presentation 门控**：`handleToolPresentationEvent` / `handleThinkingPresentationEvent` 经 `isFeishuProcessPresentationSuppressed` — 飞书全通道抑制 tool/thinking CardKit，改 `sendMilestoneText` 降级（**非**静默 `{ ok: true }`）。**呈现抑制 ≠ 不参与 ordering**：`sendMilestoneText` 返回 `sent === true`（实际出站；节流/去重/空文案/发送失败为 `false`）且 ordering 开启时，抑制路径 **mirror CardKit** 更新 `presentationProcessActive` 等编排字段——thinking：`thinkingOpen`；tool：`activeToolNames`（started 入集、completed/failed 出集）；过程 idle 时 `enqueueReleaseDeferredAssistantStream`。`handleTaskPresentationEvent` 始终走里程碑 `sendMilestoneText`；ordering && sent → 仅 `presentationProcessActive = true`（不维护 `thinkingOpen`/`activeToolNames`，不单独 release）。CardKit 非抑制路径逻辑不变。assistant stream-text 与 PRESENTATION_ORDERING（仅 p2p）不受影响。微信路径不变。
+- **飞书 Presentation 门控**：`handleToolPresentationEvent` / `handleThinkingPresentationEvent` 经 `isFeishuProcessPresentationSuppressed` — 飞书全通道抑制 tool/thinking CardKit，改 `sendMilestoneText` 降级（**非**静默 `{ ok: true }`）。**呈现抑制 ≠ 不参与 ordering**：`sendMilestoneText` 返回 `sent === true`（实际出站；节流/去重/空文案/发送失败为 `false`）且 ordering 开启时，抑制路径 **mirror CardKit** 更新 `presentationProcessActive` 等编排字段——thinking：`thinkingOpen`；tool：`activeToolNames`（started 入集、completed/failed 出集）；**Rev2：过程 idle 不再 `enqueueReleaseDeferredAssistantStream`**，仅更新闩锁。`handleTaskPresentationEvent` 始终走里程碑 `sendMilestoneText`；ordering && sent → 仅 `presentationProcessActive = true`（不维护 `thinkingOpen`/`activeToolNames`，不单独 release）。CardKit 非抑制路径亦**禁止** process-idle release。assistant stream-text 与 PRESENTATION_ORDERING（仅 p2p）不受影响。微信路径不变。
 - **eligible 分层**：`isMainUserP2pEligible`（合并批次）⊂ `isStreamTextEligible`（+ S1.8 飞书群聊且 `allowOthers`）；`sessionChatTypeMap` 在 `pushMessage` 写入。
 - **NF2**：活跃 MergeBatch 时 stream/tool/thinking 首包经 `getPresentationReplyAnchor` → `sendStreamingCardMessage` reply 到 `lastInboundMessageId`，不争用合并卡首屏。
 
@@ -66,8 +66,8 @@
 - **开关**：`PRESENTATION_ORDERING` 环境变量；未设置或 `1`/`true` 为开启，`0`/`false` 关闭（回滚至先到先展示）。默认开启。
 - **MVP 范围**：`presentationOrderingEnabled(sessionKey)` = 开关开启 **且** `isMainUserP2pEligible`；群聊/CLI 不在本阶段。
 - **编排字段**（`SessionProgressState`）：`presentationProcessActive`、`activeToolNames`、`thinkingOpen`、`deferredAssistantText`、`assistantCardReleased`、`assistantReleaseChain`、`runPresentationEpoch`。
-- **规则**：本 Run 一旦过程活跃（tool/thinking/task；CardKit 路径或飞书里程碑 **`sendMilestoneText` 成功出站**），assistant CardKit **延迟首建**；过程 idle 或 Run `final` 时经 `enqueueReleaseDeferredAssistantStream` 首建并 PATCH；纯对话（从未过程活跃）首 delta 仍立即建卡。里程碑节流跳过（`sent === false`）**不**误置 `presentationProcessActive`。
-- **release 串行化**：`releaseDeferredAssistantStreamImpl` 须经 `enqueueReleaseDeferredAssistantStream` 入 `assistantReleaseChain`（复用 Electron `streamPostChain` 模式），串行化 release，避免并发双首建重复 assistant 卡；过程 idle / presentation-event / stream-text `final` 等入口均走 enqueue，不直接并发调用 impl。
+- **规则（Rev2 end-only）**：本 Run 一旦过程活跃（tool/thinking/task；CardKit 路径或飞书里程碑 **`sendMilestoneText` 成功出站**），assistant CardKit **延迟首建**；过程未结束前 `handleStreamText` non-final 仅累积 `deferredAssistantText` 并返回 `{ deferred: true }`，**禁止** mid-run 首建。**首建仅**在 `stream-text` `final: true`（含 `presentationProcessActive` 时经 `enqueueReleaseDeferredAssistantStream`）触发；纯对话（从未过程活跃）首 delta 仍立即建卡。里程碑节流跳过（`sent === false`）**不**误置 `presentationProcessActive`。**ordering 闩锁与 Rev2 分工**：`presentationProcessActive`/`activeToolNames`/`thinkingOpen` 仍由过程事件或里程碑 sent 置位；Rev2 仅取消 process-idle release，不改闩锁置位与里程碑 `sendMilestoneText` 行为（节流 ≥3s、同文案 ≤4 次/Run 不变）。
+- **release 串行化**：`releaseDeferredAssistantStreamImpl` 须经 `enqueueReleaseDeferredAssistantStream` 入 `assistantReleaseChain`（复用 Electron `streamPostChain` 模式），串行化 final 首建，避免并发双首建重复 assistant 卡；**不再**以 process-idle 为主路径 enqueue；仅 `handleStreamText` final 等收尾入口走 enqueue，不直接并发调用 impl。
 - **首建占位与回滚**：`releaseDeferredAssistantStreamImpl` 异步发送前设 `assistantCardReleased = true` 占位；微信发送失败或飞书 CardKit/`sendStreamMessage` 均失败时回滚 `assistantCardReleased = false`，允许后续 release 重试。`resetPresentationOrderingFields` 清零 `assistantCardReleased` 与 `assistantReleaseChain`。
 - **defer 响应**：`POST /api/stream-text` 可返回 `{ ok: true, deferred: true }`（无 `outbound_message_id`）；Electron 据此设 `presentationDeferStream`。
 - **NF1**：assistant 已建卡后再首建过程卡 → WARN 日志 `presentation_order_violation`（字段：`session_key`、`stream_id`、`assistant_msg_id`、`process_kind`、`process_msg_id`、`ordering_enabled`）；不阻断出站。
@@ -75,6 +75,7 @@
 
 ## stream-text（`/api/stream-text`）
 
+- **ordering 飞行窗口（T-FIX-4，Rev2 保留）**：`assistantCardReleased && !outboundMessageId` 时 await `assistantReleaseChain` 再判 `isFirst`；窗口内 non-final 返回 `{ deferred: true }`，防 release 占位与并发 stream-text 双首建。
 - **队列 ack**：`final: true` 且带 `message_id` 时经 `ackOnReply` 确认 `.claimed`（SDK 路径由 launch/dispatch 转发 `message_ids`，electron final flush 传末条 id）。
 - **微信**：首包 `sendText` + 后续分段，逻辑不变。
 - **飞书首选 CardKit**：首包 `createStreamingCardEntity` → `sendStreamingCardMessage`，`SessionProgressState` 记 `cardId`/`elementId`/`cardSequence`/`streamCardKitMode`；后续 `updateStreamingCardText`（`cardSequence` 递增）；`final: true` 时 `closeStreamingCardMode(cardSequence+1)` 再 stop/ack。

@@ -2,7 +2,8 @@
 
 > **变更 ID**：`20260704190748-IM通知消息顺序与流式推送优化`
 > **来源**：`/kb-test`（基于 `01-proposal.md`、`02-design.md`、`03-tasks.md`、`04-review.md`）
-> **实现状态**：T1–T5 + T-FIX-1~4 done；04-review 通过（无 open 严重/警告；R-D1/R-D2/R-D3/R-D4 accepted debt）；`stage=tested`
+> **实现状态**：T1–T5 + T-FIX-1~4 + T-Rev2-01/02 done；T-Rev2-03 静态✅（E10 手工待测）；04-review 通过（无 open 严重/警告；R-D1/R-D2/R-D3/R-D4 accepted debt）
+> **本轮验收范围**：T1–T5 + T-FIX-1~4 + **T-Rev2-03 静态**（§3.4）；E10 Rev2 去重 E2E 待维护者手工
 
 ## 1、测试策略与范围
 
@@ -10,11 +11,11 @@
 |------|------|
 | **层级** | **静态契约**（04-review §5 + defer/闩锁链 grep/精读）+ **编译门禁**（`npx tsc --noEmit`）+ **飞书私聊手工 E2E**（§4 E1–E10）；**无新增** `auto_test/` 脚本 |
 | **目标** | 覆盖 `01-proposal` 验收 1–9、`02-design` §8.2 工程补充 1–8、`03-tasks` T1–T5 + T-FIX-1~4 全部验收条 |
-| **最高优先级 E2E** | **E10**（08-verify-issue 第 1 轮「assistant 答复文案完全相同出现两次」复验）+ **E1/E2**（过程先于结论基线）；打回根因 T-FIX-1/2/4，须维护者优先执行 |
+| **最高优先级 E2E** | **E10**（Rev2 去重：过程结束前零 assistant IM + 收尾单条流式、无重复文案；08-verify 第 2 轮）+ **E1/E2**（过程先于结论基线） |
 | **MVP 范围** | 主用户飞书私聊 + Cursor SDK；`PRESENTATION_ORDERING` 默认开；里程碑降级 + assistant CardKit defer |
 | **排除范围** | Claude/Codex/OpenCode 引擎；群聊 ordering 扩展；Electron 设置 UI；微信/群聊深度抽检（01·8 可降级为飞书私聊双场景） |
 | **与 review 分工** | 04 已静态确认双侧闩锁、sent 语义与 R-D1/R-D2 accepted debt；IM 时间轴顺序、首包时延、停止/失败须 **应用内手工** |
-| **本轮执行** | 2026-07-04 `tsc`（T-FIX 后）通过；T-FIX-1~4 静态✅；E10 + E1/E2 复验待维护者优先 |
+| **本轮执行** | 2026-07-04 `tsc`（T-FIX 后 + Rev2 后）通过；T-FIX-1~4 + T-Rev2-01/02 静态✅；T-Rev2-03 静态✅；E10 Rev2 去重待维护者手工 |
 
 ## 2、局限与未自动化原因
 
@@ -28,6 +29,8 @@
 | **§8.2·6** NF1 `presentation_order_violation` | 日志可静态挂接；长任务无新增 WARN 须运行时观察 |
 | **§8.2·7–8** 回滚与 MergeBatch | E6 须进程重启设 env；E7 须连发合并 + tool 回复真实状态机 |
 | **单元/集成测试** | 仓库规范不写单测；由 review 静态 + 手工冒烟覆盖 |
+| **E1–E9 飞书 E2E** | 须真实飞书 + SDK 会话目检；本轮记 **accepted debt**，不阻断 T1–T5+T-FIX 归档 |
+| **E10 Rev2 去重** | T-Rev2-03 静态✅（§3.4）；飞书 Run 进行中/收尾时序须维护者手工 E10 复验 |
 
 ## 3、验收追溯表
 
@@ -63,7 +66,7 @@
 | **E7** | MergeBatch 活跃时 deferred 首建锚定 reply | §8.2·8 / NF2 | 连发合并 + tool | ✅ 锚点未改 | ⏳ 待手工 |
 | **E8** | assistant 答复首包后仍流式增长 | 验收 3 / F2 | 长答复 Run 目检 | ✅ release+PATCH | ⏳ 待手工 |
 | **E9** | 过程与结论并存时阅读美观；飞书长+短双场景 | 验收 8–9 / F6 | 滚动会话目检 | ✅ 结构性修复 | ⏳ 待手工 |
-| **E10** | assistant 首段文案不重复（08-verify 第 1 轮复验） | 08-verify §1 / T-FIX-1~4 | kb-admin 类长 Run 目检 | ✅ release 串行+final-only | ⏳ 待手工（**最高优先**） |
+| **E10** | Rev2 去重：过程结束前无 assistant IM；收尾后单条流式、无重复文案 | 01 验收 10–11 / 08-verify 第 2 轮 / T-Rev2-03 | kb-admin 类长 Run 目检 | ✅ end-only + release 串行 | ⏳ 待手工（**最高优先**） |
 
 ### 3.3 修复任务（T-FIX-1~4）
 
@@ -73,6 +76,18 @@
 | **T-FIX-2** | Run 收尾仅 final flush（移除冗余 non-final） | `sdk-run-stream.ts` 精读 | 收尾 flush 链 | ✅ 静态通过 |
 | **T-FIX-3** | AGENTS 文档同步 release 串行化与收尾语义 | 静态 | `AGENTS.md` 双侧 | ✅ 静态通过 |
 | **T-FIX-4** | 飞行窗口门控 `await chain` + impl try/catch 回滚 | `daemon.ts` L733+ 精读 | `handleStreamText` | ✅ 静态通过 |
+
+### 3.4 Rev2 修订（T-Rev2-01~03）
+
+| 来源 | 验收要点 | 01/02 关联 | 验证方式 | 证据类型 | 状态 |
+|------|----------|------------|----------|----------|------|
+| **T-Rev2-01** | `shouldEndOnlyAssistantDefer` 门控 mid-run `maybeReleaseDeferredAssistant` / `flushDeferredStreamPost` | 01 验收 10 / 02 Rev2·Electron | grep + 精读 | `sdk-run-presentation.ts` | ✅ 静态通过 |
+| **T-Rev2-01** | 含过程 Run 仅 Run 收尾 `flushStreamPost(true)` 出站 assistant | 01 F8 / 02 §2 Rev2 | `sdk-run-stream.ts` 收尾链 | 收尾 flush 唯一路径 | ✅ 静态通过 |
+| **T-Rev2-02** | 过程 idle 禁用 mid-run `enqueueReleaseDeferredAssistantStream` | 01 验收 10 / 02 Rev2·Daemon | grep 四处 idle 注释 | `daemon.ts` handlers | ✅ 静态通过 |
+| **T-Rev2-02** | `handleStreamText` 过程未结束前仅累积 + `deferred: true`；final 才首建 | 01 F8.3 / 02 §2 | `daemon.ts` L743+ 精读 | defer 门控 | ✅ 静态通过 |
+| **T-Rev2-03** | 单 Run 飞书仅 1 条 assistant；无完全相同重复文案 | 01 验收 11 / 08-verify 第 2 轮 | E10 飞书目检 | IM 时间轴 | ⏳ E10 待手工 |
+| **T-Rev2-03** | 含工具 Run 过程全部结束前飞书无 assistant 首建/PATCH | 01 验收 10 / F8 | E10 Run 进行中观察 | IM 零出站 | ⏳ E10 待手工 |
+| **T-Rev2-03** | 收尾后 assistant 首建并流式增长至 final（非一次性长文） | 01 验收 3 / F8.5 | E10 收尾后目检 | 单条 PATCH 增长 | ⏳ E10 待手工 |
 
 ## 4、场景摘要
 
@@ -91,7 +106,7 @@
 | **E7** MergeBatch | collecting/ready 态 | 连发触发合并 + 带 tool 回复 | 合并 preview/reply 不回归；deferred assistant 首建仍锚定 `getPresentationReplyAnchor` | reply 错位 → MergeBatch 基线 |
 | **E8** 流式保留 | 长答复 Run | 观察 assistant CardKit 首包后 | 单条消息内容持续增长；非过程结束后一次性长文（除非 Run 本身无流式） | 无 PATCH → stream-text 路径 |
 | **E9** 美观与抽检 | 飞书私聊 | 长任务 + 短问答各 1；滚动阅读 | 过程序列稳定于结论之上；无频繁跳动或逻辑颠倒；符合 01·8–9 | 结论顶置过程 → ordering 闩；布局跳动 → 通道形态 |
-| **E10** assistant 不重复（08-verify 复验） | 主用户飞书私聊 SDK；ordering 开 | 含 task 里程碑 + thinking/tool 过程后 assistant 流式答复（如 kb-admin 编排类长任务） | assistant 首段文案**只出现一次**；无完全相同重复消息；过程里程碑仍在结论之上 | 重复 → T-FIX-1/2/4；顺序错 → T1–T4 |
+| **E10** Rev2 去重（08-verify 第 2 轮） | 主用户飞书私聊 SDK；ordering 开 | 含 ≥1 task + notify 工具的长 Run（如 kb-admin 编排）；**Run 进行中持续观察飞书时间轴** | ① **过程全部结束前**：飞书**无** assistant 消息（无 CardKit 首建、无 PATCH 更新）；② **Run 收尾后**：**仅 1 条** assistant 流式消息首建；③ 首建后内容持续增长至 final，非一次性长文；④ 无内容完全相同的 assistant 重复条；过程里程碑仍在结论之上 | 过程结束前出现 assistant → T-Rev2-01/02；多条或重复 → T-FIX + Rev2 |
 
 ### 4.2 静态冒烟（本次已执行）
 
@@ -102,6 +117,7 @@
 | sent 语义 | `sendMilestoneText` 返回值 | 节流跳过不置闩 | ✅ |
 | 工具分级未改 | diff | `sdk-tool-presentation-tier.ts` 无变更 | ✅ |
 | MergeBatch 未改 | diff | `getPresentationReplyAnchor` 调用保留 | ✅ |
+| Rev2 end-only 门控 | grep `shouldEndOnlyAssistantDefer` + daemon idle 四处注释 | T-Rev2-01/02 | ✅ |
 
 ### 4.3 联调观察点（失败判责）
 
@@ -112,7 +128,8 @@
 | 短问答长时间空白 | preamble 竞态或误 defer | 查 `presentationProcessActive` 是否误置 |
 | 节流后仍 defer 过久 | R-D1 双侧闩不对称 | Run final flush 应兜底 |
 | MergeBatch reply 错 | 合并批次基线 | 非本变更 diff 范围 |
-| assistant 首段文案完全相同两次 | 并发 release 双首建 | 查 T-FIX-1/2/4；08-verify 第 1 轮根因 |
+| assistant 首段文案完全相同两次 | 并发 release 双首建或 mid-run + final 双路径 | 查 T-FIX-1/2/4 + T-Rev2 end-only；08-verify 第 1/2 轮 |
+| Run 进行中出现 assistant IM | mid-run release 未禁用 | 查 T-Rev2-01/02 end-only 门控 |
 
 ## 5、脚本位置与环境
 
@@ -140,3 +157,6 @@
 | 2026-07-04 | — | E1–E9 飞书私聊手工 E2E | 待维护者执行 | 需飞书 + SDK 已配置 |
 | 2026-07-04 | 本地 dev | `npx tsc --noEmit`（T-FIX 后） | 通过 | exit 0 |
 | 2026-07-04 | — | E10 + E1/E2 08-verify 复验 | 待维护者 | 验收打回后优先 |
+| 2026-07-04 | 本地 dev | T-Rev2-01/02 01/02 静态契约 | 通过 | §3.4 grep/精读 |
+| 2026-07-04 | 本地 dev | `npx tsc --noEmit`（Rev2 后） | 通过 | exit 0 |
+| 2026-07-04 | — | E10 Rev2 去重（过程结束前零 assistant + 收尾单条流式） | 待维护者 | T-Rev2-03 手工 |

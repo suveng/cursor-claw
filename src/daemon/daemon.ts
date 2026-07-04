@@ -731,7 +731,7 @@ async function handleStreamText(body: {
   }
 
   if (ordering) {
-    // ponytail: 飞行窗口门控 — release 已占位但 outbound 尚未写入时，等待 chain 完成再判 isFirst
+    // Rev2 end-only + T-FIX-4：飞行窗口门控 — release 已占位但 outbound 尚未写入时，等待 chain 完成再判 isFirst
     if (state.assistantCardReleased && !state.outboundMessageId) {
       await (state.assistantReleaseChain ?? Promise.resolve());
       outIdHint = outbound_message_id ?? state.outboundMessageId;
@@ -740,10 +740,12 @@ async function handleStreamText(body: {
         return { ok: true, stream_id: sid, deferred: true };
       }
     }
+    // Rev2 end-only：含过程 Run 过程未结束前仅累积 defer 缓冲，禁止 mid-run 首建 CardKit
     state.deferredAssistantText = text;
-    if (state.presentationProcessActive && !state.assistantCardReleased && isFirst && !final) {
+    if (!final && !state.outboundMessageId && state.presentationProcessActive) {
       return { ok: true, stream_id: sid, deferred: true };
     }
+    // Rev2 end-only：final 经 T-FIX-1 assistantReleaseChain 首建 + 完结
     if (!state.assistantCardReleased && final && state.presentationProcessActive) {
       await enqueueReleaseDeferredAssistantStream(session_key, state, { force: true, final: true, message_id });
       return { ok: true, stream_id: sid, outbound_message_id: state.outboundMessageId };
@@ -1469,9 +1471,7 @@ async function handleToolPresentationEvent(
         state.activeToolNames.delete(toolName);
       }
     }
-    if (ordering && (status === "completed" || status === "failed") && isPresentationProcessIdle(state)) {
-      void enqueueReleaseDeferredAssistantStream(sessionKey, state, { force: true });
-    }
+    // Rev2 end-only：过程 idle 不再 mid-run release assistant，仅更新闩锁
     return { ok: true };
   }
 
@@ -1551,9 +1551,7 @@ async function handleToolPresentationEvent(
       state.toolCards.delete(toolName);
     }
     trackMessageSession(result.cardMessageId, sessionKey);
-    if (ordering && (status === "completed" || status === "failed") && isPresentationProcessIdle(state)) {
-      void enqueueReleaseDeferredAssistantStream(sessionKey, state, { force: true });
-    }
+    // Rev2 end-only：过程 idle 不再 mid-run release assistant
     return { ok: true, outbound_message_id: result.cardMessageId };
   } catch (e: unknown) {
     const reason = e instanceof Error ? e.message : String(e);
@@ -1580,13 +1578,7 @@ async function handleThinkingPresentationEvent(
 
   const ordering = presentationOrderingEnabled(sessionKey);
 
-  const releaseIfProcessIdle = () => {
-    if (ordering && event.final && isPresentationProcessIdle(state!)) {
-      void enqueueReleaseDeferredAssistantStream(sessionKey, state!, { force: true });
-    }
-  };
-
-  // 飞书全通道抑制 thinking CardKit：里程碑文本 + ordering 闩（真实出站后；final 无 delta 亦 release）
+  // 飞书全通道抑制 thinking CardKit：里程碑文本 + ordering 闩（真实出站后；Rev2 不在 idle 时 release）
   if (isFeishuProcessPresentationSuppressed(sessionKey, "thinking")) {
     if (event.delta) {
       state.thinkingBuffer = (state.thinkingBuffer ?? "") + event.delta;
@@ -1608,9 +1600,7 @@ async function handleThinkingPresentationEvent(
     }
     if (event.final && ordering) {
       state.thinkingOpen = false;
-      if (isPresentationProcessIdle(state)) {
-        void enqueueReleaseDeferredAssistantStream(sessionKey, state, { force: true });
-      }
+      // Rev2 end-only：过程 idle 不再 mid-run release assistant
     }
     return { ok: true, outbound_message_id: event.outbound_message_id ?? state.thinkingCardMessageId };
   }
@@ -1627,7 +1617,6 @@ async function handleThinkingPresentationEvent(
   }
 
   if (!event.delta) {
-    releaseIfProcessIdle();
     return { ok: true, outbound_message_id: event.outbound_message_id };
   }
 
@@ -1687,9 +1676,7 @@ async function handleThinkingPresentationEvent(
     state.thinkingCardSequence = result.cardSequence;
     state.thinkingLastPushAt = now;
     trackMessageSession(result.cardMessageId, sessionKey);
-    if (ordering && event.final && isPresentationProcessIdle(state)) {
-      void enqueueReleaseDeferredAssistantStream(sessionKey, state, { force: true });
-    }
+    // Rev2 end-only：过程 idle 不再 mid-run release assistant
     return { ok: true, outbound_message_id: result.cardMessageId };
   } catch (e: unknown) {
     const reason = e instanceof Error ? e.message : String(e);

@@ -4,7 +4,7 @@
 
 ## 1、业务流程与改动范围
 
-> 业务口径以 `01-proposal.md` §功能需求 F1–F7 与验收 1–9 为准；下图覆盖 **MVP（主用户私聊 Cursor SDK）** 从入队到 Run 收尾的主路径，含飞书里程碑降级与 CardKit 双形态。
+> 业务口径以 `01-proposal.md` §功能需求 F1–F8 与验收 1–11 为准；下图覆盖 **MVP（主用户私聊 Cursor SDK）** 从入队到 Run 收尾的主路径，含飞书里程碑降级与 CardKit 双形态。**Rev2**：assistant 首建仅在 Run 收尾（S9），废弃 S7 process-idle release。
 
 ### 1.1 业务流程图
 
@@ -33,21 +33,21 @@ flowchart TD
   milestone --> latchOn["S6 置 ordering 闩锁 改动"]
   cardkit --> latchOn
 
-  latchOn --> deferGate{"S5-D 过程活跃且未释放?<br/>assistant 首建 defer 不改"]
-  deferGate -->|是| bufferAssist["缓冲 deferredAssistantText 不改"]
+  latchOn --> deferGate{"S5-D 过程活跃? assistant 仅缓冲 Rev2"}
+  deferGate -->|是/含过程| bufferAssist["缓冲 deferredAssistantText Rev2"]
   deferGate -->|否且无过程| preamble["S5-P preamble 400ms 短窗 不改"]
-  deferGate -->|否且过程 idle| release["S7 释放 assistant 流式首建 不改"]
+  deferGate -->|否且过程 idle| bufferOnly["Rev2：仍仅缓冲不 release 改动"]
 
   assistBuf --> moreEvents{"更多 SDK 事件 不改"]
   preamble --> streamCreate["首建 assistant CardKit 不改"]
   moreEvents --> eventRoute
 
-  moreEvents -->|过程 idle| release
-  release --> streamPatch["S8 流式 PATCH 更新 不改"]
+  moreEvents -->|过程 idle| bufferOnly
+  bufferOnly --> moreEvents
+  moreEvents -->|Run final| runEnd["S9 Run 收尾首建+final flush Rev2"]
+  runEnd --> streamPatch["S8 流式 PATCH 至 final 不改"]
   streamCreate --> streamPatch
-
-  moreEvents -->|Run final| runEnd["S9 Run 收尾 flush final 不改"]
-  runEnd --> stopProgress["S10 stop/ack 三态 不改"]
+  streamPatch --> stopProgress["S10 stop/ack 三态 不改"]
 
   legacyPath --> legacyStream["assistant 首 delta 即建卡 不改"]
   legacyStream --> runEnd
@@ -74,9 +74,9 @@ flowchart TD
 | S5-D | assistant delta 累积、daemon 返回 `deferred: true` | 改动（触发条件修复） | `electron/agent/cursor-sdk/sdk-run-presentation.ts` `appendAssistantStreamDelta`；`src/daemon.ts` `handleStreamText` | F1/F2；验收 1/3 |
 | S5-P | 纯对话 preamble 400ms 短窗后首包 | 不改 | `electron/agent/cursor-sdk/sdk-run-presentation.ts` `schedulePreambleRelease` | F5；验收 5/6 |
 | S6 | 置 `presentationProcessActive` / `seenProcessEvent` 闩锁 | 改动 | `src/daemon.ts` 抑制分支 + `handleTaskPresentationEvent`；`electron/agent/cursor-sdk/sdk-run-presentation.ts` `markProcessEventSeen` | F1/F3；验收 1/2 |
-| S7 | 过程 idle → `releaseDeferredAssistantStream` | 不改 | `src/daemon.ts`；`electron/agent/cursor-sdk/sdk-run-presentation.ts` `maybeReleaseDeferredAssistant` | F2；验收 3 |
-| S8 | assistant CardKit 流式 PATCH | 不改 | `src/daemon.ts` `handleStreamText`；`src/bridge/lark-core.ts` | F2.1–F2.4 |
-| S9 | Run 收尾 `flushStreamPost(final)` | 不改 | `electron/agent/cursor-sdk/sdk-run-stream.ts` `streamRunEvents` | F2/F7；验收 3/7 |
+| S7 | ~~过程 idle → releaseDeferredAssistantStream~~ **Rev2 废弃 mid-run release** | 改动 | `src/daemon.ts`；`electron/agent/cursor-sdk/sdk-run-presentation.ts` | F8；验收 10 |
+| S8 | assistant CardKit 流式 PATCH（**仅 Run 收尾首建后**） | 改动（时机） | `src/daemon.ts` `handleStreamText`；`src/bridge/lark-core.ts` | F2/F8；验收 3/11 |
+| S9 | Run 收尾 `flushStreamPost(final)` **兼首建** | 改动 | `electron/agent/cursor-sdk/sdk-run-stream.ts` `streamRunEvents` | F2/F8；验收 10/11 |
 | S10 | stopSessionProgress / ackOnReply | 不改 | `src/daemon.ts` | F7；验收 7 |
 | NF1 | 顺序违规 `presentation_order_violation` 日志 | 不改（回归） | `src/daemon.ts` `logPresentationOrderViolation` | §8.2 |
 | NF2 | MergeBatch reply 锚点 | 不改 | `src/daemon.ts` `getPresentationReplyAnchor` | 01 边界 3 |
@@ -110,6 +110,18 @@ flowchart TD
 - **Daemon**：飞书抑制分支在 `sendMilestoneText` 成功后按 kind 更新 ordering 状态；`handleTaskPresentationEvent` 在 ordering 开启时置 `presentationProcessActive`；过程 idle 或 final 时 `releaseDeferredAssistantStream`；保持 CardKit 抑制、里程碑节流不变。
 - **范围**：MVP 保持主用户私聊（与现网 `PRESENTATION_ORDERING` 一致）；飞书群聊/微信扩展列为 §8 风险或 §10.2 可能更新。
 
+### Rev2 方案要点（08-verify-issue 第 2 轮）
+
+> 业务口径见 `01-proposal.md` F8、`07-prd-revisions.md` Rev2；与 v1.13.3 已落地 T-FIX 叠加，**取代 idle release 为主路径**。
+
+- **废弃「过程 idle 即 `enqueueRelease` / `maybeReleaseDeferredAssistant`」**：含应出站过程的 ordering Run 中，thinking/tool final 或 process-idle **不再**触发 assistant IM 首建；过程期间 assistant delta 仅累积 buffer（Electron `deferredAssistantText` / Daemon `deferredAssistantText` + `deferred: true`）。
+- **end-only assistant IM**：assistant 首条飞书 IM **仅**在 `streamRunEvents` 结束、Run 过程全部完成后首建 CardKit，并以流式 PATCH 增长至 `final`；单 Run 单条 assistant 消息（F8.3）。
+- **过程仍实时**：thinking / task / notify 级工具里程碑路径不变，继续实时 `sendMilestoneText` 或等价出站（F8.1）。
+- **Electron**：ordering 且已见过程时，禁止 mid-run `maybeReleaseDeferredAssistant` / `flushDeferredStreamPost` 向 Daemon 发送 non-final 首建；仅 Run 收尾 `flushStreamPost(true)` 出站（T-Rev2-01）。
+- **Daemon**：ordering 场景禁用 process-idle `enqueueReleaseDeferredAssistantStream`；`handleStreamText` 在过程未结束前仅累积并返回 `deferred: true`，首建仅 final 或 Run 结束信号（T-Rev2-02）。
+- **F5 例外**：无实质过程短问答仍走 preamble 400ms 短窗，不强制等到 Run 末尾（F8.4）。
+- **与 F2 关系**：禁止的是 mid-run 出站与无流式一次性全文；Run 收尾首建后仍须流式 PATCH（F8.5）。
+
 **最小方案三问（Ponytail）**：
 
 1. **能否复用现有模块/符号？** 能。复用 `SessionProgressState`（`src/daemon.ts:304`）与 `SdkSessionAgent`（`electron/agent/cursor-sdk/sdk-session-types.ts`）既有编排字段；复用 `markProcessEventSeen`、`releaseDeferredAssistantStream`、`sendMilestoneText`，不新建 Orchestrator 类或独立 ordering 子系统。
@@ -142,11 +154,12 @@ flowchart LR
   HPE --> CK
   MST --> MS
   PST --> HST
-  HST --> CK
+  HST -->|"Rev2：过程期间 defer only"| CK
+  HST -->|"Rev2：Run final 首建+PATCH"| CK
 ```
 
 - **端点层**：`POST /api/presentation-event`、`POST /api/stream-text` 契约不变；daemon 抑制分支补闩锁副作用。
-- **服务层**：Electron `handleSdkEvent` 统一置 defer 闩；daemon presentation handler 在里程碑成功出站后 mirror CardKit 闩锁更新；`handleStreamText` defer/release 逻辑不变，仅输入闩锁状态修正。
+- **服务层**：Electron `handleSdkEvent` 统一置 defer 闩；daemon presentation handler 在里程碑成功出站后 mirror CardKit 闩锁更新；**Rev2**：`handleStreamText` 在含过程 Run 期间仅 defer 累积，**禁用** process-idle release；assistant 首建仅在 Run final（`streamRunEvents` 收尾 + `flushStreamPost(true)` / Daemon final `stream-text`）。
 - **数据层**：会话级 `SessionProgressState` + `SdkSessionAgent` 内存字段；无持久化/schema 变更。
 
 ## 4、接口设计
@@ -260,14 +273,15 @@ flowchart LR
 
 ### 10.1 必须更新
 
-- `knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md` — §二 PRESENTATION_ORDERING、§三 `markProcessEventSeen`/task 规则
-- `src/daemon/AGENTS.md` — 飞书抑制 + ordering 闩锁语义
-- `electron/agent/cursor-sdk/AGENTS.md` — Electron defer 闩与 task 参与 ordering
+- `knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md` — §二 PRESENTATION_ORDERING、§三 `markProcessEventSeen`/task 规则；**Rev2**：end-only assistant IM、禁用 mid-run release
+- `src/daemon/AGENTS.md` — 飞书抑制 + ordering 闩锁语义；**Rev2**：process-idle 不 enqueueRelease、Run final 才首建
+- `electron/agent/cursor-sdk/AGENTS.md` — Electron defer 闩与 task 参与 ordering；**Rev2**：禁止 ordering 场景 mid-run `maybeReleaseDeferredAssistant`
 
 ### 10.2 可能更新（视实现结果）
 
 - `knowledge/业务域/Agent调度/` 下 IM 呈现相关段落（若验收 8 扩展微信/群聊场景有额外结论）
 - `knowledge/变更/归档/20260627210352-飞书Presentation展示时序编排/` 交叉引用（archive 本变更时）
+- **Rev2**：`07-prd-revisions.md` Rev2 与 `08-verify-issue` 第 2 轮 E10 去重验收结论（T-Rev2-03 后）
 
 ### 10.3 不需要更新
 
