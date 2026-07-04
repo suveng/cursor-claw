@@ -1,0 +1,25 @@
+{
+  "change_id": "20260704152837-远程指令全员与群聊开放",
+  "name": "远程指令全员与群聊开放",
+  "flow": "standard",
+  "stage": "proposed",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-04T15:28:37+08:00",
+  "updated_at": "2026-07-04T15:30:00+08:00",
+  "external": {
+    "task_type": "行为变更",
+    "priority": "P1",
+    "prd_doc_url": "无",
+    "registry_record_url": "无",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  },
+  "tasks": [],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md"
+  ]
+}
