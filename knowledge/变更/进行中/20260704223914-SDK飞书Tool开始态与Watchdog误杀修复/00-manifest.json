@@ -1,0 +1,31 @@
+{
+  "name": "SDK飞书Tool开始态与Watchdog误杀修复",
+  "flow": "standard",
+  "stage": "proposed",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "tasks": [],
+  "reviews": [],
+  "revisions": [],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "Bug修复",
+    "priority": "P1"
+  },
+  "files": [
+    {
+      "path": "knowledge/变更/进行中/20260704223914-SDK飞书Tool开始态与Watchdog误杀修复/00-manifest.json",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "planned"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260704223914-SDK飞书Tool开始态与Watchdog误杀修复/01-proposal.md",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "planned"
+    }
+  ],
+  "updated_at": "2026-07-04T22:45:24+0800"
+}
