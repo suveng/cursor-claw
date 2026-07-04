@@ -1,0 +1,130 @@
+{
+  "change_id": "20260704190748-IM通知消息顺序与流式推送优化",
+  "title": "IM通知消息顺序与流式推送优化",
+  "name": "IM通知消息顺序与流式推送优化",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "created_at": "2026-07-04T19:07:48+0800",
+  "updated_at": "2026-07-04T19:35:00+0800",
+  "archived_at": "2026-07-04T19:35:00+0800",
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md",
+    "02-design.md",
+    "03-tasks.md",
+    "04-review.md",
+    "05-summary.md",
+    "06-automation-test.md",
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-presentation.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-milestone.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-stream.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "kind": "doc",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "doc",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "doc",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "release",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.13.2.json",
+      "kind": "release",
+      "source": "archive",
+      "status": "added"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Electron defer 闩锁统一（markProcessEventSeen）",
+      "status": "done",
+      "depends_on": [],
+      "verification": "静态✅；E1/E4 defer 链 E2E 待手工",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-presentation.ts"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "里程碑 sendMilestoneText 返回 sent 布尔",
+      "status": "done",
+      "depends_on": [],
+      "verification": "静态✅；sent 语义 E2E 随 E1/E2 验证",
+      "files": [
+        "src/daemon/daemon-presentation-milestone.ts"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "Electron task 分支补 markProcessEventSeen",
+      "status": "done",
+      "depends_on": ["T1"],
+      "verification": "静态✅；E2 多 task 顺序 E2E 待手工",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-stream.ts"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "Daemon 飞书里程碑与 task ordering 闩锁",
+      "status": "done",
+      "depends_on": ["T2"],
+      "verification": "静态✅；E1/E2/E7 飞书里程碑 E2E 待手工",
+      "files": [
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "AGENTS 与知识库索引同步",
+      "status": "done",
+      "depends_on": ["T3", "T4"],
+      "verification": "文档静态✅",
+      "files": [
+        "electron/agent/cursor-sdk/AGENTS.md",
+        "src/daemon/AGENTS.md",
+        "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": []
+}

@@ -2,16 +2,10 @@
  * SDK stream-text / presentation-event 出站（对称 agent-cc-stream）
  */
 import { readLockFile, httpPost } from "../../daemon/daemon-client"
-import {
-  isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind,
-} from "../../../src/shared/feishu-presentation-gate"
 import { appendContextFooter, formatContextFooter } from "./context-usage"
 import { pushUiLog } from "../../app/ui-logger"
 import { persistActiveRunSnapshot } from "./sdk-run-persist"
-import {
-  presentationOrderingEligible,
-  resolveSessionChannelType,
-} from "./sdk-session-registry"
+import { presentationOrderingEligible } from "./sdk-session-registry"
 import type { PresentationEvent, PresentationKind, SdkSessionAgent } from "./sdk-session-types"
 
 /** stream-text 节流间隔（与 AGENTS f41 约定一致） */
@@ -212,12 +206,9 @@ export function closeThinkingIfOpen(session: SdkSessionAgent): void {
 
 /**
  * 过程事件可见时置 ordering 闩（seenProcessEvent / presentationDeferStream）。
- * task 里程碑与飞书抑制 kind 不参与 assistant defer。
+ * 飞书呈现抑制（里程碑文本）≠ 不参与 ordering defer；thinking/tool/task 均置闩。
  */
-export function markProcessEventSeen(session: SdkSessionAgent, kind: PresentationKind): void {
-  if (kind === "task") return
-  const channelType = resolveSessionChannelType(session.sessionKey)
-  if (feishuSuppressesProcessKind(channelType, kind)) return
+export function markProcessEventSeen(session: SdkSessionAgent, _kind: PresentationKind): void {
   if (!presentationOrderingEligible(session)) return
   clearStreamPostTimer(session)
   session.seenProcessEvent = true

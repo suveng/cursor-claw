@@ -170,6 +170,8 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
     case "task": {
       markSessionActivity(session, "task")
       const mappedText = mapTaskMilestoneText(event.status, event.text)
+      // task 里程碑参与 ordering defer，与 thinking/tool 对称置闩（不单独 release）
+      markProcessEventSeen(session, "task")
       // task_text 传映射后全文，daemon 直接用于里程碑展示（非 SDK 原始 text）
       void postPresentationEvent(session, {
         kind: "task",

@@ -11,15 +11,15 @@
 - **API**：长驻+二次 send；**事件流 SSOT**：`for await (run.stream())` 驱动呈现，`run.wait()` 仅收尾 usage。
 - **MCP**：inline HTTP/sse/OAuth；stdio `settingSources`；`Agent.resume` 重传 inline。
 - **续接**：`sdk-active-runs.json`；`userStopped` 不再续接。
-- **Presentation**：thinking/task 始终 `postPresentationEvent`（不受分级）；tool_call 经 `resolveSdkToolPresentationTier`（`src/shared/sdk-tool-presentation-tier.ts`）分级：notify（shell/write/strreplace/delete/task）→ `markProcessEventSeen`+`postPresentationEvent`；silent（read/glob 等默认）跳过出站，`pushUiLog` `[tool]` 与 `lastTool` 全量；assistant→`stream-text`（400ms）。飞书抑制 daemon 里程碑降级。
-- **PRESENTATION_ORDERING**（p2p+f41）：notify tool/thinking 置 `seenProcessEvent`+`presentationDeferStream`；task 不置闩；释放 `seenProcessEvent||presentationDeferStream`。
+- **Presentation**：thinking/task 始终 post；tool 分级 notify→mark+post、silent 仅日志；assistant→stream-text（400ms）。飞书抑制→daemon 里程碑；Electron 仍 POST+置闩。
+- **PRESENTATION_ORDERING**（p2p+f41）：thinking/notify-tool/task 经 mark 置 defer 闩；抑制≠defer；Daemon `sendMilestoneText` sent 时亦置 `presentationProcessActive`；过程 idle 或闩释放时 flush assistant。
 
 ## 三、服务端规则
 
 1. `type:"sdk"`+API Key；模型空→`composer-2`；非超时 error→`failedCooldowns` 30s。
 2. **watchdog**：`tool_running`/`awaiting_user`/`lastTool.running` 豁免 idle 取消。
-3. **handleSdkEvent**：thinking→mark+post；task→`mapTaskMilestoneText`→post（不 mark）。**tool_call**：`resolveSdkToolPresentationTier`→notify 走 `markProcessEventSeen`+`postPresentationEvent`；silent 仅日志/`lastTool`/runPhase，跳过 mark 与出站。非 running 时 `maybeReleaseDeferredAssistant`。
-4. **markProcessEventSeen**：task 或飞书抑制 kind 不置 defer 闩；否则 `seenProcessEvent`+`presentationDeferStream`。
+3. **handleSdkEvent**：thinking→mark+post；task→`mapTaskMilestoneText`→**mark**→post（task 只置闩、不单独 release）。**tool_call**：notify→`markProcessEventSeen`+`postPresentationEvent`；silent 仅日志/`lastTool`/runPhase。非 running 时 `maybeReleaseDeferredAssistant`。
+4. **markProcessEventSeen**：仅 ordering 门控；thinking/tool/task 均置 defer 闩（不因飞书抑制早退）。Daemon：`sendMilestoneText` sent 时置 `presentationProcessActive`（task 仅该字段）。
 5. **maybeReleaseDeferredAssistant**：闩已置时 flush assistant。
 
 ## 四、客户端流程
@@ -46,7 +46,7 @@ RunGuard+watchdog；`[tool]`/`[task]` 日志全量；400ms 节流；Run 收尾�
 
 ## 八、推送
 
-`presentation-event`+`stream-text` 出站 IM。thinking/task 始终 presentation；assistant 仅 stream-text。tool_call：notify 仍 `presentation-event`；read/glob 等 silent 默认不出站 IM。飞书抑制 notify CardKit，daemon `sendMilestoneText` 降级（3s 节流、≤4 次/Run）。
+`presentation-event`+`stream-text` 出站。thinking/task 始终 presentation；assistant 仅 stream-text；notify tool 仍 presentation-event；silent 不出站。飞书抑制→`sendMilestoneText`（3s、≤4/Run）。
 
 ## 九、已知限制与 TODO
 
@@ -54,6 +54,7 @@ RunGuard+watchdog；`[tool]`/`[task]` 日志全量；400ms 节流；Run 收尾�
 
 ## 十、变更记录
 
+- 2026-07-04：ordering 闩统一（task/飞书里程碑参与 defer；抑制≠defer）（archive 20260704190748）。
 - 2026-07-04：SDK 工具调用通知分级；read/glob 等静默；shell/write/delete/Task 仍通知（archive 20260704183752）。
 - 2026-07-04：SDK think/task 实时通知；task 独立分支、飞书 daemon 降级（archive 20260704174846）。
 - 2026-07-02：Skills、事件流 SSOT、watchdog 续接、MCP 分层（archive 20260701212732–120631）。

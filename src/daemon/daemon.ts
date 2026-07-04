@@ -1412,9 +1412,9 @@ async function handleToolPresentationEvent(
     state.toolCards.delete(toolName);
   }
 
-  // 飞书全通道抑制 tool CardKit：仅发里程碑文本，不置 ordering 闩（无 CardKit 过程卡可先于 assistant）
+  // 飞书全通道抑制 tool CardKit：里程碑文本 + ordering 闩（真实出站后 mirror CardKit）
   if (isFeishuProcessPresentationSuppressed(sessionKey, "tool")) {
-    await sendMilestoneText(
+    const sent = await sendMilestoneText(
       sessionKey,
       "tool",
       `${toolName}: ${status}`,
@@ -1422,6 +1422,18 @@ async function handleToolPresentationEvent(
       sendMilestonePlainText,
       milestoneLogFn,
     );
+    if (ordering && sent) {
+      if (!state.activeToolNames) state.activeToolNames = new Set();
+      if (status === "started") {
+        state.activeToolNames.add(toolName);
+        state.presentationProcessActive = true;
+      } else if (status === "completed" || status === "failed") {
+        state.activeToolNames.delete(toolName);
+      }
+    }
+    if (ordering && (status === "completed" || status === "failed") && isPresentationProcessIdle(state)) {
+      void releaseDeferredAssistantStream(sessionKey, state, { force: true });
+    }
     return { ok: true };
   }
 
@@ -1536,14 +1548,14 @@ async function handleThinkingPresentationEvent(
     }
   };
 
-  // 飞书全通道抑制 thinking CardKit：仅发里程碑文本，不置 ordering 闩
+  // 飞书全通道抑制 thinking CardKit：里程碑文本 + ordering 闩（真实出站后；final 无 delta 亦 release）
   if (isFeishuProcessPresentationSuppressed(sessionKey, "thinking")) {
     if (event.delta) {
       state.thinkingBuffer = (state.thinkingBuffer ?? "") + event.delta;
       const summary = state.thinkingBuffer.length > THINKING_SUMMARY_MAX_CHARS
         ? `…${state.thinkingBuffer.slice(-THINKING_SUMMARY_MAX_CHARS)}`
         : state.thinkingBuffer;
-      await sendMilestoneText(
+      const sent = await sendMilestoneText(
         sessionKey,
         "thinking",
         summary.trim() ? summary : "正在思考…",
@@ -1551,6 +1563,16 @@ async function handleThinkingPresentationEvent(
         sendMilestonePlainText,
         milestoneLogFn,
       );
+      if (ordering && sent) {
+        state.thinkingOpen = true;
+        state.presentationProcessActive = true;
+      }
+    }
+    if (event.final && ordering) {
+      state.thinkingOpen = false;
+      if (isPresentationProcessIdle(state)) {
+        void releaseDeferredAssistantStream(sessionKey, state, { force: true });
+      }
     }
     return { ok: true, outbound_message_id: event.outbound_message_id ?? state.thinkingCardMessageId };
   }
@@ -1701,8 +1723,8 @@ async function handleTaskPresentationEvent(
     sessionProgressMap.set(sessionKey, state);
   }
 
-  // task 不参与 presentationProcessActive / assistant defer
-  await sendMilestoneText(
+  const ordering = presentationOrderingEnabled(sessionKey);
+  const sent = await sendMilestoneText(
     sessionKey,
     "task",
     text,
@@ -1710,6 +1732,10 @@ async function handleTaskPresentationEvent(
     sendMilestonePlainText,
     milestoneLogFn,
   );
+  // task 只置 presentationProcessActive，不维护 thinkingOpen/activeToolNames，不单独 release
+  if (ordering && sent) {
+    state.presentationProcessActive = true;
+  }
   return { ok: true };
 }
 

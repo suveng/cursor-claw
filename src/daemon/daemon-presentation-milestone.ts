@@ -1,6 +1,7 @@
 /**
  * 飞书 CardKit 抑制时的里程碑 send-text 降级。
  * 独立模块，不 import daemon.ts；经注入 sendFn 发送，避免循环依赖。
+ * sendMilestoneText 返回 sent 布尔：true = 里程碑已实际出站；false = 跳过或失败。
  */
 
 /** 同键节流间隔（ms） */
@@ -63,6 +64,7 @@ function getDedupCount(state: MilestoneState, dedupKey: string): number {
 /**
  * 发送里程碑文本：节流 ≥3s、同文案 ≤4 次/Run。
  * 成功后才更新 state；失败打含 `milestone_fallback` 的 WARN 日志。
+ * @returns true 仅当实际调用 sendFn 且成功；否则 false（空文案/节流/去重上限/发送失败）
  */
 export async function sendMilestoneText(
   sessionKey: string,
@@ -71,9 +73,9 @@ export async function sendMilestoneText(
   state: MilestoneState,
   sendFn: MilestoneSendFn,
   logFn?: MilestoneLogFn,
-): Promise<void> {
+): Promise<boolean> {
   const trimmed = text.trim();
-  if (!trimmed || !sessionKey) return;
+  if (!trimmed || !sessionKey) return false;
 
   const throttleKey = buildThrottleKey(sessionKey, kind, trimmed);
   const now = Date.now();
@@ -84,12 +86,12 @@ export async function sendMilestoneText(
     state.lastMilestoneAt !== undefined &&
     now - state.lastMilestoneAt < MILESTONE_THROTTLE_MS
   ) {
-    return;
+    return false;
   }
 
   const dedupKey = buildDedupKey(kind, trimmed);
   if (getDedupCount(state, dedupKey) >= MILESTONE_MAX_PER_RUN) {
-    return;
+    return false;
   }
 
   try {
@@ -98,20 +100,21 @@ export async function sendMilestoneText(
       logFn?.(
         `milestone_fallback session=${sessionKey} kind=${kind} reason=send_rejected`,
       );
-      return;
+      return false;
     }
   } catch (e: unknown) {
     const errMsg = e instanceof Error ? e.message : String(e);
     logFn?.(
       `milestone_fallback session=${sessionKey} kind=${kind} reason=send_error error=${errMsg}`,
     );
-    return;
+    return false;
   }
 
   state.lastMilestoneText = throttleKey;
   state.lastMilestoneAt = now;
   if (!state.milestoneDedupSet) state.milestoneDedupSet = new Set();
   state.milestoneDedupSet.add(`${dedupKey}#${getDedupCount(state, dedupKey)}`);
+  return true;
 }
 
 /** Run 结束时清空里程碑节流与去重状态 */
