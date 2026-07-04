@@ -1,0 +1,167 @@
+{
+  "change_id": "20260704212706-SDK开始态飞书通知携带描述",
+  "title": "SDK开始态飞书通知携带描述",
+  "name": "SDK开始态飞书通知携带描述",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "created_at": "2026-07-04T21:27:06+0800",
+  "updated_at": "2026-07-04T21:55:00+0800",
+  "archived_at": "2026-07-04T21:55:00+0800",
+  "workflow_version": "v2.6",
+  "merged_from": [
+    "20260704212612-SDK shell started 携带具体命令",
+    "20260704212716-think不再发送飞书消息"
+  ],
+  "supersedes": {
+    "change_id": "20260704190748-IM通知消息顺序与流式推送优化",
+    "scope": "A·F8.1 飞书 thinking 实时里程碑 → 零出站；其余 Rev2/ordering 目标仍有效"
+  },
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "体验优化",
+    "priority": "P1"
+  },
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md",
+    "02-design.md",
+    "03-tasks.md",
+    "04-review.md",
+    "05-summary.md",
+    "06-automation-test.md",
+    {
+      "path": "src/shared/tool-presentation.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-stream.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-session-types.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-session-registry.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/shared/AGENTS.md",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "release",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.13.5.json",
+      "kind": "release",
+      "source": "archive",
+      "status": "added"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "formatToolMilestoneText 共享 SSOT",
+      "status": "done",
+      "depends_on": [],
+      "files": ["src/shared/tool-presentation.ts"],
+      "verification": "04-review §5 T1 PASS"
+    },
+    {
+      "id": "T2",
+      "title": "Daemon tool 飞书里程碑文案",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": ["src/daemon/daemon.ts"],
+      "verification": "04-review §5 T2 PASS"
+    },
+    {
+      "id": "T3",
+      "title": "Task 开始态里程碑文案",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-stream.ts",
+        "electron/agent/cursor-sdk/sdk-session-types.ts",
+        "electron/agent/cursor-sdk/sdk-session-registry.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "verification": "04-review §5 T3 PASS"
+    },
+    {
+      "id": "T4",
+      "title": "飞书 thinking 真静默",
+      "status": "done",
+      "depends_on": ["T2", "T3"],
+      "files": ["src/daemon/daemon.ts"],
+      "verification": "04-review §5 T4 PASS"
+    },
+    {
+      "id": "T5",
+      "title": "AGENTS 与知识库同步",
+      "status": "done",
+      "depends_on": ["T1", "T2", "T3", "T4"],
+      "files": [
+        "electron/agent/cursor-sdk/AGENTS.md",
+        "src/daemon/AGENTS.md",
+        "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+        "src/shared/AGENTS.md"
+      ],
+      "verification": "04-review §5 T5 PASS"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R-compliance-1",
+      "reviewer": "kb-reviewer",
+      "severity": "pass",
+      "status": "closed",
+      "summary": "通过：T1–T5 与 02/03 对齐；S1 混入已在 archive 前剥离；open≥75=0",
+      "open_critical": 0,
+      "open_warning_ge75": 0,
+      "archive_ready": true,
+      "next_step": "archived v1.13.5"
+    }
+  ],
+  "revisions": []
+}

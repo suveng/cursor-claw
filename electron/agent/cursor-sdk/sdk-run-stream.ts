@@ -7,6 +7,7 @@ import { resolveSdkToolPresentationTier } from "../../../src/shared/sdk-tool-pre
 import {
   extractShellPresentationFields,
   formatToolCallLogSuffix,
+  TOOL_MILESTONE_TEXT_MAX,
 } from "../../../src/shared/tool-presentation"
 import { finalizeContextUsageAtRunEnd } from "./context-usage-run-end"
 import { pushUiLog } from "../../app/ui-logger"
@@ -51,18 +52,31 @@ function appendSdkLog(session: SdkSessionAgent, kind: "thinking" | "text", delta
   if (agg.buf.length >= LOG_FLUSH_LEN) flushSdkLog(session)
 }
 
-/** SDK task 事件 status/text → 用户可见里程碑文案 */
-function mapTaskMilestoneText(status?: string, text?: string): string {
+/** 里程碑文案截断（与 shared/tool-presentation truncateText 口径一致） */
+function truncateMilestoneText(text: string, max: number): string {
+  const compact = text.replace(/\s+/g, " ").trim()
+  if (compact.length <= max) return compact
+  return `${compact.slice(0, max)} …(+${compact.length - max} chars)`
+}
+
+/** SDK task 事件 status/text → 用户可见里程碑文案；taskSeq 用于无 text 时区分步骤 */
+function mapTaskMilestoneText(status?: string, text?: string, taskSeq?: number): string {
   const normalized = (status ?? "").toLowerCase()
   const trimmed = (text ?? "").trim()
   if (!normalized || normalized === "started") {
-    return trimmed ? `正在执行：${trimmed}` : "子任务进行中…"
+    if (trimmed) {
+      return `正在执行：${truncateMilestoneText(trimmed, TOOL_MILESTONE_TEXT_MAX)}`
+    }
+    if (taskSeq != null) return `子任务 #${taskSeq} 已开始`
+    return "子任务已开始"
   }
   if (normalized === "completed") {
-    return `已完成：${trimmed}`
+    return trimmed ? `已完成：${truncateMilestoneText(trimmed, TOOL_MILESTONE_TEXT_MAX)}` : "子任务已完成"
   }
   if (normalized === "failed") {
-    return `子任务失败：${trimmed}`
+    return trimmed
+      ? `子任务失败：${truncateMilestoneText(trimmed, TOOL_MILESTONE_TEXT_MAX)}`
+      : "子任务失败"
   }
   return trimmed || `子任务更新（${status}）`
 }
@@ -165,7 +179,12 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       break
     case "task": {
       markSessionActivity(session, "task")
-      const mappedText = mapTaskMilestoneText(event.status, event.text)
+      const normalizedStatus = (event.status ?? "").toLowerCase()
+      // Run 级递增序号：无 text 的 started 里程碑可区分步骤
+      if (!normalizedStatus || normalizedStatus === "started") {
+        session.taskSeq = (session.taskSeq ?? 0) + 1
+      }
+      const mappedText = mapTaskMilestoneText(event.status, event.text, session.taskSeq)
       // task 里程碑参与 ordering defer，与 thinking/tool 对称置闩（不单独 release）
       markProcessEventSeen(session, "task")
       // task_text 传映射后全文，daemon 直接用于里程碑展示（非 SDK 原始 text）

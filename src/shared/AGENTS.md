@@ -8,7 +8,7 @@
 |------|------|------------|
 | `channel-types.ts` | `MessageChannel`、`AgentResource`、`makeChatKey` 等通道 SSOT | daemon、electron、renderer |
 | `feishu-presentation-gate.ts` | `isFeishuProcessPresentationSuppressed` 飞书过程展示门控 | daemon、electron |
-| `tool-presentation.ts` | Shell 工具 CardKit 字段解析与截断常量 | bridge/lark-core、electron |
+| `tool-presentation.ts` | Shell 工具 CardKit 字段解析、里程碑文案 `formatToolMilestoneText` 与截断常量 | bridge/lark-core、electron、daemon |
 | `sdk-tool-presentation-tier.ts` | SDK `tool_name` → notify/silent 分级 SSOT | electron cursor-sdk |
 | `constants.ts` | `LOCK_FILE_NAME` 等进程级常量 | daemon-entry |
 
@@ -31,7 +31,7 @@
 
 - **飞书过程抑制**：daemon `handleToolPresentationEvent` / `handleThinkingPresentationEvent` 与 electron `postPresentationEvent` **均须**调用 `isFeishuProcessPresentationSuppressed`；禁止在调用方复制通道判断逻辑。
 - **门控范围**：仅抑制飞书 tool/thinking CardKit；assistant `stream-text` 与 `PRESENTATION_ORDERING` 不受影响；微信路径不经此 gate。
-- **tool-presentation**：`TOOL_LOG_DETAIL_MAX`、`TOOL_CARD_SHELL_OUTPUT_MAX` 为截断上限 SSOT；`lark-core` 与 electron agent 流式展示须引用本模块，不重复定义 magic number。
+- **tool-presentation**：`TOOL_LOG_DETAIL_MAX`、`TOOL_CARD_SHELL_OUTPUT_MAX`、`TOOL_MILESTONE_TEXT_MAX` 为截断上限 SSOT；`formatToolMilestoneText` 为飞书 tool 里程碑文案 SSOT；`lark-core`、electron agent 与 daemon 里程碑须引用本模块，不重复定义 magic number。
 
 ## 禁止
 

@@ -46,6 +46,7 @@ export function resetSdkRunPresentationState(session: SdkSessionAgent): void {
   session.compressionNotified = false
   session.runFinalizing = false
   session.failureArchiveDone = false
+  session.taskSeq = undefined
   session.watchdogState = "running"
   session.watchdogStateAt = Date.now()
   session.abortController = new AbortController()

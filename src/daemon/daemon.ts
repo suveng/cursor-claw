@@ -11,7 +11,7 @@ import {
 } from "./daemon-scheduled-tasks.js";
 import { stripProxyEnv, localTimestamp, createLarkClient, LarkSender, LarkMessageEvent, cleanupMediaCache, type MergeBatchCardView, type MergeBatchCardState, type PresentationCardState, type FeishuMenuEvent, type FeishuP2pEnteredEvent } from "../bridge/lark-core.js";
 import { onFeishuMenuV6, onFeishuP2pEntered } from "./feishu-event-handlers.js";
-import { mergeShellToolDetail } from "../shared/tool-presentation.js";
+import { formatToolMilestoneText, mergeShellToolDetail } from "../shared/tool-presentation.js";
 import { WeChatManager } from "../bridge/wechat-manager.js";
 import {
   initFileQueue,
@@ -1454,10 +1454,20 @@ async function handleToolPresentationEvent(
 
   // 飞书全通道抑制 tool CardKit：里程碑文本 + ordering 闩（真实出站后 mirror CardKit）
   if (isFeishuProcessPresentationSuppressed(sessionKey, "tool")) {
+    const formattedText = formatToolMilestoneText(
+      toolName,
+      status,
+      event.tool_shell_command
+        ? {
+          tool_shell_command: event.tool_shell_command,
+          tool_shell_cwd: event.tool_shell_cwd,
+        }
+        : undefined,
+    );
     const sent = await sendMilestoneText(
       sessionKey,
       "tool",
-      `${toolName}: ${status}`,
+      formattedText,
       state,
       sendMilestonePlainText,
       milestoneLogFn,
@@ -1578,31 +1588,9 @@ async function handleThinkingPresentationEvent(
 
   const ordering = presentationOrderingEnabled(sessionKey);
 
-  // 飞书全通道抑制 thinking CardKit：里程碑文本 + ordering 闩（真实出站后；Rev2 不在 idle 时 release）
+  // 飞书全通道抑制 thinking：零里程碑出站（Electron 仍 POST 并 markProcessEventSeen 置闩）
   if (isFeishuProcessPresentationSuppressed(sessionKey, "thinking")) {
-    if (event.delta) {
-      state.thinkingBuffer = (state.thinkingBuffer ?? "") + event.delta;
-      const summary = state.thinkingBuffer.length > THINKING_SUMMARY_MAX_CHARS
-        ? `…${state.thinkingBuffer.slice(-THINKING_SUMMARY_MAX_CHARS)}`
-        : state.thinkingBuffer;
-      const sent = await sendMilestoneText(
-        sessionKey,
-        "thinking",
-        summary.trim() ? summary : "正在思考…",
-        state,
-        sendMilestonePlainText,
-        milestoneLogFn,
-      );
-      if (ordering && sent) {
-        state.thinkingOpen = true;
-        state.presentationProcessActive = true;
-      }
-    }
-    if (event.final && ordering) {
-      state.thinkingOpen = false;
-      // Rev2 end-only：过程 idle 不再 mid-run release assistant
-    }
-    return { ok: true, outbound_message_id: event.outbound_message_id ?? state.thinkingCardMessageId };
+    return { ok: true };
   }
 
   // CardKit 路径：ordering 闩与 thinkingOpen 仅在此处更新
@@ -1720,10 +1708,10 @@ async function handleAssistantPresentationEvent(
   return result;
 }
 
-/** task_status 兜底文案（task_text 缺失时） */
+/** task_status 兜底文案（task_text 缺失时；与 Electron mapTaskMilestoneText 对齐） */
 function buildTaskFallbackText(taskStatus?: string): string {
   const normalized = (taskStatus ?? "").toLowerCase();
-  if (!normalized || normalized === "started") return "子任务进行中…";
+  if (!normalized || normalized === "started") return "子任务已开始";
   if (normalized === "completed") return "子任务已完成";
   if (normalized === "failed") return "子任务失败";
   return `子任务更新（${taskStatus}）`;

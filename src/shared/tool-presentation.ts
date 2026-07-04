@@ -2,6 +2,8 @@
 
 export const TOOL_LOG_DETAIL_MAX = 400;
 export const TOOL_CARD_SHELL_OUTPUT_MAX = 800;
+/** 飞书里程碑单行文案上限（区别于 CardKit 输出块截断） */
+export const TOOL_MILESTONE_TEXT_MAX = 120;
 
 export interface ShellToolDetail {
   command: string;
@@ -136,6 +138,42 @@ export function formatToolCallLogSuffix(
     if (resultText) parts.push(`result=${resultText}${truncated?.result ? " (truncated)" : ""}`);
   }
   return parts.length > 0 ? ` ${parts.join(" ")}` : "";
+}
+
+/** presentation-event tool_status → 里程碑中文状态标签 */
+function toolMilestoneStatusLabel(status: "started" | "completed" | "failed"): string {
+  if (status === "completed") return "已完成";
+  if (status === "failed") return "失败";
+  return "已开始";
+}
+
+/**
+ * notify 级工具飞书里程碑单行文案 SSOT（含 shell 命令摘要）
+ * shell started 优先展示具体命令；无命令时用明确降级句，禁止裸 `` shell: started ``
+ */
+export function formatToolMilestoneText(
+  toolName: string,
+  status: "started" | "completed" | "failed",
+  shell?: Pick<ToolShellPresentationFields, "tool_shell_command" | "tool_shell_cwd">,
+): string {
+  const command = shell?.tool_shell_command?.trim();
+  const statusLabel = toolMilestoneStatusLabel(status);
+
+  if (toolName === "shell") {
+    if (status === "started") {
+      if (command) {
+        return `执行命令：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}`;
+      }
+      return "命令执行已开始（具体命令暂不可展示）";
+    }
+    // completed/failed：仍保留命令摘要，便于与 started 里程碑对照
+    if (command) {
+      return `执行命令：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}（${statusLabel}）`;
+    }
+    return `shell：${statusLabel}`;
+  }
+
+  return `${toolName}：${statusLabel}`;
 }
 
 /** 合并 event 与已缓存卡片的 shell 详情，供 PATCH 时使用 */

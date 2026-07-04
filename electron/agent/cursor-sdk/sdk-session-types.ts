@@ -72,6 +72,8 @@ export interface SdkSessionAgent {
   inboundMessageIds?: string[]
   /** 本 Run 正在执行超时/终态收尾，防 completeSdkRun 重复 */
   runFinalizing?: boolean
+  /** 本 Run task started 递增序号（无 text 时里程碑区分步骤） */
+  taskSeq?: number
   /** 本 Run 单次失败是否已归档崩溃日志 */
   failureArchiveDone?: boolean
   /** RunGuard 单飞 token（同 session 仅允许一个活跃 run） */
