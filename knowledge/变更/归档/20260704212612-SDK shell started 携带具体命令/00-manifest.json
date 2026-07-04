@@ -1,0 +1,20 @@
+{
+  "change_id": "20260704212612-SDK shell started 携带具体命令",
+  "title": "SDK shell started 携带具体命令",
+  "name": "SDK shell started 携带具体命令",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "merged_into": "20260704212706-SDK开始态飞书通知携带描述",
+  "created_at": "2026-07-04T21:26:12+0800",
+  "updated_at": "2026-07-04T21:31:06+0800",
+  "workflow_version": "v2.6",
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md",
+    "05-summary.md"
+  ],
+  "tasks": [],
+  "reviews": [],
+  "revisions": []
+}
