@@ -1,3 +1,4 @@
+/** 飞书基础 IM 权限（手动建应用 / 复制 JSON 用）。菜单增量权限见 `src/shared/feishu-addons.ts` 的 FEISHU_MENU_SCOPES */
 export const REQUIRED_FEISHU_SCOPES: { scope: string; desc: string }[] = [
   { scope: "im:message", desc: "发送消息（create / reply）" },
   { scope: "im:message.p2p_msg:readonly", desc: "接收私聊消息" },

@@ -283,6 +283,8 @@ interface ElectronAPI {
   unbindChannel(channelId: string): Promise<{ ok: boolean }>
   feishuRegisterApp(preset?: { name?: string; desc?: string }): Promise<{ ok: boolean; appId?: string; appSecret?: string; error?: string }>
   feishuRegisterAppCancel(): Promise<{ ok: boolean }>
+  feishuUpdateAppPermissions(appId: string): Promise<{ ok: boolean; error?: string }>
+  feishuUpdateAppPermissionsCancel(): Promise<{ ok: boolean }>
   onFeishuSetupQrCode(cb: (url: string) => void): () => void
   onFeishuSetupStatus(cb: (status: string) => void): () => void
   wechatQrLogin(): Promise<{ ok: boolean; botToken?: string; accountId?: string; baseUrl?: string; error?: string }>

@@ -38,6 +38,11 @@ import WorkspaceSessionModal, { type SessionEntry } from "../components/Workspac
 import TitleBar from "../components/TitleBar"
 import useInlineModal from "../components/useInlineModal"
 import { REQUIRED_FEISHU_SCOPES, FEISHU_SCOPES_JSON } from "../constants"
+import {
+  FEISHU_MENU_SCOPES,
+  FEISHU_MENU_EVENTS,
+  FEISHU_MENU_EVENT_MAP,
+} from "../../shared/feishu-addons"
 
 interface Props { onBack: () => void; initialTab?: string; onTabConsumed?: () => void }
 
@@ -636,7 +641,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
 
               <section className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-300">应用权限</h3>
+                  <h3 className="text-sm font-medium text-gray-300">基础权限</h3>
                   <div className="flex items-center gap-2">
                     {firstFeishuAppId.trim() && (
                       <a href={`https://open.feishu.cn/app/${firstFeishuAppId.trim()}/auth`} target="_blank" rel="noreferrer"
@@ -650,14 +655,40 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                       }}
                       className="inline-flex items-center gap-1.5 rounded-md border border-gray-700 px-2.5 py-1 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white"
                     >
-                      <Copy size={12} />复制权限 JSON
+                      <Copy size={12} />复制基础权限 JSON
                     </button>
                   </div>
                 </div>
+                <p className="text-xs text-gray-600">IM 收发消息等基础能力。自定义菜单增量权限见下方「菜单增量权限」。</p>
                 <div className="rounded-lg border border-gray-800 divide-y divide-gray-800">
                   {REQUIRED_FEISHU_SCOPES.map((p) => (
                     <div key={p.scope} className="flex items-center justify-between px-3 py-2">
                       <code className="text-xs text-blue-400">{p.scope}</code>
+                      <span className="text-xs text-gray-500">{p.desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="space-y-2">
+                <h3 className="text-sm font-medium text-gray-300">菜单增量权限</h3>
+                <p className="text-xs text-gray-600">
+                  自定义菜单与进入私聊帮助卡所需。存量应用可在
+                  <button type="button" onClick={() => setTab("channel")} className="mx-0.5 text-blue-400 hover:underline">消息通道</button>
+                  编辑页使用「扫码更新权限」增量开通，无需修改 App Secret。
+                </p>
+                <div className="rounded-lg border border-amber-900/40 divide-y divide-gray-800">
+                  {FEISHU_MENU_SCOPES.map((p) => (
+                    <div key={p.scope} className="flex items-center justify-between px-3 py-2">
+                      <code className="text-xs text-amber-400">{p.scope}</code>
+                      <span className="text-xs text-gray-500">{p.desc}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-lg border border-amber-900/40 divide-y divide-gray-800">
+                  {FEISHU_MENU_EVENTS.map((p) => (
+                    <div key={p.event} className="flex items-center justify-between px-3 py-2">
+                      <code className="text-xs text-amber-400">{p.event}</code>
                       <span className="text-xs text-gray-500">{p.desc}</span>
                     </div>
                   ))}
@@ -690,6 +721,34 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                   <div className="px-3 py-2 text-xs text-gray-500 space-y-1">
                     <div>订阅方式：<span className="text-gray-300">应用身份</span></div>
                     <div>回调类型：<span className="text-gray-300">长连接（WebSocket）</span></div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-2">
+                <h3 className="text-sm font-medium text-gray-300">自定义菜单 event_key 对照表</h3>
+                <p className="text-xs text-gray-600">
+                  在飞书开发者后台 → 机器人 → 自定义菜单中配置菜单项时，推送事件类菜单须填写下方 event_key（区分大小写）。
+                  菜单类型选「推送事件」，保存后发布应用版本生效。
+                </p>
+                <div className="rounded-lg border border-gray-800 overflow-hidden">
+                  <div className="grid grid-cols-4 gap-2 bg-gray-800/50 px-3 py-2 text-xs font-medium text-gray-400">
+                    <span>event_key</span>
+                    <span>菜单名称</span>
+                    <span>等价斜杠</span>
+                    <span className="text-right">权限</span>
+                  </div>
+                  <div className="divide-y divide-gray-800">
+                    {Object.entries(FEISHU_MENU_EVENT_MAP).map(([key, item]) => (
+                      <div key={key} className="grid grid-cols-4 gap-2 px-3 py-2 text-xs">
+                        <code className="text-blue-400">{key}</code>
+                        <span className="text-gray-300">{item.label}</span>
+                        <code className="text-gray-400">{item.command}</code>
+                        <span className={`text-right ${item.adminOnly ? "text-amber-400" : "text-emerald-400"}`}>
+                          {item.adminOnly ? "管理员" : "全员"}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </section>

@@ -13,6 +13,7 @@ import {
   mainChatScopeKey, setMainChatIdForScope, type MessageChannel,
 } from "../config/config-store"
 import { parseChatKey, type DaemonChannelConfig, type ChannelStatusInfo } from "../../src/shared/channel-types"
+import { FEISHU_MENU_ADDONS } from "../../src/shared/feishu-addons"
 import { validateCron, readTasksFromFile, writeTasksToFile, previewCronNextRuns, getNextCronFireLabel } from "../scheduling/cron-scheduler"
 import { seedBuiltins, listDefinitions, saveDefinition, deleteDefinition, listInstances, getInstance, saveInstance, deleteInstance } from "../workflow/workflow-file"
 import { runWorkflowDefinition } from "../workflow/workflow-runner"
@@ -35,6 +36,7 @@ import {
   McpServerEntry,
 } from "../mcp/mcp-manager"
 import { FileCommand, reportCommandResult, handleFeishuModelCommand, handleFeishuMcpCommand, handleFeishuTaskCommand, handleFeishuWorkflowCommand, parseListModelsStdout, type TaskRunFn } from "../scheduling/command-handler"
+import { buildHelpText } from "../scheduling/feishu-help-text"
 import { readLockFile, getLockFilePath, httpGet, httpPost, syncActiveSession, getCurrentActiveSession, enqueueToMainSession } from "./daemon-client"
 import {
   isSessionAgentRunning, stopSessionAgent, stopAllSessionAgents,
@@ -1039,27 +1041,7 @@ async function checkAndExecutePendingCommands(): Promise<void> {
         }
 
         case "/help": {
-          const common = [
-            "🔹 /status 运行状态",
-            "🔹 /stop 停止Agent",
-            "🔹 /reset 重置会话",
-            "🔹 /help 指令列表",
-          ]
-          const adminOnly = [
-            "🔹 /restart 重启应用",
-            "🔹 /list 消息队列",
-            "🔹 /clean 清空队列",
-            "🔹 /task 定时任务",
-            "🔹 /workflow 工作流管理",
-            "🔹 /model 模型设置",
-            "🔹 /mcp MCP服务器管理",
-            "🔹 /workspace 切换工作目录",
-            "🔹 /chat 会话管理（new 可选 -dir <路径>，省略则用主会话目录，无效目录不创建）",
-          ]
-          const lines = isAdmin
-            ? ["💡 可用指令（管理员）：", ...common, ...adminOnly]
-            : ["💡 可用指令：", ...common]
-          await reply(true, lines.join("\n"))
+          await reply(true, buildHelpText(isAdmin))
           break
         }
 
@@ -1449,6 +1431,7 @@ export function initDaemonManager(): void {
 
   ipcMain.handle("feishu:register-app", async (_e, preset?: { name?: string; desc?: string }) => {
     if (feishuRegisterAbort) feishuRegisterAbort.abort()
+    if (feishuUpdatePermissionsAbort) feishuUpdatePermissionsAbort.abort()
     feishuRegisterAbort = new AbortController()
     const signal = feishuRegisterAbort.signal
     try {
@@ -1491,6 +1474,59 @@ export function initDaemonManager(): void {
     if (feishuRegisterAbort) {
       feishuRegisterAbort.abort()
       feishuRegisterAbort = null
+    }
+    return { ok: true }
+  })
+
+  // ── Feishu 存量应用扫码增量开权（菜单 + 进入私聊事件） ──
+  let feishuUpdatePermissionsAbort: AbortController | null = null
+
+  ipcMain.handle("feishu:update-app-permissions", async (_e, appId: string) => {
+    const trimmed = appId?.trim()
+    if (!trimmed) return { ok: false, error: "App ID 不能为空" }
+    if (!trimmed.startsWith("cli_")) return { ok: false, error: "App ID 必须以 cli_ 开头" }
+
+    if (feishuUpdatePermissionsAbort) feishuUpdatePermissionsAbort.abort()
+    if (feishuRegisterAbort) feishuRegisterAbort.abort()
+    feishuUpdatePermissionsAbort = new AbortController()
+    const signal = feishuUpdatePermissionsAbort.signal
+    try {
+      const lark = await import("@larksuiteoapi/node-sdk")
+      const QRCode = await import("qrcode")
+      await lark.registerApp({
+        appId: trimmed,
+        addons: FEISHU_MENU_ADDONS,
+        signal,
+        onQRCodeReady(info) {
+          QRCode.toDataURL(info.url, { width: 280, margin: 2 })
+            .then((dataUrl) => {
+              BrowserWindow.getAllWindows().forEach((w) =>
+                w.webContents.send("feishu:setup-qrcode", dataUrl),
+              )
+            })
+            .catch(() => {})
+        },
+        onStatusChange(info) {
+          BrowserWindow.getAllWindows().forEach((w) =>
+            w.webContents.send("feishu:setup-status", info.status),
+          )
+        },
+      })
+      feishuUpdatePermissionsAbort = null
+      return { ok: true }
+    } catch (err: unknown) {
+      feishuUpdatePermissionsAbort = null
+      if (signal.aborted) return { ok: false, error: "cancelled" }
+      const e = err as { code?: string; description?: string; message?: string }
+      if (e?.code === "abort") return { ok: false, error: "cancelled" }
+      return { ok: false, error: e?.description ?? e?.message ?? String(err) }
+    }
+  })
+
+  ipcMain.handle("feishu:update-app-permissions-cancel", () => {
+    if (feishuUpdatePermissionsAbort) {
+      feishuUpdatePermissionsAbort.abort()
+      feishuUpdatePermissionsAbort = null
     }
     return { ok: true }
   })

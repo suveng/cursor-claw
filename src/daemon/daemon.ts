@@ -9,7 +9,8 @@ import {
   stopDaemonScheduledTasks,
   setDaemonSchedulerLogger,
 } from "./daemon-scheduled-tasks.js";
-import { stripProxyEnv, localTimestamp, createLarkClient, LarkSender, LarkMessageEvent, cleanupMediaCache, type MergeBatchCardView, type MergeBatchCardState, type PresentationCardState } from "../bridge/lark-core.js";
+import { stripProxyEnv, localTimestamp, createLarkClient, LarkSender, LarkMessageEvent, cleanupMediaCache, type MergeBatchCardView, type MergeBatchCardState, type PresentationCardState, type FeishuMenuEvent, type FeishuP2pEnteredEvent } from "../bridge/lark-core.js";
+import { onFeishuMenuV6, onFeishuP2pEntered } from "./feishu-event-handlers.js";
 import { mergeShellToolDetail } from "../shared/tool-presentation.js";
 import { WeChatManager } from "../bridge/wechat-manager.js";
 import {
@@ -2128,6 +2129,11 @@ async function startFeishuChannel(rt: ChannelRuntime): Promise<void> {
   }
 
   const sender = rt.sender;
+  const feishuEventDeps = {
+    log,
+    pushCommandToQueue,
+    makeChatKey,
+  };
   sender.startConnection(appId, appSecret, ENCRYPT_KEY, (ev) => {
     rt.feishuConnected = true;
     const { text, messageId, chatId, chatType, messageType, rawContent, senderOpenId, parentId } = ev;
@@ -2192,6 +2198,17 @@ async function startFeishuChannel(rt: ChannelRuntime): Promise<void> {
         .then((result) => enqueue(result || cleanText))
         .catch(() => enqueue(cleanText));
     }
+  }, {
+    onMenuV6: (ev: FeishuMenuEvent) => {
+      onFeishuMenuV6(rt, sender, ev, feishuEventDeps).catch((e: unknown) => {
+        log("ERROR", `[${rt.cfg.name}] menu_v6 处理失败: ${e instanceof Error ? e.message : e}`);
+      });
+    },
+    onP2pEntered: (ev: FeishuP2pEnteredEvent) => {
+      onFeishuP2pEntered(rt, sender, ev, feishuEventDeps).catch((e: unknown) => {
+        log("ERROR", `[${rt.cfg.name}] p2p_entered 处理失败: ${e instanceof Error ? e.message : e}`);
+      });
+    },
   });
   // WSClient.start 为异步建立；这里乐观置位，错误会在日志中体现
   rt.feishuConnected = true;
@@ -2305,7 +2322,7 @@ function cleanExpiredCommands(): void {
           fs.unlinkSync(path.join(queueDir, f));
           log("WARN", `指令超时已清除: ${parsed.command} (msgId=${parsed.messageId})`);
           if (parsed.messageId) {
-            replyToMessage(parsed.messageId, `⚠️ 指令 ${parsed.command} 执行超时`).catch(() => {});
+            replyToMessage(parsed.messageId, `⚠️ 指令 ${parsed.command} 执行超时`, parsed.chatId).catch(() => {});
           }
         }
       } catch { /* ignore */ }

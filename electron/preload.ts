@@ -333,6 +333,10 @@ const api = {
   feishuRegisterApp: (preset?: { name?: string; desc?: string }): Promise<{ ok: boolean; appId?: string; appSecret?: string; error?: string }> =>
     ipcRenderer.invoke("feishu:register-app", preset),
   feishuRegisterAppCancel: (): Promise<{ ok: boolean }> => ipcRenderer.invoke("feishu:register-app-cancel"),
+  feishuUpdateAppPermissions: (appId: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke("feishu:update-app-permissions", appId),
+  feishuUpdateAppPermissionsCancel: (): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke("feishu:update-app-permissions-cancel"),
   onFeishuSetupQrCode: (cb: (url: string) => void) => {
     const handler = (_: unknown, url: string) => cb(url)
     ipcRenderer.on("feishu:setup-qrcode", handler)

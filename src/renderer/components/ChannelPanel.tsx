@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import {
   Plus, Pencil, Trash2, X, Loader2, CheckCircle2, ShieldAlert, Eye, EyeOff,
-  LogIn, MessageSquare, Bird, FolderOpen, RefreshCw, ChevronDown, ChevronRight, ExternalLink,
+  LogIn, MessageSquare, Bird, FolderOpen, RefreshCw, ChevronDown, ChevronRight, ExternalLink, ShieldCheck,
 } from "lucide-react"
 import useInlineModal from "./useInlineModal"
 import ChannelModelSection from "./ChannelModelSection"
+import FeishuQrFlow, { type FeishuQrFlowHandle } from "./FeishuQrFlow"
 
 const inputCls = "w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
 
@@ -249,11 +250,9 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
   const [appInfoState, setAppInfoState] = useState<{ checking: boolean; error?: string }>({ checking: false })
   const [binding, setBinding] = useState(false)
   const [testing, setTesting] = useState(false)
-  // 飞书一键创建
-  const [feishuQrUrl, setFeishuQrUrl] = useState("")
-  const [feishuQrStatus, setFeishuQrStatus] = useState<"idle" | "loading" | "wait" | "error">("idle")
-  const [feishuQrMsg, setFeishuQrMsg] = useState("")
   const [registerForm, setRegisterForm] = useState<{ name: string; desc: string } | null>(null)
+  const [feishuQrBusy, setFeishuQrBusy] = useState(false)
+  const feishuQrRef = useRef<FeishuQrFlowHandle>(null)
   // 微信扫码
   const [wechatQrUrl, setWechatQrUrl] = useState("")
   const [wechatQrStatus, setWechatQrStatus] = useState<"idle" | "loading" | "wait" | "scaned" | "error">("idle")
@@ -261,13 +260,6 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
   const wechatQrBusy = useRef(false)
 
   const set = (p: Partial<ChannelConfig>) => setDraft((d) => ({ ...d, ...p }))
-
-  // 飞书一键创建应用
-  useEffect(() => {
-    const unsub1 = window.electronAPI.onFeishuSetupQrCode((url) => { setFeishuQrUrl(url); setFeishuQrStatus("wait") })
-    const unsub2 = window.electronAPI.onFeishuSetupStatus(() => {})
-    return () => { unsub1(); unsub2() }
-  }, [])
 
   // 凭据齐全时自动解析应用名（防抖），默认通道名自动替换为应用名
   const appId = draft.type === "feishu" ? (draft.larkAppId?.trim() ?? "") : ""
@@ -301,18 +293,15 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
     })
   }
 
-  const startFeishuRegister = async (preset: { name: string; desc: string }) => {
+  const startFeishuRegister = (preset: { name: string; desc: string }) => {
     setRegisterForm(null)
-    setFeishuQrStatus("loading"); setFeishuQrUrl(""); setFeishuQrMsg("")
-    const r = await window.electronAPI.feishuRegisterApp(preset)
-    if (r.ok && r.appId && r.appSecret) {
-      set({ larkAppId: r.appId, larkAppSecret: r.appSecret, larkAppQuickCreated: true })
-      setFeishuQrStatus("idle"); setFeishuQrUrl("")
-    } else if (r.error === "cancelled") {
-      setFeishuQrStatus("idle"); setFeishuQrUrl("")
-    } else {
-      setFeishuQrStatus("error"); setFeishuQrMsg(r.error ?? "创建失败")
-    }
+    void feishuQrRef.current?.startRegister(preset)
+  }
+
+  const startFeishuUpdatePermissions = () => {
+    const id = draft.larkAppId?.trim()
+    if (!id) return
+    void feishuQrRef.current?.startUpdate(id)
   }
 
   // 微信扫码获取 Token
@@ -427,7 +416,18 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
                       <ExternalLink size={11} />开发者后台
                     </a>
                   )}
-                  <button type="button" onClick={openRegisterForm} disabled={feishuQrStatus === "loading" || feishuQrStatus === "wait" || registerForm !== null}
+                  {draft.larkAppId?.trim() && (
+                    <button
+                      type="button"
+                      onClick={startFeishuUpdatePermissions}
+                      disabled={feishuQrBusy || registerForm !== null}
+                      title={!draft.larkAppId?.trim() ? "请先填写 App ID" : "增量开通自定义菜单与进入私聊事件，不修改 App Secret"}
+                      className="flex items-center gap-1 rounded-md border border-amber-600/50 bg-amber-600/10 px-2 py-1 text-xs text-amber-300 hover:bg-amber-600/20 disabled:opacity-50"
+                    >
+                      <ShieldCheck size={11} />扫码更新权限
+                    </button>
+                  )}
+                  <button type="button" onClick={openRegisterForm} disabled={feishuQrBusy || registerForm !== null}
                     className="flex items-center gap-1 rounded-md border border-blue-600/50 bg-blue-600/10 px-2 py-1 text-xs text-blue-300 hover:bg-blue-600/20 disabled:opacity-50">
                     <LogIn size={11} />一键创建应用
                   </button>
@@ -446,20 +446,20 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
                   </div>
                   <div className="flex justify-end gap-2 pt-1">
                     <button onClick={() => setRegisterForm(null)} className="rounded-md px-3 py-1 text-xs text-gray-400 hover:bg-gray-800 hover:text-white">取消</button>
-                    <button onClick={() => void startFeishuRegister(registerForm)} disabled={!registerForm.name.trim()} className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-40">开始扫码创建</button>
+                    <button onClick={() => startFeishuRegister(registerForm)} disabled={!registerForm.name.trim()} className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-40">开始扫码创建</button>
                   </div>
                 </div>
               )}
-              {(feishuQrStatus === "loading" || (feishuQrStatus === "wait" && feishuQrUrl)) && (
-                <div className="flex flex-col items-center gap-2 py-3">
-                  {feishuQrStatus === "loading"
-                    ? <Loader2 size={22} className="animate-spin text-blue-400" />
-                    : <img src={feishuQrUrl} alt="Feishu QR" className="h-40 w-40 rounded bg-white p-1" />}
-                  <p className="text-xs text-gray-400">{feishuQrStatus === "loading" ? "正在生成二维码..." : "请使用飞书扫码创建应用"}</p>
-                  <button onClick={async () => { await window.electronAPI.feishuRegisterAppCancel(); setFeishuQrStatus("idle"); setFeishuQrUrl("") }} className="text-xs text-gray-500 hover:text-red-400">取消</button>
-                </div>
-              )}
-              {feishuQrStatus === "error" && <p className="text-xs text-red-400">{feishuQrMsg} <button onClick={openRegisterForm} className="text-blue-400 hover:underline">重试</button></p>}
+              <FeishuQrFlow
+                ref={feishuQrRef}
+                mode="register"
+                onStatusChange={(s) => setFeishuQrBusy(s === "loading" || s === "wait")}
+                onSuccess={(result) => {
+                  if (result?.appId && result.appSecret) {
+                    set({ larkAppId: result.appId, larkAppSecret: result.appSecret, larkAppQuickCreated: true })
+                  }
+                }}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="mb-1 block text-xs text-gray-500">App ID</label><input type="text" value={draft.larkAppId ?? ""} onChange={(e) => set({ larkAppId: e.target.value })} className={inputCls} /></div>
                 <div><label className="mb-1 block text-xs text-gray-500">App Secret</label>

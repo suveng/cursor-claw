@@ -10,6 +10,7 @@ import {
 
 const STREAM_ELEMENT_ID = "stream_content";
 const MERGE_BATCH_ELEMENT_ID = "merge_body";
+const HELP_CARD_ELEMENT_ID = "help_body";
 const TOOL_PROGRESS_ELEMENT_ID = "tool_progress";
 const THINKING_ELEMENT_ID = "thinking_summary";
 
@@ -447,6 +448,53 @@ export class LarkSender {
     const msgId = await this.sendMergeBatchCardMessage(chatId, entity.cardId, replyMessageId);
     if (!msgId) return null;
     return { cardEntityId: entity.cardId, cardMessageId: msgId, cardSequence: 1 };
+  }
+
+  /** 帮助 CardKit：创建一次性卡片实体（schema 2.0，非 streaming） */
+  async createHelpCardEntity(markdown: string): Promise<{ cardId: string } | null> {
+    try {
+      const escaped = markdown.replace(/\\/g, "\\\\");
+      const card: Record<string, unknown> = {
+        schema: "2.0",
+        config: { wide_screen_mode: true },
+        header: { title: { tag: "plain_text", content: "使用帮助" }, template: "turquoise" },
+        body: {
+          elements: [{
+            tag: "markdown",
+            element_id: HELP_CARD_ELEMENT_ID,
+            content: escaped,
+          }],
+        },
+      };
+      const res = await this.client.request({
+        method: "POST",
+        url: "/open-apis/cardkit/v1/cards",
+        data: { type: "card_json", data: JSON.stringify(card) },
+      }) as { code?: number; msg?: string; data?: { card_id?: string } };
+      if (res?.code !== 0) {
+        this.log("WARN", `帮助 CardKit 创建失败: code=${res?.code}, msg=${res?.msg}`);
+        return null;
+      }
+      const cardId = res?.data?.card_id;
+      if (!cardId) {
+        this.log("WARN", "帮助 CardKit 创建失败: 无 card_id");
+        return null;
+      }
+      return { cardId };
+    } catch (e: unknown) {
+      this.log("WARN", `帮助 CardKit 创建异常: ${e instanceof Error ? e.message : e}`);
+      return null;
+    }
+  }
+
+  /**
+   * 帮助 CardKit：create + send 一次性发卡。
+   * createHelpCardEntity 为非 streaming 卡；sendStreamingCardMessage 此处仅作 im.message.create 发送 card 引用。
+   */
+  async sendHelpCard(chatId: string, markdown: string): Promise<string | null> {
+    const entity = await this.createHelpCardEntity(markdown);
+    if (!entity) return null;
+    return this.sendStreamingCardMessage(chatId, entity.cardId);
   }
 
   /** 工具进度 CardKit：创建可 PATCH 卡片实体 */
@@ -988,10 +1036,50 @@ export class LarkSender {
     appSecret: string,
     encryptKey: string,
     onMessage: (event: LarkMessageEvent) => void,
+    callbacks?: FeishuConnectionCallbacks,
   ): void {
     const eventDispatcher = new Lark.EventDispatcher(encryptKey ? { encryptKey } : {}).register({
       // 入队 Get 表情会触发 reaction 回推；空 handler 避免 SDK 打 no handle WARN
       "im.message.reaction.created_v1": () => { /* ignore */ },
+      // 自定义菜单点击（推送事件类菜单）
+      "application.bot.menu_v6": (data) => {
+        if (!callbacks?.onMenuV6) return;
+        try {
+          const raw = data as Record<string, unknown>;
+          const operator = raw.operator as { operator_id?: { open_id?: string } } | undefined;
+          const eventKey = String(raw.event_key ?? "");
+          const openId = String(operator?.operator_id?.open_id ?? "");
+          const chatId = String(raw.chat_id ?? "");
+          if (!eventKey || !openId) {
+            this.log("WARN", `menu_v6 事件缺少 event_key/openId: ${JSON.stringify(raw).slice(0, 200)}`);
+            return;
+          }
+          void Promise.resolve(callbacks.onMenuV6({ eventKey, openId, chatId })).catch((e: unknown) => {
+            this.log("ERROR", `menu_v6 回调异常: ${e instanceof Error ? e.message : e}`);
+          });
+        } catch (e: unknown) {
+          this.log("ERROR", `menu_v6 事件处理异常: ${e instanceof Error ? e.message : e}`);
+        }
+      },
+      // 用户进入机器人私聊
+      "im.chat.access_event.bot_p2p_chat_entered_v1": (data) => {
+        if (!callbacks?.onP2pEntered) return;
+        try {
+          const raw = data as Record<string, unknown>;
+          const operatorId = raw.operator_id as { open_id?: string } | undefined;
+          const openId = String(operatorId?.open_id ?? "");
+          const chatId = String(raw.chat_id ?? "");
+          if (!openId || !chatId) {
+            this.log("WARN", `p2p_entered 事件缺少 openId/chatId: ${JSON.stringify(raw).slice(0, 200)}`);
+            return;
+          }
+          void Promise.resolve(callbacks.onP2pEntered({ openId, chatId })).catch((e: unknown) => {
+            this.log("ERROR", `p2p_entered 回调异常: ${e instanceof Error ? e.message : e}`);
+          });
+        } catch (e: unknown) {
+          this.log("ERROR", `p2p_entered 事件处理异常: ${e instanceof Error ? e.message : e}`);
+        }
+      },
       "im.message.receive_v1": (data) => {
         try {
           const msg = (data as any)?.message;
@@ -1046,4 +1134,24 @@ export interface LarkMessageEvent {
   senderType?: string;
   parentId?: string;
   mentions: LarkMention[];
+}
+
+/** 飞书自定义菜单点击事件（application.bot.menu_v6） */
+export interface FeishuMenuEvent {
+  eventKey: string;
+  openId: string;
+  /** 部分场景无 chat_id，由 daemon 回退解析 */
+  chatId: string;
+}
+
+/** 用户进入机器人私聊事件（bot_p2p_chat_entered_v1） */
+export interface FeishuP2pEnteredEvent {
+  openId: string;
+  chatId: string;
+}
+
+/** startConnection 可选事件回调 */
+export interface FeishuConnectionCallbacks {
+  onMenuV6?: (event: FeishuMenuEvent) => void | Promise<void>;
+  onP2pEntered?: (event: FeishuP2pEnteredEvent) => void | Promise<void>;
 }
