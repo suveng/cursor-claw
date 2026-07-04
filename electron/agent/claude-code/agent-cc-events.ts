@@ -14,7 +14,23 @@ import {
 import {
   appendCcAssistantStreamDelta, flushDeferredStreamPost, maybeReleaseDeferredAssistant,
 } from "./agent-cc-presentation"
+import {
+  handleCcToolFinalPresentation,
+  handleCcToolRunningPresentation,
+} from "./agent-cc-presentation-tool"
 import { formatCcHookUiLog } from "./cc-sdk-hooks"
+
+/** content block 最小结构（含 tool_use.input） */
+type CcContentBlock = {
+  type: string
+  text?: string
+  thinking?: string
+  name?: string
+  id?: string
+  input?: unknown
+  tool_use_id?: string
+  is_error?: boolean
+}
 
 /** Anthropic usage → TurnUsageSlice */
 function mapUsageToSlice(usage?: {
@@ -35,7 +51,7 @@ function mapUsageToSlice(usage?: {
 /** 处理 content block 数组（assistant / user） */
 function handleContentBlocks(
   session: CcSessionAgent,
-  blocks: Array<{ type: string; text?: string; thinking?: string; name?: string; id?: string; tool_use_id?: string; is_error?: boolean }>,
+  blocks: CcContentBlock[],
   resolveChannelType: (sessionKey: string) => string | undefined,
   isUserMessage: boolean,
 ): void {
@@ -48,22 +64,14 @@ function handleContentBlocks(
     } else if (!isUserMessage && block.type === "thinking" && (block.thinking || block.text)) {
       const delta = block.thinking ?? block.text ?? ""
       appendCcLog(session, "thinking", delta)
-      markProcessEventSeen(session)
+      markProcessEventSeen(session, "thinking")
       session.thinkingOpen = true
       void postPresentationEvent(session, { kind: "thinking", delta }, resolveChannelType)
     } else if (!isUserMessage && block.type === "tool_use" && block.name) {
-      flushCcLog(session)
-      closeThinkingIfOpen(session, resolveChannelType)
-      session.lastTool = { name: block.name, status: "running" }
-      markProcessEventSeen(session)
-      session.toolPresentationOutboundIds?.delete(block.name)
-      void postPresentationEvent(session, { kind: "tool", tool_name: block.name, tool_status: "started", final: false }, resolveChannelType)
+      handleCcToolRunningPresentation(session, block.name, block.input, resolveChannelType)
     } else if (isUserMessage && block.type === "tool_result" && block.tool_use_id) {
       const toolName = session.lastTool?.name ?? "unknown_tool"
-      const isError = block.is_error === true
-      session.lastTool = { name: toolName, status: isError ? "error" : "completed" }
-      void postPresentationEvent(session, { kind: "tool", tool_name: toolName, tool_status: isError ? "failed" : "completed", final: true }, resolveChannelType)
-      maybeReleaseDeferredAssistant(session)
+      handleCcToolFinalPresentation(session, toolName, block.is_error === true, block, resolveChannelType)
     }
   }
 }
@@ -78,13 +86,12 @@ function handleStreamEvent(
   const d = event.delta
   if (d.type === "text_delta" && d.text) {
     if (session.f41Stream) {
-      // 标记本轮正文已由 partial 流写入，供 assistant text block 去重
       session.ccTextFromPartialStream = true
       appendCcAssistantStreamDelta(session, d.text)
     } else appendCcLog(session, "text", d.text)
   } else if (d.type === "thinking_delta" && d.thinking) {
     appendCcLog(session, "thinking", d.thinking)
-    markProcessEventSeen(session)
+    markProcessEventSeen(session, "thinking")
     session.thinkingOpen = true
     void postPresentationEvent(session, { kind: "thinking", delta: d.thinking }, resolveChannelType)
   }
@@ -106,9 +113,6 @@ export function handleSdkMessage(
         session.ccSessionId = msg.session_id
       }
       if (msg.model) session.modelId = msg.model
-      // 缓存 init 上报的 MCP server 状态快照；idle/complete 不清空，供 Dashboard idle 展示。
-      // 浅拷贝：SDK 可能复用 message buffer，直接引用会被后续 mutate 污染 idle 面板快照。
-      // ponytail: msg.mcp_servers 是 {name,status}[]，浅拷贝后赋给可选字段更宽的快照类型（类型兼容）。
       if (Array.isArray(msg.mcp_servers)) {
         session.lastMcpServersSnapshot = msg.mcp_servers.map((s) => ({
           ...s,
@@ -118,7 +122,6 @@ export function handleSdkMessage(
       }
       return
     }
-    // SDK hook 流事件：刷新活动时钟 + UI 日志（与 cc-sdk-hooks 回调格式一致）
     if (msg.subtype === "hook_started" || msg.subtype === "hook_progress" || msg.subtype === "hook_response") {
       const hookMsg = msg as { hook_event: string; hook_name: string }
       markActivity(session, `hook:${msg.subtype}`)
@@ -133,12 +136,11 @@ export function handleSdkMessage(
   if (msg.type === "assistant") {
     closeThinkingIfOpen(session, resolveChannelType)
     maybeReleaseDeferredAssistant(session)
-    const content = msg.message.content as Array<{ type: string; text?: string; thinking?: string; name?: string; id?: string }>
+    const content = msg.message.content as CcContentBlock[]
     handleContentBlocks(session, content, resolveChannelType, false)
     const usageSlice = mapUsageToSlice(msg.message.usage as Parameters<typeof mapUsageToSlice>[0])
     if (usageSlice) updateContextUsageDisplay(session, usageSlice)
     if (msg.session_id) session.ccSessionId = msg.session_id
-    // assistant 轮次结束，清零 partial 去重闩，供下一轮使用
     session.ccTextFromPartialStream = false
     return
   }
@@ -150,7 +152,7 @@ export function handleSdkMessage(
   }
 
   if (msg.type === "user") {
-    const content = msg.message.content as Array<{ type: string; tool_use_id?: string; is_error?: boolean }>
+    const content = msg.message.content as CcContentBlock[]
     handleContentBlocks(session, content, resolveChannelType, true)
     return
   }
@@ -170,10 +172,7 @@ export function handleSdkMessage(
   }
 
   if (msg.type === "tool_progress") {
-    session.lastTool = { name: msg.tool_name, status: "running" }
-    markProcessEventSeen(session)
-    session.toolPresentationOutboundIds?.delete(msg.tool_name)
-    void postPresentationEvent(session, { kind: "tool", tool_name: msg.tool_name, tool_status: "started", final: false }, resolveChannelType)
+    handleCcToolRunningPresentation(session, msg.tool_name, undefined, resolveChannelType)
   }
 }
 
@@ -182,7 +181,6 @@ export interface ArmWatchdogOptions {
   idleTimeoutMs: number
   tickMs: number
   absoluteTimeoutMs: number
-  /** 默认 true：watchRunGuard 不设总时长硬 cap，idle 仍走 onTick */
   neverCancelOnDuration: boolean
   getSession: (sessionKey: string) => CcSessionAgent | undefined
   setWatchdogState: (session: CcSessionAgent, next: "running" | "draining" | "cancelling", reason: string) => void
@@ -194,7 +192,6 @@ export function armCcWatchdog(session: CcSessionAgent, token: string, opts: ArmW
   void watchRunGuard({
     sessionKey: session.sessionKey,
     token,
-    // 与 SDK 对齐：never-cancel 时不让 L73 总时长硬杀，idle/absolute 均在 onTick 判定
     timeoutMs: neverCancelOnDuration ? Number.MAX_SAFE_INTEGER : absoluteTimeoutMs,
     tickMs,
     onTick: () => {
@@ -210,7 +207,6 @@ export function armCcWatchdog(session: CcSessionAgent, token: string, opts: ArmW
         const drainingMs = now - s.watchdogStateAt
         if (drainingMs > 15_000) { setWatchdogState(s, "cancelling", "drain_grace_exceeded"); return "timeout" }
       }
-      // 显式关闭 never-cancel 时，绝对运行时长仅在 onTick 触发（对称 SDK armRunWatchdog）
       if (
         !neverCancelOnDuration &&
         s.runStartedAt != null &&
@@ -224,7 +220,6 @@ export function armCcWatchdog(session: CcSessionAgent, token: string, opts: ArmW
     onTimeout: async () => {
       const s = getSession(session.sessionKey)
       if (!s?.activeQuery) return
-      // 先于 close 置位，供 completeCcRun 超时专分支识别
       s.watchdogTimedOut = true
       pushUiLog("CC", "WARN", `[${session.sessionKey}] watchdog 超时，中止 Query`)
       try { s.activeQuery.close() } catch { /* best-effort */ }

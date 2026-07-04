@@ -60,6 +60,10 @@ export interface CcSessionAgent {
   errorNotified?: boolean
   lastStatus?: { status: string; message?: string }
   lastTool?: { name: string; status: string }
+  /** 无描述 Task started 里程碑序号（对称 SDK taskSeq） */
+  taskSeq?: number
+  /** 相邻同参 tool running 去重键 */
+  lastToolCallRunningDedupKey?: string
   residentMode: boolean
   pendingDispatch: boolean
   runStartedAt?: number

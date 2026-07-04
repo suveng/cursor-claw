@@ -118,6 +118,8 @@ export function resetCcRunPresentationState(session: CcSessionAgent): void {
   session.errorNotified = false
   session.lastStatus = undefined
   session.lastTool = undefined
+  session.taskSeq = undefined
+  session.lastToolCallRunningDedupKey = undefined
   session.runStartedAt = undefined
   session.streamBuffer = ""
   session.outboundMessageId = undefined

@@ -1,0 +1,7 @@
+{
+  "version": "1.13.10",
+  "date": "2026-07-05",
+  "changes": [
+    "Claude Code 飞书过程通知与 Cursor SDK 对齐：分级门控、开始态字段透传、去重与 ordering 闩一致"
+  ]
+}

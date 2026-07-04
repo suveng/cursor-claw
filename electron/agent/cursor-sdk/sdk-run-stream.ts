@@ -33,7 +33,7 @@ import {
   isDuplicateToolCallRunning,
   isRedundantTaskEventAfterToolCall,
   mapTaskMilestoneText,
-} from "./sdk-tool-event-dedup"
+} from "../shared/tool-presentation-dedup.js"
 
 const LOG_FLUSH_LEN = 400
 

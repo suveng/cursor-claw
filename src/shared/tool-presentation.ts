@@ -22,6 +22,27 @@ export interface ToolTaskPresentationFields {
   tool_task_description: string;
 }
 
+/** CC/SDK 原始工具名 → tier 与里程碑文案使用的 canonical 名 */
+const PRESENTATION_TOOL_NAME_ALIASES: Record<string, string> = {
+  bash: "shell",
+  write: "write",
+  edit: "strreplace",
+  strreplace: "strreplace",
+  delete: "delete",
+  task: "task",
+};
+
+/**
+ * 将 CC/SDK 原始工具名归一化为 tier 与里程碑文案使用的 canonical 名。
+ * 未知名 toLowerCase().trim() 后原样返回（默认 silent）。
+ */
+export function normalizePresentationToolName(rawName: string): string {
+  const trimmed = rawName.trim();
+  if (!trimmed) return "";
+  const lower = trimmed.toLowerCase();
+  return PRESENTATION_TOOL_NAME_ALIASES[lower] ?? lower;
+}
+
 /** 飞书里程碑文案可选详情（shell 命令 / task 描述） */
 export interface ToolMilestoneDetail {
   tool_shell_command?: string;
@@ -104,7 +125,7 @@ export function extractShellPresentationFields(
   args?: unknown,
   result?: unknown,
 ): ToolShellPresentationFields | undefined {
-  if (toolName !== "shell") return undefined;
+  if (normalizePresentationToolName(toolName) !== "shell") return undefined;
   const parsed = parseShellToolArgs(args);
   if (!parsed?.command) return undefined;
   const fields: ToolShellPresentationFields = { tool_shell_command: parsed.command };
@@ -131,7 +152,7 @@ export function extractTaskPresentationFields(
   _status: "running" | "completed" | "error",
   args?: unknown,
 ): ToolTaskPresentationFields | undefined {
-  if (toolName !== "task") return undefined;
+  if (normalizePresentationToolName(toolName) !== "task") return undefined;
   const parsed = parseTaskToolArgs(args);
   if (!parsed?.tool_task_description) return undefined;
   return { tool_task_description: parsed.tool_task_description };

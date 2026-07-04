@@ -2,6 +2,7 @@
  * SDK 工具呈现分级 SSOT：决定 tool_call 是否向 IM 出站展示。
  * notify = 需 markProcessEventSeen + postPresentationEvent；silent = 跳过出站。
  */
+import { normalizePresentationToolName } from "./tool-presentation.js";
 
 /** SDK 工具呈现分级：notify 出站通知，silent 静默 */
 export type SdkToolPresentationTier = "notify" | "silent";
@@ -20,6 +21,6 @@ const NOTIFY_TOOL_NAMES = new Set<string>([
  * 归一化：toLowerCase().trim() 后查白名单；命中 notify，否则 silent。
  */
 export function resolveSdkToolPresentationTier(toolName: string): SdkToolPresentationTier {
-  const normalized = toolName.toLowerCase().trim();
+  const normalized = normalizePresentationToolName(toolName);
   return NOTIFY_TOOL_NAMES.has(normalized) ? "notify" : "silent";
 }

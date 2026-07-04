@@ -1,0 +1,163 @@
+{
+  "change_id": "20260705004707-ClaudeCode飞书通知对齐CursorSDK",
+  "title": "ClaudeCode飞书通知对齐CursorSDK",
+  "name": "ClaudeCode飞书通知对齐CursorSDK",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-05T00:47:07+0800",
+  "updated_at": "2026-07-05T01:06:00+0800",
+  "archived_at": "2026-07-05T01:06:00+0800",
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md",
+    "02-design.md",
+    "03-tasks.md",
+    "04-review.md",
+    "05-summary.md",
+    "06-automation-test.md",
+    "electron/agent/claude-code/agent-cc-stream.ts",
+    "electron/agent/claude-code/agent-cc-events.ts",
+    "electron/agent/claude-code/agent-cc-presentation-tool.ts",
+    "electron/agent/claude-code/agent-cc-types.ts",
+    "electron/agent/claude-code/agent-cc-utils.ts",
+    "electron/agent/claude-code/AGENTS.md",
+    "electron/agent/shared/tool-presentation-dedup.ts",
+    "electron/agent/shared/AGENTS.md",
+    "electron/agent/cursor-sdk/sdk-run-stream.ts",
+    "electron/agent/cursor-sdk/sdk-tool-event-dedup.ts",
+    "src/shared/sdk-tool-presentation-tier.ts",
+    "src/shared/tool-presentation.ts",
+    "src/shared/AGENTS.md",
+    "knowledge/业务域/消息桥接/02-飞书通道.md",
+    "package.json",
+    "changelog/1.13.10.json"
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "抽取 shared 工具呈现去重模块",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/agent/shared/tool-presentation-dedup.ts",
+        "electron/agent/cursor-sdk/sdk-tool-event-dedup.ts",
+        "electron/agent/cursor-sdk/sdk-run-stream.ts"
+      ],
+      "verification": "tsc PASS；04-review 静态 PASS"
+    },
+    {
+      "id": "T2",
+      "title": "CC 工具名归一化与 shared 字段解析扩展",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/shared/tool-presentation.ts",
+        "src/shared/sdk-tool-presentation-tier.ts"
+      ],
+      "verification": "E6 冒烟 7/7 PASS（Bash→shell notify、Read→silent、extract*）"
+    },
+    {
+      "id": "T3",
+      "title": "CcSessionAgent 去重状态字段与 Run 重置",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/agent/claude-code/agent-cc-types.ts",
+        "electron/agent/claude-code/agent-cc-utils.ts"
+      ],
+      "verification": "静态：resetCcRunPresentationState 清零 taskSeq/dedupKey"
+    },
+    {
+      "id": "T4",
+      "title": "agent-cc-stream 出站与 ordering 闩对齐",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/agent/claude-code/agent-cc-stream.ts"
+      ],
+      "verification": "静态：CC 无 feishu 早退；markProcessEventSeen(session,kind)；E1/E2 待手工"
+    },
+    {
+      "id": "T5",
+      "title": "agent-cc-events 分级门控、字段透传与去重",
+      "status": "done",
+      "depends_on": ["T1", "T2", "T3", "T4"],
+      "files": [
+        "electron/agent/claude-code/agent-cc-events.ts",
+        "electron/agent/claude-code/agent-cc-presentation-tool.ts"
+      ],
+      "verification": "静态 silent 跳过 mark+POST；E3–E5 飞书真机待手工"
+    },
+    {
+      "id": "T6",
+      "title": "Claude Code AGENTS Presentation 契约文档",
+      "status": "done",
+      "depends_on": ["T5"],
+      "files": [
+        "electron/agent/claude-code/AGENTS.md"
+      ],
+      "verification": "04-review PASS；与实现对齐"
+    },
+    {
+      "id": "T7",
+      "title": "archive 知识库与版本 changelog",
+      "status": "done",
+      "stage": "archive",
+      "depends_on": ["T5", "T6"],
+      "files": [
+        "knowledge/业务域/消息桥接/02-飞书通道.md",
+        "package.json",
+        "changelog/1.13.10.json",
+        "src/shared/AGENTS.md"
+      ],
+      "verification": "01 F5.1/验收 6；E1–E5 用户明确要求 archive+push（06 跳过标注）"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "type": "full-review",
+      "reviewer": "kb-reviewer",
+      "at": "2026-07-05T01:02:00+0800",
+      "verdict": "conditional_pass",
+      "stage_after": "reviewed",
+      "summary": "T1–T6 与 02/03 契约对齐：删 CC 飞书早退、分级门控对称 SDK、shell/task 透传、shared 去重复用、markProcessEventSeen(session,kind)；SDK 仅 dedup import+tier normalize 无回归。无≥75分阻断项；E1–E5 E2E 与 T7 archive 待办。",
+      "open_issues": {
+        "critical": 0,
+        "warning": 5
+      },
+      "blockers": [],
+      "non_blockers": [
+        "W1 tool_progress 去重键与 tool_use args 可能不一致",
+        "W2 E1–E5 飞书 E2E 无留证",
+        "W3 src/shared/AGENTS.md normalize 待 T7",
+        "W4 无自动化单测",
+        "W5 CC ordering mid-run release（02 R4 已知）"
+      ],
+      "artifacts": ["04-review.md"]
+    }
+  ],
+  "revisions": [],
+  "external": {
+    "task_type": "功能对齐/体验修复",
+    "priority": "P1",
+    "prd_doc_url": "无",
+    "registry_record_url": "无",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  },
+  "test": {
+    "at": "2026-07-05T01:10:00+0800",
+    "verdict": "pass_with_manual_skipped",
+    "automated": {
+      "tsc": "pass",
+      "e6_smoke": "pass_7_of_7",
+      "static_cc_no_feishu_early_exit": "pass",
+      "static_silent_skip_post": "pass"
+    },
+    "manual_pending": ["E1", "E2", "E3", "E4", "E5", "01_acceptance_1_5"],
+    "artifacts": ["06-automation-test.md"]
+  }
+}

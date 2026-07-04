@@ -17,6 +17,7 @@
 
 - `agent-launcher.ts`：仅 `ChatType` / `buildPrompt` / `resolveSessionChatName` 等 SDK·CC 共享符号；`buildPrompt` 仅透传 `taskMessage`，不注入 rules 或元数据包装；**无** CLI spawn。
 - `agent-run-guard.ts`：Run 并发闩与 watchdog 时钟。
+- `tool-presentation-dedup.ts`：跨引擎 tool running 去重与 Task 双推抑制（SDK/CC 共用 `ToolPresentationDedupSession` 切片）。
 - `retry-policy.ts`：幂等键与重试策略。
 - `workspace-injector.ts`：自动注入（rules/mcp/skills）已废弃为 no-op；`cleanupLegacyInjection` 仅作可选手动清理，**禁止**在 launch 或 Daemon 启动路径自动调用。
 

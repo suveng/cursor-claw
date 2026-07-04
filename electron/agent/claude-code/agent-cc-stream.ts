@@ -4,9 +4,6 @@
  * appendStreamDelta/scheduleStreamPost/flushStreamPost、broadcastCcSessionStatus、completeCcRun
  */
 import { readLockFile, httpPost, reportSessionAgentPhase } from "../../daemon/daemon-client"
-import {
-  isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind,
-} from "../../../src/shared/feishu-presentation-gate"
 import { pushUiLog, broadcastLog, broadcastSessionStatus } from "../../app/ui-logger"
 import {
   appendContextFooter,
@@ -76,9 +73,8 @@ export async function notifySessionChat(sessionKey: string, text: string, stopPr
 export async function postPresentationEvent(
   session: CcSessionAgent,
   event: Omit<import("./agent-sdk").PresentationEvent, "session_key">,
-  resolveChannelType: (sessionKey: string) => string | undefined,
+  _resolveChannelType: (sessionKey: string) => string | undefined,
 ): Promise<void> {
-  if (feishuSuppressesProcessKind(resolveChannelType(session.sessionKey), event.kind)) return
   const lock = readLockFile()
   if (!lock?.port) return
   const payload = { session_key: session.sessionKey, ...event }
@@ -206,11 +202,18 @@ export function closeThinkingIfOpen(
   void postPresentationEvent(session, { kind: "thinking", final: true }, resolveChannelType)
 }
 
-/** 标记已处理 process 事件（清除定时器，开启 defer 闩） */
-export function markProcessEventSeen(session: CcSessionAgent): void {
+/**
+ * 过程事件可见时置 ordering 闩（seenProcessEvent / presentationDeferStream）。
+ * 飞书呈现抑制（里程碑文本）≠ 不参与 ordering defer；thinking/tool/task 均置闩。
+ */
+export function markProcessEventSeen(
+  session: CcSessionAgent,
+  _kind: "thinking" | "tool" | "task",
+): void {
+  if (!presentationOrderingEligible(session)) return
   clearStreamPostTimer(session)
   session.seenProcessEvent = true
-  if (presentationOrderingEligible(session)) session.presentationDeferStream = true
+  session.presentationDeferStream = true
 }
 
 // ── 会话状态广播 ──────────────────────────────────────────────────────────────
