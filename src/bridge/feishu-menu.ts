@@ -1,6 +1,6 @@
 /**
  * 飞书自定义菜单点击与进入私聊帮助的业务骨架。
- * 事件注册与 pushCommandToQueue 接线由 daemon/lark-core（T5）完成。
+ * 事件注册与 pushCommandToQueue 接线由 daemon/lark-core 完成。
  */
 
 import { FEISHU_MENU_EVENT_MAP } from "../shared/feishu-addons.js";
@@ -8,9 +8,6 @@ import { buildHelpText } from "../shared/feishu-help-text.js";
 
 /** 进入私聊帮助卡推送间隔（24 小时） */
 export const HELP_CARD_INTERVAL_MS = 86_400_000;
-
-/** 非管理员点击管理员菜单项时的回复文案（与 daemon-manager denyNonAdmin 一致） */
-const DENY_NON_ADMIN_TEXT = "🔒 该指令仅管理员可用";
 
 /** 未知 event_key 时的回复文案 */
 const UNKNOWN_MENU_TEXT = "❓ 未知菜单项";
@@ -23,9 +20,8 @@ export interface MenuClickContext {
   eventKey: string;
   openId: string;
   chatId: string;
-  /** 回复锚点或 fcmd 入队 messageId，由 T5 从事件 payload 传入 */
+  /** 回复锚点或 fcmd 入队 messageId */
   messageId?: string;
-  isAdmin: boolean;
 }
 
 /** 菜单点击处理结果：入队斜杠指令或直接文本回复 */
@@ -43,7 +39,6 @@ export type MenuHandleResult =
 export interface P2pEnteredContext {
   openId: string;
   chatId: string;
-  isAdmin: boolean;
 }
 
 /** 进入私聊处理结果：发卡或节流跳过 */
@@ -61,18 +56,12 @@ export type MenuCommandResult = MenuCommandResolved | MenuCommandDenied;
 
 /**
  * 将飞书菜单 event_key 解析为斜杠指令。
- * 未知 key 或权限不足时返回可理解的 reply 文案，不抛错。
+ * 未知 key 时返回可理解的 reply 文案，不抛错。
  */
-export function resolveMenuCommand(
-  eventKey: string,
-  isAdmin: boolean,
-): MenuCommandResult {
+export function resolveMenuCommand(eventKey: string): MenuCommandResult {
   const entry = FEISHU_MENU_EVENT_MAP[eventKey];
   if (!entry) {
     return { ok: false, replyText: UNKNOWN_MENU_TEXT };
-  }
-  if (entry.adminOnly && !isAdmin) {
-    return { ok: false, replyText: DENY_NON_ADMIN_TEXT };
   }
   return { ok: true, command: entry.command };
 }
@@ -84,12 +73,11 @@ export function resolveMenuCommand(
 export async function handleMenuClick(
   ctx: MenuClickContext,
 ): Promise<MenuHandleResult> {
-  const resolved = resolveMenuCommand(ctx.eventKey, ctx.isAdmin);
+  const resolved = resolveMenuCommand(ctx.eventKey);
   if (!resolved.ok) {
     return { action: "reply", text: resolved.replyText };
   }
 
-  // fcmd 队列需要 messageId；T5 应从事件传入，缺失时用合成 id 避免静默失败
   const messageId =
     ctx.messageId?.trim() ||
     `menu_${ctx.eventKey}_${Date.now()}`;
@@ -119,6 +107,6 @@ export async function handleP2pEntered(
   helpThrottleMap.set(ctx.openId, now);
   return {
     action: "send_help_card",
-    helpMarkdown: buildHelpText(ctx.isAdmin),
+    helpMarkdown: buildHelpText(),
   };
 }

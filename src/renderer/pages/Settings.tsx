@@ -729,7 +729,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                 <h3 className="text-sm font-medium text-gray-300">自定义菜单 event_key 对照表</h3>
                 <p className="text-xs text-gray-600">
                   在飞书开发者后台 → 机器人 → 自定义菜单中配置菜单项时，推送事件类菜单须填写下方 event_key（区分大小写）。
-                  菜单类型选「推送事件」，保存后发布应用版本生效。
+                  菜单类型选「推送事件」，保存后发布应用版本生效。已授权用户均可使用下列指令。
                 </p>
                 <div className="rounded-lg border border-gray-800 overflow-hidden">
                   <div className="grid grid-cols-4 gap-2 bg-gray-800/50 px-3 py-2 text-xs font-medium text-gray-400">
@@ -744,9 +744,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                         <code className="text-blue-400">{key}</code>
                         <span className="text-gray-300">{item.label}</span>
                         <code className="text-gray-400">{item.command}</code>
-                        <span className={`text-right ${item.adminOnly ? "text-amber-400" : "text-emerald-400"}`}>
-                          {item.adminOnly ? "管理员" : "全员"}
-                        </span>
+                        <span className="text-right text-emerald-400">全员</span>
                       </div>
                     ))}
                   </div>

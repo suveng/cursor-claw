@@ -29,14 +29,7 @@ export interface FeishuEventHandlerDeps {
   makeChatKey: (channelId: string, rawChatId: string) => string;
 }
 
-/** 主用户判定：与斜杠路径 isSessionMainUser / Electron isMainUser 一致 */
-export function isFeishuChannelAdmin(rt: FeishuHandlerRuntime, rawChatId: string): boolean {
-  if (!rawChatId.trim()) return false;
-  if (!rt.cfg.mainUserEnabled || !rt.cfg.mainUserChatId?.trim()) return false;
-  return rawChatId.trim() === rt.cfg.mainUserChatId.trim();
-}
-
-/** menu_v6 无 chat_id 时回退：最近私聊 → sender 默认（不回退主用户 chat，避免误判 admin） */
+/** menu_v6 无 chat_id 时回退：最近私聊 → sender 默认（不回退主用户 chat） */
 function resolveMenuChatId(
   rt: FeishuHandlerRuntime,
   sender: LarkSender,
@@ -61,14 +54,12 @@ export async function onFeishuMenuV6(
     return;
   }
 
-  const isAdmin = isFeishuChannelAdmin(rt, chatId);
-  deps.log("INFO", `[${rt.cfg.name}] 菜单点击 key=${ev.eventKey} openId=${ev.openId} chat=${chatId} admin=${isAdmin}`);
+  deps.log("INFO", `[${rt.cfg.name}] 菜单点击 key=${ev.eventKey} openId=${ev.openId} chat=${chatId}`);
 
   const result = await handleMenuClick({
     eventKey: ev.eventKey,
     openId: ev.openId,
     chatId,
-    isAdmin,
   });
 
   if (result.action === "reply") {
@@ -96,13 +87,11 @@ export async function onFeishuP2pEntered(
   ev: FeishuP2pEnteredEvent,
   deps: FeishuEventHandlerDeps,
 ): Promise<void> {
-  const isAdmin = isFeishuChannelAdmin(rt, ev.chatId);
-  deps.log("INFO", `[${rt.cfg.name}] 进入私聊 openId=${ev.openId} chat=${ev.chatId} admin=${isAdmin}`);
+  deps.log("INFO", `[${rt.cfg.name}] 进入私聊 openId=${ev.openId} chat=${ev.chatId}`);
 
   const result = await handleP2pEntered({
     openId: ev.openId,
     chatId: ev.chatId,
-    isAdmin,
   });
 
   if (result.action === "skip") {

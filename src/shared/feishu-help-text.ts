@@ -3,16 +3,12 @@
  * bridge 与 Electron 均从此模块 import，避免文案漂移。
  */
 
-/** 全员可用斜杠指令说明 */
-const COMMON_COMMAND_LINES = [
+/** 全量斜杠指令说明（私聊/群聊、文本/菜单路径一致） */
+const ALL_COMMAND_LINES = [
   "🔹 /status 运行状态",
-  "🔹 /stop 停止Agent",
+  "🔹 /stop 停止当前会话 Agent",
   "🔹 /reset 重置会话",
   "🔹 /help 指令列表",
-] as const
-
-/** 管理员额外斜杠指令说明（与首期菜单 workspace/model/chat new 等语义对齐） */
-const ADMIN_COMMAND_LINES = [
   "🔹 /restart 重启应用",
   "🔹 /list 消息队列",
   "🔹 /clean 清空队列",
@@ -24,18 +20,14 @@ const ADMIN_COMMAND_LINES = [
   "🔹 /chat 会话管理（new 可选 -dir <路径>，省略则用主会话目录，无效目录不创建）",
 ] as const
 
-/** 自定义菜单位置引导（与 01 F2.2 一致） */
+/** 自定义菜单位置引导 */
 const MENU_GUIDE_LINE =
   "📋 点击输入框旁菜单可快捷执行常用操作；更多指令可手动输入斜杠文本"
 
 /**
- * 生成与 /help 及帮助卡一致的纯文本帮助正文。
- * @param isAdmin 是否主用户/管理员（与 daemon-manager isAdmin 判定一致）
+ * 生成与 /help 及帮助卡一致的纯文本帮助正文（全员同一套）。
  */
-export function buildHelpText(isAdmin: boolean): string {
-  const title = isAdmin ? "💡 可用指令（管理员）：" : "💡 可用指令："
-  const lines = isAdmin
-    ? [title, MENU_GUIDE_LINE, ...COMMON_COMMAND_LINES, ...ADMIN_COMMAND_LINES]
-    : [title, MENU_GUIDE_LINE, ...COMMON_COMMAND_LINES]
-  return lines.join("\n")
+export function buildHelpText(): string {
+  const title = "💡 可用指令："
+  return [title, MENU_GUIDE_LINE, ...ALL_COMMAND_LINES].join("\n")
 }

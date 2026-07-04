@@ -892,20 +892,15 @@ async function checkAndExecutePendingCommands(): Promise<void> {
     const rawCmd = claimed.command.trim()
     const cmdTokens = rawCmd.split(/\s+/).filter((t) => t.length > 0)
     const head = (cmdTokens[0] ?? "").toLowerCase()
-    const isAdmin = isMainUser(claimed.chatId, claimed.chatType)
     const reply = (ok: boolean, msg: string) => reportCommandResult(lock.port, claimed!.messageId, ok, msg, claimed!.chatId)
-    const denyNonAdmin = () => reply(false, "🔒 该指令仅管理员可用")
 
-    broadcastLog(`[指令] 执行 ${rawCmd} (msgId=${claimed.messageId} admin=${isAdmin})`)
+    broadcastLog(`[指令] 执行 ${rawCmd} (msgId=${claimed.messageId})`)
     try {
       switch (head) {
         case "/stop": {
-          if (isAdmin) {
-            const wasRunning = isAgentRunning()
-            stopAgent()
-            await reply(true, wasRunning ? "✅ Agent 已停止" : "❌ Agent 当前未运行")
-          } else if (claimed.chatId && isSessionAgentRunning(claimed.chatId)) {
-            stopSessionAgent(claimed.chatId)
+          const sessionKey = resolveCommandSessionKey(claimed.chatId, claimed.chatType) ?? claimed.chatId
+          if (sessionKey && isSessionAgentRunning(sessionKey)) {
+            stopSessionAgent(sessionKey)
             await reply(true, "✅ 当前会话 Agent 已停止")
           } else {
             await reply(false, "❌ 当前会话无运行中的 Agent")
@@ -932,19 +927,16 @@ async function checkAndExecutePendingCommands(): Promise<void> {
 
         case "/list": {
           const msgs = await getQueueMessages()
-          const filtered = isAdmin ? msgs : msgs.filter((m) =>
-            m.sessionKey === claimed!.chatId || m.sessionKey?.startsWith(claimed!.chatId + "::"))
-          if (filtered.length === 0) {
+          if (msgs.length === 0) {
             await reply(true, "📭 消息队列为空")
           } else {
-            const lines = filtered.map((m) => `  [${m.index}] ${m.preview}`)
-            await reply(true, `📬 队列中有 ${filtered.length} 条消息：\n${lines.join("\n")}`)
+            const lines = msgs.map((m) => `  [${m.index}] ${m.preview}`)
+            await reply(true, `📬 队列中有 ${msgs.length} 条消息：\n${lines.join("\n")}`)
           }
           break
         }
 
         case "/task": {
-          if (!isAdmin) { await denyNonAdmin(); break }
           await handleFeishuTaskCommand(
             lock.port, claimed.messageId, rawCmd,
             (task, content) => launchIndependentAgent(task.id, task.name, content, "task", undefined, task.channelId, task.model, task.modelParams),
@@ -955,26 +947,22 @@ async function checkAndExecutePendingCommands(): Promise<void> {
         }
 
         case "/model": {
-          if (!isAdmin) { await denyNonAdmin(); break }
           await handleFeishuModelCommand(lock.port, claimed.messageId, rawCmd, claimed.chatId)
           break
         }
 
         case "/mcp": {
-          if (!isAdmin) { await denyNonAdmin(); break }
           await handleFeishuMcpCommand(lock.port, claimed.messageId, rawCmd, claimed.chatId)
           break
         }
 
         case "/workflow":
         case "/wf": {
-          if (!isAdmin) { await denyNonAdmin(); break }
           await handleFeishuWorkflowCommand(lock.port, claimed.messageId, rawCmd, claimed.chatId)
           break
         }
 
         case "/restart": {
-          if (!isAdmin) { await denyNonAdmin(); break }
           stopAgent()
           const cleared = await clearMessageQueue()
           await reply(true, `✅ Agent 已停止，已清空 ${cleared} 条队列消息，正在重启 Daemon...`)
@@ -986,7 +974,6 @@ async function checkAndExecutePendingCommands(): Promise<void> {
         }
 
         case "/clean": {
-          if (!isAdmin) { await denyNonAdmin(); break }
           const cleared = await clearMessageQueue()
           broadcastLog(`[指令 /clean] 已清空队列 ${cleared} 条`, "INFO")
           await reply(true, `✅ 已清空消息队列，共移除 ${cleared} 条`)
@@ -1007,7 +994,6 @@ async function checkAndExecutePendingCommands(): Promise<void> {
         }
 
         case "/workspace": {
-          if (!isAdmin) { await denyNonAdmin(); break }
           const wsArgs = cmdTokens.slice(1)
           if (wsArgs.length === 0 || wsArgs[0] === "info") {
             const cfg = getConfig()
@@ -1035,13 +1021,12 @@ async function checkAndExecutePendingCommands(): Promise<void> {
         }
 
         case "/chat": {
-          if (!isAdmin) { await denyNonAdmin(); break }
           await handleChatCommand(cmdTokens, lock.port, claimed!.messageId, claimed!.chatId)
           break
         }
 
         case "/help": {
-          await reply(true, buildHelpText(isAdmin))
+          await reply(true, buildHelpText())
           break
         }
 
