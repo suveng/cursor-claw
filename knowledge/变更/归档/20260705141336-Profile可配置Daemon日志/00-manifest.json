@@ -1,0 +1,54 @@
+{
+  "name": "Profile可配置Daemon日志",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "AgentResource.daemonLogPath 与 Electron/Daemon 共用日志路径",
+      "status": "done",
+      "files": [
+        "electron/config/daemon-log-path.ts",
+        "src/shared/channel-types.ts",
+        "electron/app/ui-logger.ts",
+        "electron/daemon/daemon-manager.ts",
+        "src/daemon/daemon.ts",
+        "src/renderer/components/ProfileDaemonLogField.tsx",
+        "src/renderer/components/AgentResourceModals.tsx",
+        "electron/preload.ts",
+        "src/renderer/env.d.ts"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    { "path": "electron/config/daemon-log-path.ts", "kind": "source" },
+    { "path": "src/shared/channel-types.ts", "kind": "source" },
+    { "path": "electron/app/ui-logger.ts", "kind": "source" },
+    { "path": "electron/daemon/daemon-manager.ts", "kind": "source" },
+    { "path": "src/daemon/daemon.ts", "kind": "source" },
+    { "path": "src/renderer/components/ProfileDaemonLogField.tsx", "kind": "source" },
+    { "path": "src/renderer/components/AgentResourceModals.tsx", "kind": "source" },
+    { "path": "electron/preload.ts", "kind": "source" },
+    { "path": "src/renderer/env.d.ts", "kind": "source" },
+    { "path": "knowledge/工程平台/Electron桌面应用/04-配置与更新.md", "kind": "knowledge" },
+    { "path": "knowledge/工程平台/Electron桌面应用/03-渲染端界面.md", "kind": "knowledge" },
+    { "path": "knowledge/工程平台/Daemon守护进程/01-概览.md", "kind": "knowledge" },
+    { "path": "knowledge/工程平台/Daemon守护进程/03-进程模型与部署.md", "kind": "knowledge" },
+    { "path": "package.json", "kind": "release" },
+    { "path": "changelog/1.13.12.json", "kind": "release" },
+    {
+      "path": "knowledge/变更/归档/20260705141336-Profile可配置Daemon日志/00-manifest.json",
+      "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/变更/归档/20260705141336-Profile可配置Daemon日志/05-summary.md",
+      "kind": "change_doc"
+    }
+  ],
+  "archived_at": "2026-07-05T14:13:36+08:00",
+  "updated_at": "2026-07-05T14:20:00+08:00"
+}

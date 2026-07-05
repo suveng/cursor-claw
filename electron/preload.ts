@@ -15,6 +15,8 @@ export interface AgentResource {
   baseUrl?: string
   /** 默认模型（仅 claude-code）；空值 = 使用 SDK 默认 */
   model?: string
+  /** daemon.log 绝对路径（Profile 级）；空=默认规则 */
+  daemonLogPath?: string
 }
 
 export interface MessageChannel {
@@ -299,6 +301,7 @@ const api = {
   saveSkill: (name: string, content: string, scope?: SkillScope): Promise<{ ok: boolean; skillsDir?: string; error?: string }> => ipcRenderer.invoke("skills:save", name, content, scope),
   renameSkill: (oldName: string, newName: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("skills:rename", oldName, newName, scope),
   deleteSkill: (name: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke("skills:delete", name, scope),
+  getPluginInventory: (workspaceDir: string): Promise<PluginInventoryResult> => ipcRenderer.invoke("plugin:inventory", workspaceDir),
   onMcpLoginComplete: (cb: (data: { serverName: string; ok: boolean }) => void) => {
     const handler = (_: unknown, data: { serverName: string; ok: boolean }) => cb(data)
     ipcRenderer.on("mcp:login-complete", handler)

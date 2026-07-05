@@ -1,0 +1,9 @@
+{
+  "version": "1.13.12",
+  "date": "2026-07-05",
+  "changes": [
+    "Settings Agent 各 Profile 编辑弹窗支持独立配置 daemon.log 路径",
+    "Electron UI 日志与 Daemon 子进程经 DAEMON_LOG_PATH 写入同一日志文件",
+    "留空时仍按工作目录 .cursor 或 userData/logs 默认规则"
+  ]
+}

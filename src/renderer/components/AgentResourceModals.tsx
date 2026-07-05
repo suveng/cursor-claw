@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { Loader2, ShieldCheck, ShieldAlert, X, Eye, EyeOff } from "lucide-react"
+import { ProfileDaemonLogField } from "./ProfileDaemonLogField"
 
 const inputCls = "w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
 
@@ -44,6 +45,10 @@ export function SdkEditModal(props: {
             {verifyResult?.ok && <span className="flex items-center gap-1 text-xs text-green-400"><ShieldCheck size={13} />有效{verifyResult.email ? ` (${verifyResult.email})` : ""}</span>}
             {verifyResult && !verifyResult.ok && <span className="flex items-center gap-1 text-xs text-red-400"><ShieldAlert size={13} />{verifyResult.error}</span>}
           </div>
+          <ProfileDaemonLogField
+            value={editing.daemonLogPath ?? ""}
+            onChange={(daemonLogPath) => onChange({ ...editing, daemonLogPath })}
+          />
         </div>
         <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
           <button onClick={onClose} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>
@@ -103,6 +108,10 @@ export function CcEditModal(props: {
             <label className="mb-1 block text-xs text-gray-500">默认模型（选填）</label>
             <input type="text" value={editing.model ?? ""} onChange={(e) => onChange({ ...editing, model: e.target.value })} className={inputCls} placeholder="claude-opus-4-5" />
           </div>
+          <ProfileDaemonLogField
+            value={editing.daemonLogPath ?? ""}
+            onChange={(daemonLogPath) => onChange({ ...editing, daemonLogPath })}
+          />
         </div>
         <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
           <button onClick={onClose} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>
@@ -185,6 +194,10 @@ export function CodexEditModal(props: {
               />
             )}
           </div>
+          <ProfileDaemonLogField
+            value={editing.daemonLogPath ?? ""}
+            onChange={(daemonLogPath) => onChange({ ...editing, daemonLogPath })}
+          />
         </div>
         <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
           <button onClick={onClose} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>
@@ -259,6 +272,10 @@ export function OpenCodeEditModal(props: {
             <label className="mb-1 block text-xs text-gray-500">默认模型（选填，provider/model）</label>
             <input type="text" value={editing.model ?? ""} onChange={(e) => onChange({ ...editing, model: e.target.value })} className={inputCls} placeholder="anthropic/claude-3-5-sonnet-20241022" />
           </div>
+          <ProfileDaemonLogField
+            value={editing.daemonLogPath ?? ""}
+            onChange={(daemonLogPath) => onChange({ ...editing, daemonLogPath })}
+          />
         </div>
         <div className="flex justify-end gap-2 border-t border-gray-800 px-6 py-4">
           <button onClick={onClose} className="rounded-md px-4 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-white">取消</button>

@@ -1,7 +1,7 @@
 import { BrowserWindow, app } from "electron"
 import * as fs from "node:fs"
 import * as path from "node:path"
-import { getConfig } from "../config/config-store"
+import { resolveActiveDaemonLogPath } from "../config/daemon-log-path"
 
 const LOG_BUFFER_MAX = 300
 const LOG_FILE_MAX_BYTES = 5 * 1024 * 1024
@@ -15,10 +15,9 @@ export function resetLogFilePath(): void {
 
 function getOrCreateLogFilePath(): string {
   if (logFilePath) return logFilePath
-  const config = getConfig()
-  const dir = config.workspaceDir ? path.join(config.workspaceDir, ".cursor") : path.join(app.getPath("userData"), "logs")
+  logFilePath = resolveActiveDaemonLogPath(app.getPath("userData"))
+  const dir = path.dirname(logFilePath)
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  logFilePath = path.join(dir, "daemon.log")
   rotateLogIfNeeded(logFilePath)
   return logFilePath
 }

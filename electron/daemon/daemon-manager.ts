@@ -12,7 +12,9 @@ import {
   updateChannel, migrateLegacyConfig, effectiveWorkspaceDir, migrateCliBindings,
   mainChatScopeKey, setMainChatIdForScope, type MessageChannel,
 } from "../config/config-store"
-import { parseChatKey, type DaemonChannelConfig, type ChannelStatusInfo } from "../../src/shared/channel-types"
+import { resolveActiveDaemonLogPath } from "../config/daemon-log-path"
+import type { AgentResource, DaemonChannelConfig, ChannelStatusInfo } from "../../src/shared/channel-types"
+import { parseChatKey } from "../../src/shared/channel-types"
 import { FEISHU_MENU_ADDONS } from "../../src/shared/feishu-addons"
 import { validateCron, readTasksFromFile, writeTasksToFile, previewCronNextRuns, getNextCronFireLabel } from "../scheduling/cron-scheduler"
 import { seedBuiltins, listDefinitions, saveDefinition, deleteDefinition, listInstances, getInstance, saveInstance, deleteInstance } from "../workflow/workflow-file"
@@ -570,6 +572,7 @@ export async function startDaemon(): Promise<{ ok: boolean; error?: string }> {
       ...process.env as Record<string, string>,
       LARK_WORKSPACE_DIR: config.workspaceDir,
       APP_DATA_DIR: app.getPath("userData"),
+      DAEMON_LOG_PATH: resolveActiveDaemonLogPath(app.getPath("userData")),
       CURSOR_CLAW_TEMPLATE_DIR: templateDir,
       NODE_USE_ENV_PROXY: "1",
       CLAW_CHANNELS_JSON: JSON.stringify(channelConfigs),
@@ -1104,6 +1107,11 @@ function daemonRelevantChannelView(channels: MessageChannel[]): string {
   })))
 }
 
+/** Profile 级 daemonLogPath 子集，用于检测变更后重启 Daemon */
+function agentResourcesLogPathView(resources: AgentResource[]): string {
+  return JSON.stringify(resources.map((r) => ({ id: r.id, log: r.daemonLogPath ?? "" })))
+}
+
 export async function saveAppConfigFromRenderer(partial: Partial<AppConfig>): Promise<ConfigSaveResult> {
   const current = getConfig()
   const oldW = (current.workspaceDir || "").trim()
@@ -1111,6 +1119,8 @@ export async function saveAppConfigFromRenderer(partial: Partial<AppConfig>): Pr
   const workspaceChanging = partial.workspaceDir !== undefined && nextW !== oldW && oldW !== ""
   const channelsChanging = partial.channels !== undefined
     && daemonRelevantChannelView(partial.channels) !== daemonRelevantChannelView(current.channels ?? [])
+  const logPathChanging = partial.agentResources !== undefined
+    && agentResourcesLogPathView(partial.agentResources) !== agentResourcesLogPathView(current.agentResources ?? [])
 
   if (workspaceChanging) {
     const st = await getDaemonStatus()
@@ -1146,23 +1156,24 @@ export async function saveAppConfigFromRenderer(partial: Partial<AppConfig>): Pr
   }
 
   const workspaceDirChanged = partial.workspaceDir !== undefined && nextW !== oldW
-  if (workspaceDirChanged) {
+  if (workspaceDirChanged || logPathChanging) {
     invalidateMcpEnabledCache()
     resetLogFilePath()
   }
 
   saveConfig(partial)
 
-  // 通道配置变化：重启 Daemon 使新连接配置生效
-  if (channelsChanging) {
+  // 通道或日志路径变化：重启 Daemon 使新配置生效
+  if (channelsChanging || logPathChanging) {
     const st = await getDaemonStatus()
     if (st.running) {
-      broadcastLog("[Channels] 通道配置已变更，正在重启 Daemon...")
+      const reason = channelsChanging ? "通道配置" : "日志路径"
+      broadcastLog(`[Daemon] ${reason}已变更，正在重启 Daemon...`)
       void (async () => {
         await stopDaemon()
         await new Promise((r) => setTimeout(r, 800))
         const result = await startDaemon()
-        if (!result.ok) broadcastLog(`[Channels] Daemon 重启失败: ${result.error}`, "ERROR")
+        if (!result.ok) broadcastLog(`[Daemon] 重启失败: ${result.error}`, "ERROR")
         broadcastStatus(await getDaemonStatus())
       })()
     }

@@ -21,6 +21,8 @@ export interface AgentResource {
   baseUrl?: string;
   /** 默认模型（仅 claude-code）；空值 = 使用 SDK 默认 */
   model?: string;
+  /** daemon.log 绝对路径（Profile 级）；空 = 按工作目录 / userData 默认规则 */
+  daemonLogPath?: string;
 }
 
 /** 消息通道：一个飞书自建应用 或 一个微信账号 */

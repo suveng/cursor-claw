@@ -22,6 +22,8 @@ interface AgentResource {
   baseUrl?: string
   /** 默认模型（仅 claude-code）；空值 = 使用 SDK 默认 */
   model?: string
+  /** daemon.log 绝对路径（Profile 级）；空=默认规则 */
+  daemonLogPath?: string
 }
 
 /** 注意：避免与 DOM 内置 MessageChannel 类型冲突，这里命名为 ChannelConfig */
@@ -107,6 +109,25 @@ interface ScheduledTask {
 
 /** Skills 作用域：用户级 ~/.cursor/skills 或项目级 {workspace}/.cursor/skills */
 type SkillScope = "user" | "project"
+
+interface PluginResourceInventory {
+  pluginId: string
+  installPath: string
+  displayName?: string
+  version?: string
+  skills: string[]
+  commands: string[]
+  agents: string[]
+  hooks: string[]
+  mcp: string[]
+}
+
+interface PluginInventoryResult {
+  workspaceDir: string
+  settingSources: string[]
+  importThirdPartyPluginsPatched: boolean
+  plugins: PluginResourceInventory[]
+}
 
 interface SkillTreeNode {
   name: string
@@ -247,6 +268,7 @@ interface ElectronAPI {
   saveSkill(name: string, content: string, scope?: SkillScope): Promise<{ ok: boolean; skillsDir?: string; error?: string }>
   renameSkill(oldName: string, newName: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }>
   deleteSkill(name: string, scope?: SkillScope): Promise<{ ok: boolean; error?: string }>
+  getPluginInventory(workspaceDir: string): Promise<PluginInventoryResult>
   onMcpLoginComplete(cb: (data: { serverName: string; ok: boolean }) => void): () => void
   onDaemonStatus(cb: (status: DaemonStatus) => void): () => void
   onDaemonLog(cb: (line: string) => void): () => void
