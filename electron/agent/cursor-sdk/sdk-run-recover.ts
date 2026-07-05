@@ -6,6 +6,7 @@ import { ZERO_CONTEXT_USAGE, resolveContextLimitForSession } from "./context-usa
 import { type ChatType } from "../shared/agent-launcher"
 import { acquireRunGuard, completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import { loadInlineMcpServersForSdk } from "../../mcp/loaders/mcp-sdk-loader"
+import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loaders/plugin-sdk-bootstrap"
 import { clearActiveSdkRun, listRecoverableSdkRuns } from "./sdk-run-persistence"
 import { notifySessionChat } from "../../daemon/sdk-daemon-notify"
 import { startSdkRun } from "./sdk-run-lifecycle"
@@ -17,6 +18,7 @@ import {
   sdkSessions,
 } from "./sdk-session-registry"
 import type { RecoverSummary, SdkSessionAgent } from "./sdk-session-types"
+import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
 import { pushUiLog } from "../../app/ui-logger"
 
 const RESUME_FAIL_USER_HINT = "请重新发送消息继续"
@@ -58,13 +60,15 @@ export async function recoverSdkActiveRuns(): Promise<RecoverSummary> {
 
     try {
       const workspaceDir = record.workspaceDir || process.cwd()
-      const injected = loadInlineMcpServersForSdk(workspaceDir)
+      const pluginBoot = bootstrapSdkPluginWorkspace(workspaceDir)
+      logSdkPluginConfig(workspaceDir, pluginBoot, (level, msg) => pushUiLog("SDK", level, msg), { detailed: true })
+      const injected = pluginBoot.mcpServers
       const agent = await Agent.resume(agentId, {
         apiKey: record.apiKey,
         mcpServers: injected,
         local: {
           cwd: workspaceDir,
-          settingSources: ["project", "user"],
+          settingSources: [...SDK_SETTING_SOURCES],
           sandboxOptions: { enabled: false },
         },
       })

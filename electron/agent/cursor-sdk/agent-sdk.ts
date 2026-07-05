@@ -8,7 +8,8 @@ import { existsSync } from "node:fs"
 import { createRequire } from "node:module"
 import { ZERO_CONTEXT_USAGE, evaluatePreSendContextPressure, resolveContextLimitForSession } from "./context-usage"
 import { buildPrompt } from "../shared/agent-launcher"
-import { loadInlineMcpServersForSdk } from "../../mcp/loaders/mcp-sdk-loader"
+import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loaders/plugin-sdk-bootstrap"
+import { ensureSdkThirdPartyPluginPatch } from "./ensure-sdk-plugin-patch"
 import { acquireRunGuard, completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import { ensureAgentSdkHttpServer } from "./agent-sdk-http"
 import { notifyDispatchFailure } from "./sdk-run-finalize"
@@ -32,6 +33,7 @@ import {
   sdkSessions,
 } from "./sdk-session-registry"
 import type { SdkLaunchOptions } from "./sdk-session-types"
+import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
 import { pushUiLog, broadcastLog } from "../../app/ui-logger"
 
 // ── 类型与拆分模块 re-export（保持外部 import 路径不变） ──
@@ -56,8 +58,9 @@ export { stopSdkSession, stopAllSdkSessions } from "./sdk-run-lifecycle"
 export { ensureAgentSdkHttpServer, getAgentSdkApiPort, launchSdkAgentFromHttp } from "./agent-sdk-http"
 export { recoverSdkActiveRuns } from "./sdk-run-recover"
 
-/** 解析 SDK 平台包内 ripgrep 路径 */
+/** 解析 SDK 平台包内 ripgrep 路径，并确保第三方插件 patch 已应用 */
 export function ensureSdkBinaryPaths(): void {
+  ensureSdkThirdPartyPluginPatch()
   if (process.env.CURSOR_RIPGREP_PATH) return
   const platformPkg = `@cursor/sdk-${process.platform}-${process.arch}`
   const binaryName = process.platform === "win32" ? "rg.exe" : "rg"
@@ -129,17 +132,14 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     }
     pushUiLog("SDK", "INFO", `[${sessionKey}] 正在创建 SDK Agent (cwd=${workspaceDir}, model=${JSON.stringify(modelSelection)})`)
 
-    const injected = loadInlineMcpServersForSdk(workspaceDir)
-    pushUiLog(
-      "SDK",
-      "INFO",
-      `[config] settingSources=project,user cwd=${workspaceDir} inlineMcp=${Object.keys(injected).join(",")}`,
-    )
+    const pluginBoot = bootstrapSdkPluginWorkspace(workspaceDir)
+    logSdkPluginConfig(workspaceDir, pluginBoot, (level, msg) => pushUiLog("SDK", level, msg), { detailed: true })
+    const injected = pluginBoot.mcpServers
     const agent = await Agent.create({
       apiKey,
       model: modelSelection,
       mcpServers: injected,
-      local: { cwd: workspaceDir, settingSources: ["project", "user"], sandboxOptions: { enabled: false } },
+      local: { cwd: workspaceDir, settingSources: [...SDK_SETTING_SOURCES], sandboxOptions: { enabled: false } },
     })
 
     const session = {

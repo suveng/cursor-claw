@@ -9,6 +9,7 @@ import * as os from "node:os"
 import * as path from "node:path"
 import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk"
 import { readMcpAuthStore, type McpAuthEntry } from "../mcp-project-dir"
+import { mergePluginMcpServers } from "./plugin-mcp-loader"
 
 /** mcp.json 单条原始配置 */
 type RawMcpEntry = Record<string, unknown>
@@ -148,6 +149,8 @@ export function loadInlineCcMcpServers(workspaceDir: string): Record<string, Mcp
     const cfg = raw.url ? toHttpInlineConfig(raw, name, authStore) : toStdioInlineConfig(raw, workspaceDir)
     if (cfg) result[name] = cfg
   }
+  // Claude Code 插件 MCP：strictMcpConfig 下须 inline；不受 project 审批门控
+  mergePluginMcpServers(result, workspaceDir)
   return result
 }
 
@@ -244,6 +247,8 @@ export function loadApprovedInlineCcMcpServers(workspaceDir: string): Record<str
     const cfg = raw.url ? toHttpInlineConfig(raw, name, authStore) : toStdioInlineConfig(raw, workspaceDir)
     if (cfg) result[name] = cfg
   }
+  // 插件 MCP 在审批过滤之后合并，始终注入（非 {ws}/.mcp.json project scope）
+  mergePluginMcpServers(result, workspaceDir)
   return result
 }
 

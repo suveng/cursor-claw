@@ -28,13 +28,14 @@ export interface McpPluginNotice {
 /** 插件层边界说明 SSOT */
 export function getMcpPluginNotice(): McpPluginNotice {
   return {
-    title: "插件层 MCP（只读说明）",
-    body: "Cursor IDE 插件市场安装的 MCP/工具依赖 settingSources 中的插件层配置。headless SDK 会话未必加载全部 IDE 插件；保存 mcp.json 或 Rules 不等于 IM 路径已生效。",
+    title: "Claude Code 第三方插件 MCP",
+    body:
+      "已启用插件的 MCP 经 settingSources:plugins 加载；含 ${CLAUDE_PLUGIN_ROOT} 路径变量的条目另经 inline 注入兜底。" +
+      "Settings → MCP 可查看插件清单；会话创建时 UI 日志输出 [plugin-load] 明细。",
     verificationSteps: [
-      "发起一条 SDK 会话（飞书/微信触发或 Dashboard 测试）",
-      "打开 Dashboard 对应会话的 MCP 面板，确认列表与工具状态",
-      "查看 UI 日志中的 [config] 行：核对 cwd、settingSources 与 inlineMcp 名称",
-      "插件层条目应标注「插件层」，勿与 inline 注入混淆",
+      "在 Settings → MCP 查看「Claude Code 第三方插件层」清单",
+      "发起 SDK 会话，在 UI 日志核对 [config] 与 [plugin-load] 行",
+      "Dashboard 会话 MCP 面板确认插件层条目标注「插件层」",
     ],
   }
 }
@@ -69,7 +70,7 @@ export function formatMcpStatusSourceLabel(source: AgentMcpStatusResult["source"
 }
 
 const SDK_PLUGIN_FOOTNOTE =
-  "插件层 MCP 由 settingSources 加载，未必出现在 inline 列表；请以 [config] 日志与工具可用性为准。"
+  "插件 MCP 经 settingSources:plugins 或 inline 注入；以 UI 日志 [config]/[plugin-load] 与 Dashboard MCP 面板为准。"
 
 /** 按 engineType 返回展示配置 */
 export function getMcpViewConfig(engineType: McpEngineType): McpViewConfig {

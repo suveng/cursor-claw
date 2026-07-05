@@ -5,9 +5,11 @@
 import type { Run, SDKMessage } from "@cursor/sdk"
 import { resolveSdkToolPresentationTier } from "../../../src/shared/sdk-tool-presentation-tier.js"
 import {
+  extractFileEditPresentationFields,
   extractShellPresentationFields,
   extractTaskPresentationFields,
   formatToolCallLogSuffix,
+  normalizePresentationToolName,
 } from "../../../src/shared/tool-presentation"
 import { finalizeContextUsageAtRunEnd } from "./context-usage-run-end"
 import { pushUiLog } from "../../app/ui-logger"
@@ -116,28 +118,39 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       markSessionActivity(session, "tool_call")
       flushSdkLog(session)
       closeThinkingIfOpen(session)
-      session.lastTool = { name: event.name, status: event.status }
+      const canonicalName = normalizePresentationToolName(event.name)
+      session.lastTool = { name: canonicalName, status: event.status }
       session.runPhase = event.status === "running" ? "tool_running" : "executing"
       if (event.status !== "running") {
         clearToolCallRunningDedup(session)
       }
       const duplicateRunning =
-        event.status === "running" && isDuplicateToolCallRunning(session, event.name, event.args)
+        event.status === "running" && isDuplicateToolCallRunning(session, canonicalName, event.args)
       if (!duplicateRunning) {
+        const fileFields = extractFileEditPresentationFields(
+          canonicalName,
+          event.status,
+          event.args,
+          session.lastTool.filePath,
+        )
+        if (fileFields?.tool_file_path) {
+          session.lastTool = { ...session.lastTool, filePath: fileFields.tool_file_path }
+        }
         const toolDetail = formatToolCallLogSuffix(event.status, event.args, event.result, event.truncated)
-        pushUiLog("SDK", "INFO", `[${session.sessionKey}] [tool] ${event.name}: ${event.status}${toolDetail}`)
-        const tier = resolveSdkToolPresentationTier(event.name)
+        pushUiLog("SDK", "INFO", `[${session.sessionKey}] [tool] ${canonicalName}: ${event.status}${toolDetail}`)
+        const tier = resolveSdkToolPresentationTier(canonicalName)
         if (tier === "notify") {
           markProcessEventSeen(session, "tool")
-          if (event.status === "running") session.toolPresentationOutboundIds?.delete(event.name)
+          if (event.status === "running") session.toolPresentationOutboundIds?.delete(canonicalName)
           guardSdkPromise(
             postPresentationEvent(session, {
               kind: "tool",
-              tool_name: event.name,
+              tool_name: canonicalName,
               tool_status: mapToolPresentationStatus(event.status),
               final: event.status !== "running",
-              ...extractShellPresentationFields(event.name, event.status, event.args, event.result),
-              ...extractTaskPresentationFields(event.name, event.status, event.args),
+              ...extractShellPresentationFields(canonicalName, event.status, event.args, event.result),
+              ...extractTaskPresentationFields(canonicalName, event.status, event.args),
+              ...fileFields,
             }),
             session.sessionKey,
             "presentation-event:tool",

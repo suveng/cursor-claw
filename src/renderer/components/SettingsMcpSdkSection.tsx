@@ -10,7 +10,8 @@ import {
   ShieldCheck,
   ShieldAlert,
 } from "lucide-react"
-import { getMcpViewConfig, getMcpPluginNotice } from "../lib/mcp-view-strategy"
+import SettingsPluginInventory from "./SettingsPluginInventory"
+import { getMcpViewConfig } from "../lib/mcp-view-strategy"
 
 type McpScope = "global" | "project"
 
@@ -31,7 +32,6 @@ interface Props {
 /** SDK 引擎：Settings MCP global/project CRUD + 插件说明区 */
 export default function SettingsMcpSdkSection({ workspaceDir }: Props) {
   const viewConfig = getMcpViewConfig("sdk")
-  const pluginNotice = getMcpPluginNotice()
 
   const [servers, setServers] = useState<McpServerEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -166,7 +166,11 @@ export default function SettingsMcpSdkSection({ workspaceDir }: Props) {
           用户级：<span className="font-mono text-gray-500">~/.cursor/mcp.json</span>；
           项目级：<span className="font-mono text-gray-500">{workspaceDir.trim() ? `${workspaceDir}/.cursor/mcp.json` : "（需先配置主工作区）"}</span>
         </p>
-        <p className="mt-1 text-gray-600">HTTP/OAuth 类经 inline 注入；stdio 类默认由 settingSources 加载。保存后下轮 SDK 会话生效。</p>
+        <p className="mt-1 text-gray-600">
+          SDK 加载顺序：inline 注入 &gt; 插件层（settingSources: plugins）&gt; 项目级 &gt; 用户级。
+          HTTP/OAuth 类经 inline 注入；stdio 类默认由 settingSources 加载；含{" "}
+          <span className="font-mono text-gray-500">${"{CLAUDE_PLUGIN_ROOT}"}</span> 的插件 MCP 经 inline 兜底。
+        </p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -183,13 +187,9 @@ export default function SettingsMcpSdkSection({ workspaceDir }: Props) {
       {renderGroup("用户级（global）", "写入 ~/.cursor/mcp.json，全工作区可用。", "global", globalServers)}
       {renderGroup("项目级（project）", workspaceDir.trim() ? `写入 ${workspaceDir}/.cursor/mcp.json，覆盖同名用户级条目。` : "请先在「通用」配置主工作区。", "project", projectServers)}
 
-      <section className="rounded-lg border border-gray-700/60 bg-gray-900/30 px-3 py-2.5 text-xs space-y-2">
-        <p className="font-medium text-gray-400">{pluginNotice.title}</p>
-        <p className="text-gray-600 leading-relaxed">{pluginNotice.body}</p>
-        <ol className="list-decimal list-inside text-gray-600 space-y-1">
-          {pluginNotice.verificationSteps.map((step) => <li key={step}>{step}</li>)}
-        </ol>
-      </section>
+      <SettingsPluginInventory workspaceDir={workspaceDir} highlight="mcp" />
+
+      <p className="text-[10px] text-gray-600">保存 mcp.json 后下轮 SDK 会话生效；插件 MCP 见上方清单。</p>
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">

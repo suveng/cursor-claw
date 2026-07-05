@@ -7,7 +7,8 @@ import {
   createAgentSendOptions,
   evaluatePreSendContextPressure,
 } from "./context-usage"
-import { appendInlineMcpToSendOptions, loadInlineMcpServersForSdk } from "../../mcp/loaders/mcp-sdk-loader"
+import { appendInlineMcpToSendOptions } from "../../mcp/loaders/mcp-sdk-loader"
+import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loaders/plugin-sdk-bootstrap"
 import { buildIdempotencyKey, shouldRetry } from "../shared/retry-policy"
 import { maybeRotateContext } from "./context-rotation-lite"
 import { notifySessionChat } from "../../daemon/sdk-daemon-notify"
@@ -17,6 +18,7 @@ import {
   sleep,
 } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
+import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
 import { pushUiLog } from "../../app/ui-logger"
 
 const SEND_RETRY_MAX_ATTEMPTS = 3
@@ -30,21 +32,23 @@ function makeCompressionNotify(session: SdkSessionAgent): (phase: "started" | "c
   }
 }
 
-function logSdkConfigSources(workspaceDir: string, inlineMcp: Record<string, McpServerConfig>): void {
-  const names = Object.keys(inlineMcp).join(",")
-  pushUiLog("SDK", "INFO", `[config] settingSources=project,user cwd=${workspaceDir} inlineMcp=${names}`)
+function logSdkConfigSources(workspaceDir: string): Record<string, McpServerConfig> {
+  const boot = bootstrapSdkPluginWorkspace(workspaceDir)
+  logSdkPluginConfig(workspaceDir, boot, (level, msg) => pushUiLog("SDK", level, msg))
+  return boot.mcpServers
 }
 
 /** 组装 send 选项并注入幂等键 */
 export function buildSendOptions(session: SdkSessionAgent, idempotencyKey: string): Parameters<SDKAgent["send"]>[1] {
   const ws = session.workspaceDir ?? process.cwd()
-  logSdkConfigSources(ws, loadInlineMcpServersForSdk(ws))
+  const inlineMcp = logSdkConfigSources(ws)
   const options = appendInlineMcpToSendOptions(
     createAgentSendOptions(session, pushUiLog, {
       onCompression: makeCompressionNotify(session),
       onActivity: () => markSessionActivity(session, "onDelta"),
     }),
     session.workspaceDir,
+    inlineMcp,
   ) as Record<string, unknown>
   options.idempotencyKey = idempotencyKey
   session.lastInjectedMcpServers = options.mcpServers as Record<string, McpServerConfig> | undefined
@@ -68,7 +72,9 @@ async function maybeRotateSessionForPressure(
   }
   const previousAgent = session.agent
   const previousAgentId = session.agentId
-  const injected = loadInlineMcpServersForSdk(session.workspaceDir ?? process.cwd())
+  const pluginBoot = bootstrapSdkPluginWorkspace(session.workspaceDir ?? process.cwd())
+  logSdkPluginConfig(session.workspaceDir ?? process.cwd(), pluginBoot, (level, msg) => pushUiLog("SDK", level, msg), { detailed: true })
+  const injected = pluginBoot.mcpServers
   let nextAgent: SDKAgent
   try {
     nextAgent = await Agent.create({
@@ -77,7 +83,7 @@ async function maybeRotateSessionForPressure(
       mcpServers: injected,
       local: {
         cwd: session.workspaceDir ?? process.cwd(),
-        settingSources: ["project", "user"],
+        settingSources: [...SDK_SETTING_SOURCES],
         sandboxOptions: { enabled: false },
       },
     })

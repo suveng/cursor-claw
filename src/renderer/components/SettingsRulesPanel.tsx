@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { RefreshCw, Plus, Pencil, Trash2, X } from "lucide-react"
+import SettingsPluginInventory from "./SettingsPluginInventory"
 
 interface Props {
   /** 主工作区路径（项目级 Rules 绑定） */
@@ -73,6 +74,8 @@ export default function SettingsRulesPanel({ workspaceDir }: Props) {
 
   return (
     <>
+      <SettingsPluginInventory workspaceDir={workspaceDir} highlight="all" />
+
       <section className="space-y-3">
         <div className="rounded-lg border border-gray-700/60 bg-gray-900/40 px-3 py-2.5 text-xs">
           <p className="font-medium text-gray-300">项目级规则 · 主工作区</p>
@@ -81,7 +84,8 @@ export default function SettingsRulesPanel({ workspaceDir }: Props) {
               <p className="mt-1 font-mono text-[11px] text-gray-500 break-all">{workspaceDir}</p>
               <p className="mt-1.5 text-gray-600 leading-relaxed">
                 规则写入主工作区 <span className="text-gray-500">.cursor/rules/</span>。
-                SDK 会话的 cwd 可能来自通道或任务工作区；与主工作区不同时，此处修改不会作用于该会话。
+                SDK 另经 <span className="font-mono text-gray-500">settingSources: plugins</span> 加载已启用插件内规则；
+                会话 cwd 与主工作区不同时，此处修改可能不作用于该会话。
               </p>
             </>
           ) : (

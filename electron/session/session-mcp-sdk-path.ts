@@ -3,6 +3,7 @@
  * 合并磁盘 mcp.json 与 lastInjectedMcpServers 快照，标注 __sdkLoadVia 供展示层区分来源。
  */
 import { getMcpServerListForWorkspace } from "../mcp/mcp-manager"
+import { listPluginMcpServerNames } from "../mcp/loaders/plugin-mcp-loader"
 import { readMcpAuthStore, type McpAuthEntry } from "../mcp/mcp-project-dir"
 import type { McpServerEntry } from "../mcp/mcp-types"
 
@@ -35,17 +36,42 @@ export function buildSdkRuntimeEntries(
   const diskList = getMcpServerListForWorkspace(ws)
   const inlineNames = new Set(Object.keys(injected))
   const diskNames = new Set(diskList.map((s) => s.name))
+  const pluginMcpNames = new Set(listPluginMcpServerNames(ws))
 
   const annotate = (entry: McpServerEntry, loadVia: SdkLoadVia): McpServerEntry => ({
     ...entry,
     rawConfig: { ...(entry.rawConfig ?? {}), __sdkLoadVia: loadVia },
   })
 
-  const servers = diskList.map((entry) => {
-    if (isPluginLayerServer(entry.name, authStore)) return annotate(entry, "plugin")
-    if (inlineNames.has(entry.name)) return annotate(entry, "inline")
-    return annotate(entry, "settingSources")
-  })
+  const resolveLoadVia = (name: string): SdkLoadVia => {
+    if (pluginMcpNames.has(name) || isPluginLayerServer(name, authStore)) return "plugin"
+    if (inlineNames.has(name)) return "inline"
+    return "settingSources"
+  }
+
+  const servers = diskList.map((entry) => annotate(entry, resolveLoadVia(entry.name)))
+
+  // 仅 inline 注入、未写入 mcp.json 的条目（含 Claude Code 插件 MCP）
+  for (const name of inlineNames) {
+    if (diskNames.has(name)) continue
+    const cfg = injected[name] as Record<string, unknown> | undefined
+    servers.push(
+      annotate(
+        {
+          name,
+          type: typeof cfg?.url === "string" ? "url" : "command",
+          source: "project",
+          authenticated: false,
+          enabled: true,
+          command: cfg?.command as string | undefined,
+          args: cfg?.args as string[] | undefined,
+          url: cfg?.url as string | undefined,
+          rawConfig: cfg ?? {},
+        },
+        resolveLoadVia(name),
+      ),
+    )
+  }
 
   for (const name of collectPluginOnlyNames(authStore, diskNames)) {
     servers.push(

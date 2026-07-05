@@ -35,7 +35,7 @@ export interface SdkSessionAgent {
   /** 最近一次终态状态事件（ERROR/EXPIRED/CANCELLED），用于结束时还原真实错误原因 */
   lastStatus?: { status: string; message?: string }
   /** 末次 tool 事件快照，供 error 日志与保活失败分类 */
-  lastTool?: { name: string; status: string }
+  lastTool?: { name: string; status: string; filePath?: string }
   /** 相邻 tool_call running 去重键（防 SDK 重复 tool_call 日志/飞书） */
   lastToolCallRunningDedupKey?: string
   /** 运行阶段：供 watchdog 区分长工具/等待用户 */
@@ -110,6 +110,8 @@ export interface PresentationEvent {
   tool_shell_output?: string
   /** task 工具 tool_call：子代理任务描述（飞书里程碑摘要） */
   tool_task_description?: string
+  /** edit/write/delete 工具：目标文件路径（完成态里程碑） */
+  tool_file_path?: string
   /** task 里程碑状态（如 in_progress / completed） */
   task_status?: string
   /** task 里程碑展示文案 */

@@ -1,4 +1,10 @@
 /** 工具 Presentation：shell 命令解析与 CardKit markdown 渲染 */
+import { formatFileEditToolMilestoneText } from "./tool-presentation-file-edit.js";
+
+export {
+  extractFileEditPresentationFields,
+  shouldSuppressToolStartedPresentation,
+} from "./tool-presentation-file-edit.js";
 
 export const TOOL_LOG_DETAIL_MAX = 400;
 export const TOOL_CARD_SHELL_OUTPUT_MAX = 800;
@@ -43,11 +49,12 @@ export function normalizePresentationToolName(rawName: string): string {
   return PRESENTATION_TOOL_NAME_ALIASES[lower] ?? lower;
 }
 
-/** 飞书里程碑文案可选详情（shell 命令 / task 描述） */
+/** 飞书里程碑文案可选详情（shell 命令 / task 描述 / 文件路径） */
 export interface ToolMilestoneDetail {
   tool_shell_command?: string;
   tool_shell_cwd?: string;
   tool_task_description?: string;
+  tool_file_path?: string;
 }
 
 function truncateText(text: string, max: number): string {
@@ -251,6 +258,14 @@ export function formatToolMilestoneText(
     }
     return `task：${statusLabel}`;
   }
+
+  const fileEditText = formatFileEditToolMilestoneText(
+    toolName,
+    status,
+    detail?.tool_file_path,
+    TOOL_MILESTONE_TEXT_MAX,
+  );
+  if (fileEditText) return fileEditText;
 
   return `${toolName}：${statusLabel}`;
 }

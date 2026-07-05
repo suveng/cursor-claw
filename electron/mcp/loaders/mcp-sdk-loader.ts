@@ -3,6 +3,7 @@ import * as os from "node:os"
 import * as path from "node:path"
 import type { McpServerConfig } from "@cursor/sdk"
 import { readMcpAuthStore, type McpAuthEntry } from "../mcp-project-dir"
+import { loadPluginMcpServersForSdk } from "./plugin-mcp-loader"
 
 /** mcp.json 单条原始配置（与 mcp-manager buildEntry 对齐） */
 type RawMcpEntry = Record<string, unknown>
@@ -141,16 +142,22 @@ function toHttpInlineConfig(
  * T2 三处注入点唯一读盘入口；同名 server 若 settingSources 与 inline 均存在，inline 覆盖 send 级配置。
  */
 export function loadInlineMcpServersForSdk(workspaceDir: string): Record<string, McpServerConfig> {
-  const merged = mergeMcpJsonEntries(workspaceDir)
-  const authStore = readMcpAuthStore(workspaceDir)
+  const ws = workspaceDir.trim()
   const result: Record<string, McpServerConfig> = {}
+
+  // 1. mcp.json 中须 inline 的条目（HTTP/OAuth 等）
+  const merged = mergeMcpJsonEntries(ws)
+  const authStore = readMcpAuthStore(ws)
   for (const [name, raw] of Object.entries(merged)) {
     if (!needsInlineInjection(name, raw, authStore)) continue
     const cfg = raw.url
       ? toHttpInlineConfig(raw, name, authStore)
-      : toStdioInlineConfig(raw, workspaceDir)
+      : toStdioInlineConfig(raw, ws)
     if (cfg) result[name] = cfg
   }
+
+  // 2. Claude Code 插件 MCP 覆盖同名项（对齐 SDK：plugins > project/user）
+  Object.assign(result, loadPluginMcpServersForSdk(ws))
   return result
 }
 
@@ -159,13 +166,14 @@ export function loadInlineMcpServers(workspaceDir: string): Record<string, McpSe
   return loadInlineMcpServersForSdk(workspaceDir)
 }
 
-/** agent.send 选项合并：在 createAgentSendOptions 返回值上追加筛选后 inline mcpServers（resident 每次 send 须重传） */
+/** agent.send 选项合并：在 createAgentSendOptions 返回值上追加 inline mcpServers（resident 每次 send 须重传） */
 export function appendInlineMcpToSendOptions<T extends object>(
   sendOptions: T,
   workspaceDir?: string,
+  preloaded?: Record<string, McpServerConfig>,
 ): T & { mcpServers: Record<string, McpServerConfig> } {
   return {
     ...sendOptions,
-    mcpServers: loadInlineMcpServersForSdk(workspaceDir ?? ""),
+    mcpServers: preloaded ?? loadInlineMcpServersForSdk(workspaceDir ?? ""),
   }
 }

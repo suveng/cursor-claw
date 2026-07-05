@@ -9,6 +9,7 @@ import {
 } from "../shared/tool-presentation-dedup.js"
 import { resolveSdkToolPresentationTier } from "../../../src/shared/sdk-tool-presentation-tier.js"
 import {
+  extractFileEditPresentationFields,
   extractShellPresentationFields,
   extractTaskPresentationFields,
   formatToolCallLogSuffix,
@@ -28,11 +29,12 @@ import { maybeReleaseDeferredAssistant } from "./agent-cc-presentation"
 function applyCcToolSessionEffects(
   session: CcSessionAgent,
   canonicalName: string,
+  filePath: string | undefined,
   resolveChannelType: (sessionKey: string) => string | undefined,
 ): void {
   flushCcLog(session)
   closeThinkingIfOpen(session, resolveChannelType)
-  session.lastTool = { name: canonicalName, status: "running" }
+  session.lastTool = { name: canonicalName, status: "running", filePath }
 }
 
 /** notify 级 tool running：分级门控 + 去重 + POST */
@@ -43,7 +45,8 @@ export function handleCcToolRunningPresentation(
   resolveChannelType: (sessionKey: string) => string | undefined,
 ): void {
   const canonicalName = normalizePresentationToolName(rawName)
-  applyCcToolSessionEffects(session, canonicalName, resolveChannelType)
+  const fileFields = extractFileEditPresentationFields(canonicalName, "running", args)
+  applyCcToolSessionEffects(session, canonicalName, fileFields?.tool_file_path, resolveChannelType)
   const duplicateRunning = isDuplicateToolCallRunning(session, canonicalName, args)
   if (!duplicateRunning) {
     const toolDetail = formatToolCallLogSuffix("running", args)
@@ -61,6 +64,7 @@ export function handleCcToolRunningPresentation(
           final: false,
           ...extractShellPresentationFields(canonicalName, "running", args),
           ...buildTaskPresentationFields(session, canonicalName, "running", args),
+          ...fileFields,
         },
         resolveChannelType,
       )
@@ -92,7 +96,7 @@ export function handleCcToolFinalPresentation(
 ): void {
   const canonicalName = normalizePresentationToolName(toolName)
   clearToolCallRunningDedup(session)
-  session.lastTool = { name: canonicalName, status: isError ? "error" : "completed" }
+  session.lastTool = { name: canonicalName, status: isError ? "error" : "completed", filePath: session.lastTool?.filePath }
   const status = isError ? "error" : "completed"
   const toolDetail = formatToolCallLogSuffix(status, undefined, result)
   pushUiLog("CC", "INFO", `[${session.sessionKey}] [tool] ${canonicalName}: ${status}${toolDetail}`)
@@ -107,6 +111,12 @@ export function handleCcToolFinalPresentation(
       final: true,
       ...extractShellPresentationFields(canonicalName, status, undefined, result),
       ...extractTaskPresentationFields(canonicalName, status, undefined),
+      ...extractFileEditPresentationFields(
+        canonicalName,
+        status,
+        undefined,
+        session.lastTool?.filePath,
+      ),
     },
     resolveChannelType,
   )

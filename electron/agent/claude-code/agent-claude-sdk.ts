@@ -20,10 +20,8 @@ import type { CcSessionAgent } from "./agent-cc-types"
 import {
   resolveSessionChannelType, f41Eligible, ccResidentModeEnabled,
   resetCcRunPresentationState, setWatchdogState, markSessionActivity,
-  ensureCcAgentBinaryPaths, resolveCcAgentBinaryPath,
 } from "./agent-cc-utils"
-import { appendInlineMcpToCcOptions } from "../../mcp/loaders/cc-mcp-loader"
-import { buildCcSdkHooks } from "./cc-sdk-hooks"
+import { buildQueryOptions } from "./cc-query-options"
 import { notifySessionChat, clearStreamPostTimer, broadcastCcSessionStatus, completeCcRun } from "./agent-cc-stream"
 import { armCcWatchdog, streamCcSdkMessages } from "./agent-cc-events"
 import { registerCcLaunchHandler, registerCcDispatchHandler } from "./agent-cc-http"
@@ -65,42 +63,6 @@ const completeCcRunOpts = {
   getAllSessions: () => [...CC_SESSIONS.values()],
   setFailedCooldown: (key: string, until: number) => CC_FAILED_COOLDOWNS.set(key, until),
   resetPresentationState: resetCcRunPresentationState,
-}
-
-/** 构建 query env（显式清除继承的 ANTHROPIC_BASE_URL） */
-function buildQueryEnv(apiKey: string, baseUrl?: string): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...(process.env as Record<string, string>), ANTHROPIC_API_KEY: apiKey }
-  if (baseUrl?.trim()) env.ANTHROPIC_BASE_URL = baseUrl.trim()
-  else delete env.ANTHROPIC_BASE_URL
-  return env
-}
-
-/** 构建 query options（含 MCP inline、resume、二进制路径） */
-function buildQueryOptions(session: CcSessionAgent) {
-  ensureCcAgentBinaryPaths()
-  const base = {
-    model: session.model || "claude-sonnet-4-6",
-    cwd: session.workspaceDir,
-    env: buildQueryEnv(session.apiKey, session.baseUrl),
-    pathToClaudeCodeExecutable: resolveCcAgentBinaryPath(),
-    permissionMode: "bypassPermissions" as const,
-    allowDangerouslySkipPermissions: true,
-    includePartialMessages: true,
-    // strictMcpConfig:true → SDK 只用 inline mcpServers，忽略 .mcp.json/settings/plugins 原生加载；
-    // inline 已由 cc-mcp-loader 从 .mcp.json+~/.claude.json 合并，避免重复加载与配置源串台。
-    strictMcpConfig: true,
-    ...(session.ccSessionId ? { resume: session.ccSessionId } : {}),
-  }
-  // 注入经审批门控过滤后集合（appendInlineMcpToCcOptions 内部调 loadApprovedInlineCcMcpServers）
-  const withMcp = appendInlineMcpToCcOptions(base, session.workspaceDir)
-  // 注入后打 UI 日志，供排查 inline server 数量与 strictMcpConfig 联动
-  const inlineCount = withMcp.mcpServers ? Object.keys(withMcp.mcpServers).length : 0
-  pushUiLog("CC", "INFO", `[${session.sessionKey}] [mcp] inline ${inlineCount} servers`)
-  return {
-    ...withMcp,
-    hooks: buildCcSdkHooks({ session, markActivity: markSessionActivity }),
-    includeHookEvents: true,
-  }
 }
 
 /** 启动 Query 并挂载事件流 */

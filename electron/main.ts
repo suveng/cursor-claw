@@ -3,6 +3,7 @@ import * as path from "node:path"
 import * as fs from "node:fs"
 import { getConfig, saveConfig, markCliMigrationNotified } from "./config/config-store"
 import { registerSkillsIpcHandlers } from "./skills-ipc"
+import { registerPluginIpcHandlers } from "./plugin-ipc"
 import {
   startDaemon,
   stopDaemon,
@@ -179,6 +180,7 @@ function registerIpcHandlers(): void {
   })
 
   registerSkillsIpcHandlers()
+  registerPluginIpcHandlers()
 
   ipcMain.handle("sdk:check-api-key", (_, apiKey: string) => checkSdkApiKey(apiKey))
   ipcMain.handle("sdk:list-models", (_, apiKey: string, currentModel?: string, currentParams?: string) => listSdkModels(apiKey, currentModel, currentParams))
