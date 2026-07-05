@@ -173,25 +173,20 @@ export class LarkSender {
     return this.formatStreamForSend(text, title, false);
   }
 
-  /** 流式 outbound：interactive 卡片含 update_multi 以支持 PATCH；text 类型走 update 接口 */
-  private formatStreamForSend(text: string, title?: string, stream = true): { content: string; msgType: string } {
+  /** 拼装 plain text 正文（可选标题前缀） */
+  private formatPlainText(text: string, title?: string): string {
     const fullText = `${this.messagePrefix}${text}`;
-    if (LarkSender.containsAtTag(fullText)) {
-      return { content: JSON.stringify({ text: fullText }), msgType: "text" };
-    }
-    const escaped = fullText.replace(/\\/g, "\\\\");
-    const card: any = {
-      schema: "2.0",
-      config: { wide_screen_mode: true, ...(stream ? { update_multi: true } : {}) },
-      body: { elements: [{ tag: "markdown", content: escaped }] },
-    };
-    if (title) {
-      card.header = { title: { tag: "plain_text", content: title }, template: "turquoise" };
-    }
-    return { content: JSON.stringify(card), msgType: "interactive" };
+    if (title) return `【${title}】\n${fullText}`;
+    return fullText;
   }
 
-  /** 流式首包：发送可 PATCH 的 interactive 卡片（PATCH 不可行时由 daemon 分段 sendMessage 降级） */
+  /** 流式 outbound：plain text + im.message.update 增量更新 */
+  private formatStreamForSend(text: string, title?: string, _stream = true): { content: string; msgType: string } {
+    const plain = this.formatPlainText(text, title);
+    return { content: JSON.stringify({ text: plain }), msgType: "text" };
+  }
+
+  /** 流式首包：发送 plain text（后续经 updateMessageContent 增量更新） */
   async sendStreamMessage(text: string, chatId?: string, title?: string): Promise<string | undefined> {
     const targetChatId = chatId ?? this.chatId;
     if (!targetChatId) { this.log("WARN", "无发送目标"); return undefined; }
@@ -208,29 +203,17 @@ export class LarkSender {
   }
 
   /**
-   * PATCH 更新已发送消息 content；interactive 走 im.message.patch，text 走 im.message.update。
-   * 返回 false 时 daemon 应降级为段落分段 sendMessage（F4.3）。
+   * 更新已发送 plain text 消息；返回 false 时 daemon 降级为分段 sendMessage。
    */
   async updateMessageContent(messageId: string, text: string, title?: string): Promise<boolean> {
     try {
-      const fullText = `${this.messagePrefix}${text}`;
-      if (LarkSender.containsAtTag(fullText)) {
-        const res = await (this.client.im.message as any).update({
-          path: { message_id: messageId },
-          data: { msg_type: "text", content: JSON.stringify({ text: fullText }) },
-        });
-        if ((res as any).code === 0 || (res as any).code === undefined) return true;
-        this.log("WARN", `飞书 text update 失败: code=${(res as any).code}, msg=${(res as any).msg}`);
-        return false;
-      }
-      const { content, msgType } = this.formatStreamForSend(text, title, true);
-      if (msgType !== "interactive") return false;
-      const res = await (this.client.im.message as any).patch({
+      const plain = this.formatPlainText(text, title);
+      const res = await (this.client.im.message as any).update({
         path: { message_id: messageId },
-        data: { content },
+        data: { msg_type: "text", content: JSON.stringify({ text: plain }) },
       });
       if ((res as any).code === 0 || (res as any).code === undefined) return true;
-      this.log("WARN", `飞书 PATCH 失败: code=${(res as any).code}, msg=${(res as any).msg}`);
+      this.log("WARN", `飞书 text update 失败: code=${(res as any).code}, msg=${(res as any).msg}`);
       return false;
     } catch (e: any) {
       this.log("WARN", `飞书消息更新失败 (${messageId}): ${e?.message ?? e}`);
@@ -426,9 +409,13 @@ export class LarkSender {
     }
   }
 
+  /** 合并批次 plain text 正文 */
+  private formatMergeBatchPlainText(view: MergeBatchCardView): string {
+    return `${view.title}\n\n${view.bodyMarkdown}\n\n— ${view.footerText}`;
+  }
+
   /**
-   * 合并批次 CardKit：创建或 PATCH 更新单卡。
-   * ponytail: 按钮占位，回调由 T8 接线；超 MERGE_CARD_MAX_ITEMS 时正文截断由调用方处理。
+   * 合并批次：plain text 首包 + update 增量更新（保留 cardMessageId 字段名兼容 daemon 状态机）。
    */
   async renderMergeBatchCard(
     chatId: string,
@@ -436,18 +423,21 @@ export class LarkSender {
     existing?: MergeBatchCardState,
     replyMessageId?: string,
   ): Promise<MergeBatchCardState | null> {
-    if (existing?.cardEntityId && existing.cardMessageId) {
-      const seq = (existing.cardSequence ?? 0) + 1;
-      const ok = await this.updateMergeBatchCardBody(existing.cardEntityId, MERGE_BATCH_ELEMENT_ID, view, seq);
-      if (ok) return { ...existing, cardSequence: seq };
-      this.log("WARN", "合并 CardKit PATCH 失败，保留旧卡状态");
+    const text = this.formatMergeBatchPlainText(view);
+    if (existing?.cardMessageId) {
+      const ok = await this.updateMessageContent(existing.cardMessageId, text);
+      if (ok) {
+        return { ...existing, cardSequence: (existing.cardSequence ?? 0) + 1 };
+      }
+      this.log("WARN", "合并预览 text update 失败，保留旧消息");
       return existing;
     }
-    const entity = await this.createMergeBatchCardEntity(view);
-    if (!entity) return null;
-    const msgId = await this.sendMergeBatchCardMessage(chatId, entity.cardId, replyMessageId);
+
+    const msgId = replyMessageId
+      ? await this.sendMessage(text, replyMessageId)
+      : await this.sendMessage(text, undefined, chatId);
     if (!msgId) return null;
-    return { cardEntityId: entity.cardId, cardMessageId: msgId, cardSequence: 1 };
+    return { cardEntityId: "", cardMessageId: msgId, cardSequence: 1 };
   }
 
   /** 帮助 CardKit：创建一次性卡片实体（schema 2.0，非 streaming） */
@@ -487,14 +477,10 @@ export class LarkSender {
     }
   }
 
-  /**
-   * 帮助 CardKit：create + send 一次性发卡。
-   * createHelpCardEntity 为非 streaming 卡；sendStreamingCardMessage 此处仅作 im.message.create 发送 card 引用。
-   */
+  /** 进入私聊帮助：plain text 一次性发送 */
   async sendHelpCard(chatId: string, markdown: string): Promise<string | null> {
-    const entity = await this.createHelpCardEntity(markdown);
-    if (!entity) return null;
-    return this.sendStreamingCardMessage(chatId, entity.cardId);
+    const msgId = await this.sendMessage(markdown, undefined, chatId, "使用帮助");
+    return msgId ?? null;
   }
 
   /** 工具进度 CardKit：创建可 PATCH 卡片实体 */

@@ -80,7 +80,7 @@ export async function onFeishuMenuV6(
   }
 }
 
-/** 处理 bot_p2p_chat_entered_v1：节流后推送帮助 CardKit */
+/** 处理 bot_p2p_chat_entered_v1：节流后推送帮助 plain text */
 export async function onFeishuP2pEntered(
   rt: FeishuHandlerRuntime,
   sender: LarkSender,

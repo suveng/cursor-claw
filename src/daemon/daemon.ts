@@ -546,34 +546,7 @@ async function sendStreamSegments(
   state.streamLastText = text.slice(0, state.streamSentLength);
 }
 
-/** 飞书 CardKit 不可用时的 PATCH / 分段降级 */
-async function feishuStreamFallbackUpdate(
-  ch: { type: "feishu"; rt: ChannelRuntime; chatId?: string },
-  state: SessionProgressState,
-  outId: string,
-  text: string,
-  sessionKey: string,
-  title: string | undefined,
-  final: boolean,
-): Promise<void> {
-  if (state.streamPatchMode !== false) {
-    const patched = await ch.rt.sender!.updateMessageContent(outId, text, title);
-    if (patched) {
-      state.streamLastText = text;
-      state.streamLastPushAt = Date.now();
-      state.streamSentLength = text.length;
-      state.streamPatchMode = true;
-    } else {
-      state.streamPatchMode = false;
-      log("INFO", `飞书 PATCH 不可用，降级分段发送: session=${sessionKey}`);
-      await sendStreamSegments(ch, state, text, sessionKey, title, final);
-    }
-  } else {
-    await sendStreamSegments(ch, state, text, sessionKey, title, final);
-  }
-}
-
-/** 过程 idle 或 Run final 时首建 assistant CardKit（MergeBatch reply 锚点不变） */
+/** 过程 idle 或 Run final 时首建 assistant plain text（MergeBatch reply 锚点不变） */
 async function releaseDeferredAssistantStreamImpl(
   sessionKey: string,
   state: SessionProgressState,
@@ -612,54 +585,28 @@ async function releaseDeferredAssistantStreamImpl(
       state.streamSentLength = text.length;
       state.streamLastPushAt = now;
     } else {
-      const card = await ch.rt.sender!.createStreamingCardEntity(title);
-      if (card) {
-        const replyAnchor = getPresentationReplyAnchor(sessionKey);
-        const msgId = await ch.rt.sender!.sendStreamingCardMessage(ch.chatId!, card.cardId, replyAnchor);
-        if (msgId) {
-          outId = msgId;
-          state.cardId = card.cardId;
-          state.elementId = card.elementId;
-          state.cardSequence = 1;
-          state.streamCardKitMode = true;
-          trackMessageSession(outId, sessionKey);
-          const updated = await ch.rt.sender!.updateStreamingCardText(
-            card.cardId, card.elementId, text, state.cardSequence,
-          );
-          if (updated) {
-            state.streamLastText = text;
-            state.streamSentLength = text.length;
-            state.streamLastPushAt = now;
-          } else {
-            state.streamCardKitMode = false;
-            log("INFO", `CardKit 首包更新失败，降级 PATCH/分段: session=${sessionKey}`);
-            await feishuStreamFallbackUpdate(ch, state, outId, text, sessionKey, title, !!opts?.final);
-          }
-        }
+      const replyAnchor = getPresentationReplyAnchor(sessionKey);
+      if (replyAnchor) {
+        outId = await ch.rt.sender!.sendMessage(text, replyAnchor, undefined, title);
+      } else {
+        outId = await ch.rt.sender!.sendStreamMessage(text, ch.chatId, title);
       }
       if (!outId) {
-        outId = await ch.rt.sender!.sendStreamMessage(text, ch.chatId, title);
-        if (!outId) {
-          state.assistantCardReleased = false;
-          logPresentationFailed(sessionKey, "assistant", "CardKit 与 sendStreamMessage 均失败");
-          return;
-        }
-        state.streamPatchMode = true;
-        trackMessageSession(outId, sessionKey);
-        state.streamLastText = text;
-        state.streamSentLength = text.length;
-        state.streamLastPushAt = now;
+        state.assistantCardReleased = false;
+        logPresentationFailed(sessionKey, "assistant", "飞书 send 失败");
+        return;
       }
+      state.streamPatchMode = true;
+      trackMessageSession(outId, sessionKey);
+      state.streamLastText = text;
+      state.streamSentLength = text.length;
+      state.streamLastPushAt = now;
       state.outboundMessageId = outId;
     }
 
     sessionLastReplyAt.set(sessionKey, now);
 
     if (opts?.final) {
-      if (ch.type === "feishu" && state.streamCardKitMode && state.cardId) {
-        const closeSeq = (state.cardSequence ?? 0) + 1;
-        await ch.rt.sender!.closeStreamingCardMode(state.cardId, closeSeq);
-      }
       if (opts.message_id) {
         ackOnReply(opts.message_id, sessionKey);
       } else {
@@ -779,67 +726,27 @@ async function handleStreamText(body: {
       state.streamLastPushAt = now;
       if (ordering) state.assistantCardReleased = true;
     } else {
-      const card = await ch.rt.sender!.createStreamingCardEntity(title);
-      if (card) {
-        const replyAnchor = getPresentationReplyAnchor(session_key);
-        const msgId = await ch.rt.sender!.sendStreamingCardMessage(ch.chatId!, card.cardId, replyAnchor);
-        if (msgId) {
-          outId = msgId;
-          state.cardId = card.cardId;
-          state.elementId = card.elementId;
-          state.cardSequence = 1;
-          state.streamCardKitMode = true;
-          state.outboundMessageId = outId;
-          trackMessageSession(outId, session_key);
-          const updated = await ch.rt.sender!.updateStreamingCardText(
-            card.cardId, card.elementId, text, state.cardSequence,
-          );
-          if (updated) {
-            state.streamLastText = text;
-            state.streamSentLength = text.length;
-            state.streamLastPushAt = now;
-            if (ordering) state.assistantCardReleased = true;
-          } else {
-            state.streamCardKitMode = false;
-            log("INFO", `CardKit 首包更新失败，降级 PATCH/分段: session=${session_key}`);
-            await feishuStreamFallbackUpdate(ch, state, outId, text, session_key, title, !!final);
-            if (ordering) state.assistantCardReleased = true;
-          }
-        } else {
-          log("INFO", `CardKit 发送卡片失败，降级 sendStreamMessage: session=${session_key}`);
-        }
-      }
-      if (!outId) {
+      // 飞书 plain text 流式：首包 send + 后续 updateMessageContent
+      const replyAnchor = ordering ? getPresentationReplyAnchor(session_key) : undefined;
+      if (replyAnchor) {
+        outId = await ch.rt.sender!.sendMessage(text, replyAnchor, undefined, title);
+      } else {
         outId = await ch.rt.sender!.sendStreamMessage(text, ch.chatId, title);
-        if (!outId) return { ok: false, error: "飞书发送失败" };
-        state.streamPatchMode = true;
-        state.outboundMessageId = outId;
-        trackMessageSession(outId, session_key);
-        state.streamLastText = text;
-        state.streamSentLength = text.length;
-        state.streamLastPushAt = now;
-        if (ordering) state.assistantCardReleased = true;
       }
+      if (!outId) return { ok: false, error: "飞书发送失败" };
+      state.streamPatchMode = true;
+      state.outboundMessageId = outId;
+      trackMessageSession(outId, session_key);
+      state.streamLastText = text;
+      state.streamSentLength = text.length;
+      state.streamLastPushAt = now;
+      if (ordering) state.assistantCardReleased = true;
     }
   } else {
     outId = outId ?? state.outboundMessageId;
     if (!outId) return { ok: false, error: "missing outbound_message_id" };
 
-    if (ch.type === "feishu" && state.streamCardKitMode && state.cardId && state.elementId) {
-      state.cardSequence = (state.cardSequence ?? 0) + 1;
-      const updated = await ch.rt.sender!.updateStreamingCardText(
-        state.cardId, state.elementId, text, state.cardSequence,
-      );
-      if (updated) {
-        state.streamLastText = text;
-        state.streamLastPushAt = now;
-        state.streamSentLength = text.length;
-      } else {
-        state.streamCardKitMode = false;
-        log("INFO", `CardKit 更新失败，降级 PATCH/分段: session=${session_key}`);
-        await feishuStreamFallbackUpdate(ch, state, outId, text, session_key, title, !!final);
-      }
-    } else if (ch.type === "feishu" && state.streamPatchMode !== false) {
+    if (ch.type === "feishu" && state.streamPatchMode !== false) {
       const patched = await ch.rt.sender!.updateMessageContent(outId, text, title);
       if (patched) {
         state.streamLastText = text;
@@ -847,7 +754,7 @@ async function handleStreamText(body: {
         state.streamSentLength = text.length;
       } else {
         state.streamPatchMode = false;
-        log("INFO", `飞书 PATCH 不可用，降级分段发送: session=${session_key}`);
+        log("INFO", `飞书 text update 不可用，降级分段发送: session=${session_key}`);
         await sendStreamSegments(ch, state, text, session_key, title, !!final);
       }
     } else {
@@ -857,10 +764,6 @@ async function handleStreamText(body: {
 
   sessionLastReplyAt.set(session_key, Date.now());
   if (final) {
-    if (ch.type === "feishu" && state.streamCardKitMode && state.cardId) {
-      const closeSeq = (state.cardSequence ?? 0) + 1;
-      await ch.rt.sender!.closeStreamingCardMode(state.cardId, closeSeq);
-    }
     if (message_id) {
       ackOnReply(message_id, session_key);
     } else {
@@ -1029,8 +932,12 @@ async function renderMergeBatchCardForSession(batch: MergeBatch): Promise<void> 
 
   const view = buildMergeBatchCardView(batch, batch.sessionKey);
   const existing: MergeBatchCardState | undefined =
-    batch.cardEntityId && batch.cardMessageId
-      ? { cardEntityId: batch.cardEntityId, cardMessageId: batch.cardMessageId, cardSequence: batch.cardSequence ?? 0 }
+    batch.cardMessageId
+      ? {
+        cardEntityId: batch.cardEntityId ?? "",
+        cardMessageId: batch.cardMessageId,
+        cardSequence: batch.cardSequence ?? 0,
+      }
       : undefined;
 
   const result = await ch.rt.sender.renderMergeBatchCard(
@@ -1040,7 +947,7 @@ async function renderMergeBatchCardForSession(batch: MergeBatch): Promise<void> 
     existing ? undefined : batch.lastInboundMessageId,
   );
   if (!result) {
-    log("WARN", `合并 CardKit 渲染失败: session=${batch.sessionKey} batch=${batch.batchId}`);
+    log("WARN", `合并预览 text 渲染失败: session=${batch.sessionKey} batch=${batch.batchId}`);
     return;
   }
 
