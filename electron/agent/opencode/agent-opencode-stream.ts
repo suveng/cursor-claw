@@ -6,8 +6,13 @@ import { isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind } 
 import { pushUiLog, broadcastSessionStatus } from "../../app/ui-logger"
 import { appendContextFooter, formatContextFooter, resolveDisplayContextTokens, resetContextUsagePeak } from "../cursor-sdk/context-usage"
 import { resolveSessionChatName } from "../shared/agent-launcher"
+import {
+  isFeishuPlainAssistantReply,
+  flushFeishuPlainAssistantIfNeeded,
+} from "../shared/feishu-plain-assistant-reply"
 import { maybeRotateContext } from "../cursor-sdk/context-rotation-lite"
 import type { OpencodeSessionAgent } from "./agent-opencode-types"
+import { resolveSessionChannelType } from "./agent-opencode-utils"
 
 const LOG_FLUSH_LEN = 400
 const STREAM_POST_INTERVAL_MS = 400
@@ -124,6 +129,30 @@ export function clearOpencodeStreamPostTimer(session: OpencodeSessionAgent): voi
 async function doFlushOpencodeStreamPost(session: OpencodeSessionAgent, final: boolean): Promise<void> {
   clearOpencodeStreamPostTimer(session)
   if (!session.f41Stream) return
+  const channelType = resolveSessionChannelType(session.sessionKey)
+  if (await flushFeishuPlainAssistantIfNeeded(
+    session.f41Stream,
+    channelType,
+    final,
+    session.sessionKey,
+    session.streamBuffer,
+    session.inboundMessageIds,
+    "OpenCode",
+    final
+      ? (t) => {
+          const footer = formatContextFooter(
+            session.contextUsage,
+            session.contextLimitTokens ?? null,
+            session.contextUsagePeakTokens,
+            session.contextUsageFromRunTotal,
+          )
+          return footer ? appendContextFooter(t, footer) : t
+        }
+      : undefined,
+  )) {
+    if (final) session.streamLastPostAt = Date.now()
+    return
+  }
   if (final) {
     const footer = formatContextFooter(
       session.contextUsage,
@@ -172,6 +201,9 @@ export function scheduleOpencodeStreamPost(session: OpencodeSessionAgent, final:
 
 export function appendOpencodeStreamDelta(session: OpencodeSessionAgent, delta: string): void {
   session.streamBuffer += delta
+  if (isFeishuPlainAssistantReply(session.f41Stream, resolveSessionChannelType(session.sessionKey))) {
+    return
+  }
   scheduleOpencodeStreamPost(session, false)
 }
 

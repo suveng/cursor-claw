@@ -50,7 +50,7 @@ IM 委托 `launchCcAgentFromHttp`。
 
 ## 八、推送
 
-无独立推送；IM 出站对称 Cursor SDK（stream-text/presentation-event/send-text）。
+无独立推送；IM 出站对称 Cursor SDK（stream-text/presentation-event/send-text）；飞书 f41 assistant Run 收尾经 `flushFeishuPlainAssistantIfNeeded` plain send-text。
 
 ## 九、已知限制与 TODO
 
@@ -61,6 +61,7 @@ IM 委托 `launchCcAgentFromHttp`。
 
 ## 十、变更记录
 
+- 2026-07-05：飞书 f41 assistant plain 收尾（对称 SDK `feishu-plain-assistant-reply`）。
 - 2026-06-30：审批门控与启用展示：project scope 审批门控过滤（`readCcProjectApproval`/`filterApprovedProjectMcp`/`loadApprovedInlineCcMcpServers`）；R1 settings 多源归并债务（archive 20260630140113）。
 - 2026-06-30：spawn 改 `query()`+cc-mcp-loader（archive 20260630002838）。
 - 2026-06-29：双引擎路由接入（archive 20260629164130）。

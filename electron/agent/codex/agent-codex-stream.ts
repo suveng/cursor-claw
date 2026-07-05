@@ -9,8 +9,13 @@ import {
 import { pushUiLog, broadcastLog, broadcastSessionStatus } from "../../app/ui-logger"
 import { appendContextFooter, formatContextFooter, resolveDisplayContextTokens, resetContextUsagePeak } from "../cursor-sdk/context-usage"
 import { resolveSessionChatName } from "../shared/agent-launcher"
+import {
+  isFeishuPlainAssistantReply,
+  flushFeishuPlainAssistantIfNeeded,
+} from "../shared/feishu-plain-assistant-reply"
 import { maybeRotateContext } from "../cursor-sdk/context-rotation-lite"
 import type { CodexSessionAgent } from "./agent-codex-types"
+import { resolveSessionChannelType } from "./agent-codex-utils"
 
 const LOG_FLUSH_LEN = 400
 const STREAM_POST_INTERVAL_MS = 400
@@ -117,6 +122,30 @@ export function clearCodexStreamPostTimer(session: CodexSessionAgent): void {
 export async function doFlushCodexStreamPost(session: CodexSessionAgent, final: boolean): Promise<void> {
   clearCodexStreamPostTimer(session)
   if (!session.f41Stream) return
+  const channelType = resolveSessionChannelType(session.sessionKey)
+  if (await flushFeishuPlainAssistantIfNeeded(
+    session.f41Stream,
+    channelType,
+    final,
+    session.sessionKey,
+    session.streamBuffer,
+    session.inboundMessageIds,
+    "Codex",
+    final
+      ? (t) => {
+          const footer = formatContextFooter(
+            session.contextUsage,
+            session.contextLimitTokens ?? null,
+            session.contextUsagePeakTokens,
+            session.contextUsageFromRunTotal,
+          )
+          return footer ? appendContextFooter(t, footer) : t
+        }
+      : undefined,
+  )) {
+    if (final) session.streamLastPostAt = Date.now()
+    return
+  }
   if (final) {
     const footer = formatContextFooter(
       session.contextUsage,
@@ -168,6 +197,9 @@ export function scheduleCodexStreamPost(session: CodexSessionAgent, final: boole
 /** 追加 assistant 流式增量 */
 export function appendCodexStreamDelta(session: CodexSessionAgent, delta: string): void {
   session.streamBuffer += delta
+  if (isFeishuPlainAssistantReply(session.f41Stream, resolveSessionChannelType(session.sessionKey))) {
+    return
+  }
   scheduleCodexStreamPost(session, false)
 }
 

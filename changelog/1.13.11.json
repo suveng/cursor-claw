@@ -1,0 +1,9 @@
+{
+  "version": "1.13.11",
+  "date": "2026-07-05",
+  "changes": [
+    "飞书私聊与群聊 assistant 回复行为一致：Run 收尾一次性发送，不再 CardKit 流式首句",
+    "assistant 回复 reply 锚点改为末条 inbound 消息",
+    "取消飞书 assistant 过程流式推送，过程通知仍实时展示 tool/task 里程碑"
+  ]
+}

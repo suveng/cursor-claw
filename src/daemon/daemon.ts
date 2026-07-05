@@ -11,7 +11,7 @@ import {
 } from "./daemon-scheduled-tasks.js";
 import { stripProxyEnv, localTimestamp, createLarkClient, LarkSender, LarkMessageEvent, cleanupMediaCache, type MergeBatchCardView, type MergeBatchCardState, type PresentationCardState, type FeishuMenuEvent, type FeishuP2pEnteredEvent } from "../bridge/lark-core.js";
 import { onFeishuMenuV6, onFeishuP2pEntered } from "./feishu-event-handlers.js";
-import { formatToolMilestoneText, mergeShellToolDetail } from "../shared/tool-presentation.js";
+import { formatToolMilestoneText, mergeShellToolDetail, normalizePresentationToolName, shouldSuppressToolStartedPresentation } from "../shared/tool-presentation.js";
 import { WeChatManager } from "../bridge/wechat-manager.js";
 import {
   initFileQueue,
@@ -87,7 +87,9 @@ let lastMcpRequestTime = 0;
 
 // ── 日志 ─────────────────────────────────────────────────
 
-const LOG_FILE_PATH = path.join(APP_DATA_DIR, "daemon.log");
+/** 子进程由 Electron 注入 DAEMON_LOG_PATH；独立运行时兜底至 APP_DATA_DIR/daemon.log */
+const LOG_FILE_PATH = process.env.DAEMON_LOG_PATH?.trim()
+  || (APP_DATA_DIR ? path.join(APP_DATA_DIR, "daemon.log") : path.join(process.cwd(), "daemon.log"));
 const MAX_LOG_SIZE = 2 * 1024 * 1024;
 const LOG_ROTATE_CHECK_INTERVAL = 100;
 let logWriteCount = 0;
@@ -917,6 +919,8 @@ interface PresentationEvent {
   tool_shell_output?: string;
   /** task 工具 tool_call：子代理任务描述（飞书里程碑摘要） */
   tool_task_description?: string;
+  /** edit/write/delete 工具：目标文件路径（完成态里程碑） */
+  tool_file_path?: string;
   /** task 里程碑状态（如 in_progress / completed） */
   task_status?: string;
   /** task 里程碑展示文案 */
@@ -1442,7 +1446,7 @@ async function handleToolPresentationEvent(
   if (!isPresentationEligible(sessionKey)) {
     return { ok: false, error: "presentation not supported for this session" };
   }
-  const toolName = event.tool_name.trim();
+  const toolName = normalizePresentationToolName(event.tool_name.trim());
   const status = event.tool_status ?? "started";
 
   let state = sessionProgressMap.get(sessionKey);
@@ -1460,6 +1464,16 @@ async function handleToolPresentationEvent(
     state.toolCards.delete(toolName);
   }
 
+  // edit/write/delete：started 仅更新 ordering 闩，不向 IM 发「已开始」
+  if (status === "started" && shouldSuppressToolStartedPresentation(toolName)) {
+    if (ordering) {
+      if (!state.activeToolNames) state.activeToolNames = new Set();
+      state.activeToolNames.add(toolName);
+      state.presentationProcessActive = true;
+    }
+    return { ok: true };
+  }
+
   // 飞书抑制 / 微信：不走 CardKit，里程碑文本 + ordering 闩（真实出站后 mirror CardKit）
   if (isFeishuProcessPresentationSuppressed(sessionKey, "tool") || isWechatPresentationSession(sessionKey)) {
     const formattedText = formatToolMilestoneText(
@@ -1469,6 +1483,7 @@ async function handleToolPresentationEvent(
         tool_shell_command: event.tool_shell_command,
         tool_shell_cwd: event.tool_shell_cwd,
         tool_task_description: event.tool_task_description,
+        tool_file_path: event.tool_file_path,
       },
     );
     const sent = await sendMilestoneText(
@@ -1597,6 +1612,15 @@ async function handleThinkingPresentationEvent(
 
   // 飞书 / 微信：thinking 零 IM 出站（Electron 仍 POST 并 markProcessEventSeen 置闩）
   if (isFeishuProcessPresentationSuppressed(sessionKey, "thinking") || isWechatPresentationSession(sessionKey)) {
+    if (ordering) {
+      if (event.delta && !state.thinkingOpen) {
+        state.thinkingOpen = true;
+        state.presentationProcessActive = true;
+      }
+      if (event.final) {
+        state.thinkingOpen = false;
+      }
+    }
     return { ok: true };
   }
 

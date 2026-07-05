@@ -6,7 +6,11 @@ import { appendContextFooter, formatContextFooter } from "./context-usage"
 import { pushUiLog } from "../../app/ui-logger"
 import { guardSdkPromise } from "./sdk-async-guard"
 import { persistActiveRunSnapshot } from "./sdk-run-persist"
-import { presentationOrderingEligible } from "./sdk-session-registry"
+import {
+  isFeishuPlainAssistantReply,
+  flushFeishuPlainAssistantIfNeeded,
+} from "../shared/feishu-plain-assistant-reply"
+import { presentationOrderingEligible, resolveSessionChannelType } from "./sdk-session-registry"
 import type { PresentationEvent, PresentationKind, SdkSessionAgent } from "./sdk-session-types"
 
 /** stream-text 节流间隔（与 AGENTS f41 约定一致） */
@@ -122,6 +126,19 @@ function shouldEndOnlyAssistantDefer(session: SdkSessionAgent): boolean {
 async function doFlushStreamPost(session: SdkSessionAgent, final: boolean): Promise<void> {
   clearStreamPostTimer(session)
   if (!session.f41Stream) return
+  if (await flushFeishuPlainAssistantIfNeeded(
+    session.f41Stream,
+    resolveSessionChannelType(session.sessionKey),
+    final,
+    session.sessionKey,
+    session.streamBuffer,
+    session.inboundMessageIds,
+    "SDK",
+    final ? (t) => { applyContextFooterToBuffer(session); return session.streamBuffer } : undefined,
+  )) {
+    if (final) session.streamLastPostAt = Date.now()
+    return
+  }
   if (!final && shouldDeferAssistantPost(session)) return
   // ponytail: Rev2 end-only，含过程 Run 仅 Run 收尾 flushStreamPost(true) 出站
   if (!final && shouldEndOnlyAssistantDefer(session)) return
@@ -199,6 +216,9 @@ function schedulePreambleRelease(session: SdkSessionAgent): void {
 
 export function appendAssistantStreamDelta(session: SdkSessionAgent, delta: string): void {
   session.streamBuffer += delta
+  if (isFeishuPlainAssistantReply(session.f41Stream, resolveSessionChannelType(session.sessionKey))) {
+    return
+  }
   if (shouldDeferAssistantPost(session)) return
   if (isAwaitingFirstProcessEvent(session)) {
     schedulePreambleRelease(session)

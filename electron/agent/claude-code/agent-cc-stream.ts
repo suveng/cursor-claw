@@ -1,19 +1,26 @@
 /**
  * Claude Code SDK 流式推送、日志聚合与进程完成处理
- * 包含：flushCcLog/appendCcLog、notifySessionChat、postPresentationEvent/postStreamText、
- * appendStreamDelta/scheduleStreamPost/flushStreamPost、broadcastCcSessionStatus、completeCcRun
  */
-import { readLockFile, httpPost, reportSessionAgentPhase } from "../../daemon/daemon-client"
-import { pushUiLog, broadcastLog, broadcastSessionStatus } from "../../app/ui-logger"
+import { reportSessionAgentPhase } from "../../daemon/daemon-client"
+import { pushUiLog, broadcastSessionStatus } from "../../app/ui-logger"
 import {
   appendContextFooter,
   formatContextFooter,
 } from "../cursor-sdk/context-usage"
 import { resolveSessionChatName } from "../shared/agent-launcher"
+import { flushFeishuPlainAssistantIfNeeded } from "../shared/feishu-plain-assistant-reply"
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import type { CcSessionAgent } from "./agent-cc-types"
-import { presentationOrderingEligible } from "./agent-cc-utils"
+import { presentationOrderingEligible, resolveSessionChannelType } from "./agent-cc-utils"
 import { finalizeCcRunOnWatchdogTimeout } from "./cc-watchdog-finalize"
+import {
+  notifySessionChat,
+  postPresentationEvent,
+  postStreamText,
+  type StreamTextPayload,
+} from "./agent-cc-notify"
+
+export { notifySessionChat, postPresentationEvent, postStreamText, type StreamTextPayload } from "./agent-cc-notify"
 
 // ── 日志聚合 ──────────────────────────────────────────────────────────────────
 
@@ -44,82 +51,6 @@ export function appendCcLog(session: CcSessionAgent, kind: "thinking" | "text", 
   if (agg.buf.length >= LOG_FLUSH_LEN) flushCcLog(session)
 }
 
-// ── Daemon 通知辅助 ───────────────────────────────────────────────────────────
-
-/** stream-text API 请求体结构 */
-export interface StreamTextPayload {
-  session_key: string
-  text: string
-  stream_id?: string
-  outbound_message_id?: string
-  message_id?: string
-  final?: boolean
-}
-
-/** 向 Daemon 发送普通文本通知（send-text） */
-export async function notifySessionChat(sessionKey: string, text: string, stopProgress = false): Promise<void> {
-  const lock = readLockFile()
-  if (!lock?.port) return
-  try {
-    await httpPost(`http://127.0.0.1:${lock.port}/api/send-text`, {
-      text, session_key: sessionKey, ...(stopProgress && { stop_progress: true }),
-    }, 5000)
-  } catch (e: unknown) {
-    broadcastLog(`[CC Notify] 发送通知失败 (${sessionKey}): ${e instanceof Error ? e.message : String(e)}`, "WARN")
-  }
-}
-
-/** 向 Daemon 推送 PresentationEvent（presentation-event） */
-export async function postPresentationEvent(
-  session: CcSessionAgent,
-  event: Omit<import("./agent-sdk").PresentationEvent, "session_key">,
-  _resolveChannelType: (sessionKey: string) => string | undefined,
-): Promise<void> {
-  const lock = readLockFile()
-  if (!lock?.port) return
-  const payload = { session_key: session.sessionKey, ...event }
-  if (event.kind === "tool" && event.tool_name && !event.outbound_message_id) {
-    const id = session.toolPresentationOutboundIds?.get(event.tool_name)
-    if (id) (payload as Record<string, unknown>).outbound_message_id = id
-  }
-  try {
-    const res = (await httpPost(`http://127.0.0.1:${lock.port}/api/presentation-event`, payload, 5000)) as {
-      ok?: boolean
-      outbound_message_id?: string
-      error?: string
-    }
-    if (res?.outbound_message_id && event.kind === "tool" && event.tool_name) {
-      if (!session.toolPresentationOutboundIds) session.toolPresentationOutboundIds = new Map()
-      session.toolPresentationOutboundIds.set(event.tool_name, res.outbound_message_id)
-    }
-  } catch (e: unknown) {
-    pushUiLog("CC", "WARN", `[${session.sessionKey}] presentation-event 推送失败: ${e instanceof Error ? e.message : String(e)}`)
-  }
-}
-
-/** 向 Daemon 推送流式文本片段（stream-text） */
-export async function postStreamText(session: CcSessionAgent, payload: StreamTextPayload): Promise<void> {
-  const lock = readLockFile()
-  if (!lock?.port) return
-  try {
-    const res = (await httpPost(`http://127.0.0.1:${lock.port}/api/stream-text`, payload, 5000)) as {
-      ok?: boolean
-      stream_id?: string
-      outbound_message_id?: string
-      deferred?: boolean
-      error?: string
-    }
-    if (res?.stream_id) session.streamId = res.stream_id
-    if (res?.deferred) {
-      session.presentationDeferStream = true
-      return
-    }
-    if (res?.outbound_message_id) session.outboundMessageId = res.outbound_message_id
-  } catch (e: unknown) {
-    pushUiLog("CC", "WARN", `[${session.sessionKey}] stream-text 推送失败: ${e instanceof Error ? e.message : String(e)}`)
-  }
-}
-
 // ── 流式 Buffer 管理 ──────────────────────────────────────────────────────────
 
 /** 流式推送间隔（毫秒） */
@@ -133,19 +64,36 @@ export function clearStreamPostTimer(session: CcSessionAgent): void {
   }
 }
 
+/** 为 streamBuffer 附加上下文 footer（final 专用） */
+function appendCcContextFooter(session: CcSessionAgent, text: string): string {
+  const footer = formatContextFooter(
+    session.contextUsage,
+    session.contextLimitTokens ?? null,
+    session.contextUsagePeakTokens,
+    session.contextUsageFromRunTotal,
+  )
+  return footer ? appendContextFooter(text, footer) : text
+}
+
 /** 执行实际的流式 flush，包括上下文 footer 附加 */
 export async function doFlushStreamPost(session: CcSessionAgent, final: boolean): Promise<void> {
   clearStreamPostTimer(session)
   if (!session.f41Stream) return
-  if (final) {
-    const footer = formatContextFooter(
-      session.contextUsage,
-      session.contextLimitTokens ?? null,
-      session.contextUsagePeakTokens,
-      session.contextUsageFromRunTotal,
-    )
-    if (footer) session.streamBuffer = appendContextFooter(session.streamBuffer, footer)
+  const channelType = resolveSessionChannelType(session.sessionKey)
+  if (await flushFeishuPlainAssistantIfNeeded(
+    session.f41Stream,
+    channelType,
+    final,
+    session.sessionKey,
+    session.streamBuffer,
+    session.inboundMessageIds,
+    "CC",
+    final ? (t) => appendCcContextFooter(session, t) : undefined,
+  )) {
+    if (final) session.streamLastPostAt = Date.now()
+    return
   }
+  if (final) session.streamBuffer = appendCcContextFooter(session, session.streamBuffer)
   const text = session.streamBuffer
   if (!text.trim() && !final) return
 
@@ -218,10 +166,7 @@ export function markProcessEventSeen(
 
 // ── 会话状态广播 ──────────────────────────────────────────────────────────────
 
-/**
- * 广播 Claude Code 会话列表到前端
- * @param sessions 当前所有活跃 session 列表（由调用方从 CC_SESSIONS 传入）
- */
+/** 广播 Claude Code 会话列表到前端 */
 export function broadcastCcSessionStatus(sessions: CcSessionAgent[]): void {
   const list = sessions.map((s) => ({
     sessionKey: s.sessionKey,
@@ -237,7 +182,7 @@ export function broadcastCcSessionStatus(sessions: CcSessionAgent[]): void {
 
 // ── 进程完成处理 ───────────────────────────────────────────────────────────────
 
-/** completeCcRun 依赖注入选项（CC_SESSIONS/CC_FAILED_COOLDOWNS 通过此接口注入，避免循环依赖） */
+/** completeCcRun 依赖注入选项 */
 export interface CompleteCcRunOptions {
   deleteSession: (key: string) => void
   getAllSessions: () => CcSessionAgent[]
@@ -256,12 +201,11 @@ export async function completeCcRun(
   session.runFinalizing = true
 
   flushCcLog(session)
-  session.thinkingOpen = false // 进程已结束，无需再推送 thinking close 事件
+  session.thinkingOpen = false
 
   if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
     await flushStreamPost(session, true)
   } else if (session.streamBuffer.trim()) {
-    // 非流式路径：以 send-text 发送
     const footer = formatContextFooter(session.contextUsage, session.contextLimitTokens ?? null, session.contextUsagePeakTokens)
     await notifySessionChat(sessionKey, appendContextFooter(session.streamBuffer, footer), true)
   }

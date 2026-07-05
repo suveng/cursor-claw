@@ -5,8 +5,12 @@
 import type { CcSessionAgent } from "./agent-cc-types"
 import {
   presentationOrderingEligible,
+  resolveSessionChannelType,
   shouldDeferCcAssistantPost,
 } from "./agent-cc-utils"
+import {
+  isFeishuPlainAssistantReply,
+} from "../shared/feishu-plain-assistant-reply"
 import {
   clearStreamPostTimer,
   scheduleStreamPost,
@@ -30,6 +34,9 @@ function scheduleCcPreambleRelease(session: CcSessionAgent): void {
 /** Presentation 编排-aware 的 assistant delta 追加 */
 export function appendCcAssistantStreamDelta(session: CcSessionAgent, delta: string): void {
   session.streamBuffer += delta
+  if (isFeishuPlainAssistantReply(session.f41Stream, resolveSessionChannelType(session.sessionKey))) {
+    return
+  }
   if (shouldDeferCcAssistantPost(session)) return
   const awaitingFirst = presentationOrderingEligible(session)
     && !session.outboundMessageId && !session.seenProcessEvent
