@@ -31,7 +31,7 @@
 
 ## 飞书 Lark 核心（lark-core.ts）
 
-- **出站能力**：文本/图片/文件发送、流式 CardKit（`createStreamingCardEntity`、`updateStreamingCardText`、`closeStreamingCardMode`）、合并批次卡（`renderMergeBatchCard`）、工具/思考进度卡（`renderToolProgressCard`、`renderThinkingCard`）。
+- **出站能力**：文本/图片/文件发送、post+md 默认 Markdown 渲染（含 @ 时降级 text）、流式 CardKit（`createStreamingCardEntity`、`updateStreamingCardText`、`closeStreamingCardMode`）、合并批次卡（`renderMergeBatchCard`）、工具/思考进度卡（`renderToolProgressCard`、`renderThinkingCard`）。
 - **presentation 依赖**：shell 工具展示字段经 `../shared/tool-presentation.js` 解析，不在本文件重复实现截断/格式化逻辑。
 - **降级路径**：CardKit 创建或 PATCH 失败时由 daemon 回退 `sendStreamMessage` 或分段文本；lark-core 函数应抛出或可判失败，不吞错。
 

@@ -170,20 +170,24 @@ export class LarkSender {
   }
 
   private formatForSend(text: string, title?: string): { content: string; msgType: string } {
-    return this.formatStreamForSend(text, title, false);
+    return this.buildOutboundPayload(text, title);
   }
 
-  /** 拼装 plain text 正文（可选标题前缀） */
-  private formatPlainText(text: string, title?: string): string {
+  /**
+   * 构建出站消息体：默认 post + md 标签（飞书 Markdown 渲染）；
+   * 含 `<at user_id=` 时降级 plain text，以保证 @ mention 生效。
+   */
+  private buildOutboundPayload(text: string, title?: string): { content: string; msgType: string } {
     const fullText = `${this.messagePrefix}${text}`;
-    if (title) return `【${title}】\n${fullText}`;
-    return fullText;
-  }
-
-  /** 流式 outbound：plain text + im.message.update 增量更新 */
-  private formatStreamForSend(text: string, title?: string, _stream = true): { content: string; msgType: string } {
-    const plain = this.formatPlainText(text, title);
-    return { content: JSON.stringify({ text: plain }), msgType: "text" };
+    if (LarkSender.containsAtTag(fullText)) {
+      const plain = title ? `【${title}】\n${fullText}` : fullText;
+      return { content: JSON.stringify({ text: plain }), msgType: "text" };
+    }
+    const zhCn: Record<string, unknown> = {
+      content: [[{ tag: "md", text: fullText }]],
+    };
+    if (title) zhCn.title = title;
+    return { content: JSON.stringify({ zh_cn: zhCn }), msgType: "post" };
   }
 
   /** 流式首包：发送 plain text（后续经 updateMessageContent 增量更新） */
@@ -191,7 +195,7 @@ export class LarkSender {
     const targetChatId = chatId ?? this.chatId;
     if (!targetChatId) { this.log("WARN", "无发送目标"); return undefined; }
     try {
-      const { content, msgType } = this.formatStreamForSend(text, title, true);
+      const { content, msgType } = this.buildOutboundPayload(text, title);
       const res = await this.client.im.message.create({
         params: { receive_id_type: "chat_id" as any },
         data: { receive_id: targetChatId, content, msg_type: msgType },
@@ -203,17 +207,17 @@ export class LarkSender {
   }
 
   /**
-   * 更新已发送 plain text 消息；返回 false 时 daemon 降级为分段 sendMessage。
+   * 更新已发送 outbound 消息（post/md 或 text）；返回 false 时 daemon 降级为分段 sendMessage。
    */
   async updateMessageContent(messageId: string, text: string, title?: string): Promise<boolean> {
     try {
-      const plain = this.formatPlainText(text, title);
+      const { content, msgType } = this.buildOutboundPayload(text, title);
       const res = await (this.client.im.message as any).update({
         path: { message_id: messageId },
-        data: { msg_type: "text", content: JSON.stringify({ text: plain }) },
+        data: { msg_type: msgType, content },
       });
       if ((res as any).code === 0 || (res as any).code === undefined) return true;
-      this.log("WARN", `飞书 text update 失败: code=${(res as any).code}, msg=${(res as any).msg}`);
+      this.log("WARN", `飞书 ${msgType} update 失败: code=${(res as any).code}, msg=${(res as any).msg}`);
       return false;
     } catch (e: any) {
       this.log("WARN", `飞书消息更新失败 (${messageId}): ${e?.message ?? e}`);

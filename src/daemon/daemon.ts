@@ -1924,6 +1924,8 @@ function resolveRawChatId(sessionKey?: string): string | undefined {
 
 function extractWorkspaceTitle(sessionKey?: string): string | undefined {
   if (!sessionKey) return undefined;
+  // 私聊不展示工作区目录名前缀（如【cursor-claw】），群聊仍保留便于区分项目
+  if (resolveSessionChatType(sessionKey) === "p2p") return undefined;
   const idx = sessionKey.indexOf("::");
   if (idx < 0) return undefined;
   const wsDir = sessionKey.slice(idx + 2);
