@@ -11,10 +11,12 @@ import { pushUiLog } from "../../app/ui-logger"
 import { logSdkRunChainError } from "./sdk-async-guard"
 
 const LEGACY_RUN_WATCHDOG_TIMEOUT_MS = Number(process.env.SDK_RUN_WATCHDOG_MS || PLATFORM_RUN_LIMIT_MS)
+/** SDK idle 超时默认 30min（与 PLATFORM_RUN_LIMIT_MS 7min 解耦）；可用 SDK_IDLE_TIMEOUT_MS 覆盖 */
+const DEFAULT_SDK_IDLE_TIMEOUT_MS = 30 * 60 * 1000
 const RUN_WATCHDOG_IDLE_TIMEOUT_MS = Number(
   process.env.SDK_IDLE_TIMEOUT_MS
   || process.env.sdk_idle_timeout_ms
-  || LEGACY_RUN_WATCHDOG_TIMEOUT_MS,
+  || DEFAULT_SDK_IDLE_TIMEOUT_MS,
 )
 const RUN_WATCHDOG_DRAIN_GRACE_MS = Number(process.env.SDK_DRAIN_GRACE_MS || process.env.sdk_drain_grace_ms || 12_000)
 export const NEVER_CANCEL_ON_DURATION = (() => {
@@ -28,7 +30,7 @@ function resolveSafeTimeoutMs(raw: number, fallback: number): number {
   return fallback
 }
 
-const WATCHDOG_IDLE_TIMEOUT_MS = resolveSafeTimeoutMs(RUN_WATCHDOG_IDLE_TIMEOUT_MS, LEGACY_RUN_WATCHDOG_TIMEOUT_MS)
+const WATCHDOG_IDLE_TIMEOUT_MS = resolveSafeTimeoutMs(RUN_WATCHDOG_IDLE_TIMEOUT_MS, DEFAULT_SDK_IDLE_TIMEOUT_MS)
 const WATCHDOG_DRAIN_GRACE_MS = resolveSafeTimeoutMs(RUN_WATCHDOG_DRAIN_GRACE_MS, 12_000)
 const WATCHDOG_ABSOLUTE_TIMEOUT_MS = resolveSafeTimeoutMs(LEGACY_RUN_WATCHDOG_TIMEOUT_MS, PLATFORM_RUN_LIMIT_MS)
 
