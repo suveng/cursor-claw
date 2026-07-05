@@ -458,6 +458,11 @@ function isFeishuProcessPresentationSuppressed(sessionKey: string, kind: string)
   return feishuSuppressesProcessKind(ch.type, kind);
 }
 
+/** 微信无 CardKit：thinking 零出站，tool 走里程碑 send-text */
+function isWechatPresentationSession(sessionKey: string): boolean {
+  return resolveChannel(sessionKey).type === "wechat";
+}
+
 /** 里程碑 send-text：不带 message_id/stop_progress，与三态进度区分 */
 async function sendMilestonePlainText(sessionKey: string, text: string): Promise<boolean> {
   const ch = resolveChannel(sessionKey);
@@ -1455,8 +1460,8 @@ async function handleToolPresentationEvent(
     state.toolCards.delete(toolName);
   }
 
-  // 飞书全通道抑制 tool CardKit：里程碑文本 + ordering 闩（真实出站后 mirror CardKit）
-  if (isFeishuProcessPresentationSuppressed(sessionKey, "tool")) {
+  // 飞书抑制 / 微信：不走 CardKit，里程碑文本 + ordering 闩（真实出站后 mirror CardKit）
+  if (isFeishuProcessPresentationSuppressed(sessionKey, "tool") || isWechatPresentationSession(sessionKey)) {
     const formattedText = formatToolMilestoneText(
       toolName,
       status,
@@ -1590,8 +1595,8 @@ async function handleThinkingPresentationEvent(
 
   const ordering = presentationOrderingEnabled(sessionKey);
 
-  // 飞书全通道抑制 thinking：零里程碑出站（Electron 仍 POST 并 markProcessEventSeen 置闩）
-  if (isFeishuProcessPresentationSuppressed(sessionKey, "thinking")) {
+  // 飞书 / 微信：thinking 零 IM 出站（Electron 仍 POST 并 markProcessEventSeen 置闩）
+  if (isFeishuProcessPresentationSuppressed(sessionKey, "thinking") || isWechatPresentationSession(sessionKey)) {
     return { ok: true };
   }
 
