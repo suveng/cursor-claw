@@ -24,6 +24,7 @@
 4. **markProcessEventSeen**：仅 ordering 门控；thinking/tool/task 均置 defer 闩（不因飞书抑制早退）。Daemon：`sendMilestoneText` sent 时置 `presentationProcessActive`（task 仅该字段）；**不**在 process-idle 时 release assistant。
 5. **Rev2 end-only**：ordering+已见过程时 `maybeReleaseDeferredAssistant`/`flushDeferredStreamPost`/`doFlushStreamPost` non-final 均 no-op；assistant 首建仅 Run 收尾 `flushStreamPost(true)`。
 6. **handleStreamText**：`presentationProcessActive` 且 non-final → 累积 `deferredAssistantText`、返回 `deferred: true`；final 经 `enqueueReleaseDeferredAssistantStream` 首建+完结。飞行窗口：占位无 outbound 时 await chain 再判 `isFirst`。
+7. **pre-send 上下文保护**：`sendWithRetry` 首 attempt 经 `maybeRotateSessionForPressure` 评估并写 `lastPreSend*`；ratio≥100% 强制首轮轮转，失败则 `context_blocked` 快拒（详见 [10-SDK上下文保护与失败归因](./10-SDK上下文保护与失败归因.md)）。
 
 ## 四、客户端流程
 
@@ -41,11 +42,11 @@ flowchart LR
 
 ## 六、数据
 
-`SdkSessionAgent`：`runPhase`、`seenProcessEvent`、`presentationDeferStream`。磁盘 `sdk-active-runs.json`。
+`SdkSessionAgent`：`runPhase`、`seenProcessEvent`、`presentationDeferStream`、`lastPreSendUsedTokens`/`lastPreSendUsageRatio`（pre-send 快照，session 级）。磁盘 `sdk-active-runs.json`。
 
 ## 七、非功能与可观测
 
-RunGuard+watchdog（idle 30min / absolute 7min 解耦，`SDK_IDLE_TIMEOUT_MS` 可覆盖 idle）；400ms 节流；Rev2 end-only：含过程 Run 收尾单次 `flushStreamPost(true)` 为唯一 assistant IM 出站。
+RunGuard+watchdog（idle 30min / absolute 7min 解耦，`SDK_IDLE_TIMEOUT_MS` 可覆盖 idle）；400ms 节流；Rev2 end-only：含过程 Run 收尾单次 `flushStreamPost(true)` 为唯一 assistant IM 出站。失败 IM：`notifySdkFailure` / `notifyPreSendContextFailure`（pre-send 与 peak 归因见 10）。
 
 ## 八、推送
 
@@ -57,6 +58,7 @@ RunGuard+watchdog（idle 30min / absolute 7min 解耦，`SDK_IDLE_TIMEOUT_MS` �
 
 ## 十、变更记录
 
+- 2026-07-05：pre-send 上下文保护、context_blocked 快拒与失败文案归因（见 [10-SDK上下文保护与失败归因](./10-SDK上下文保护与失败归因.md)；archive 20260705230806）。
 - 2026-07-05：SDK idle 默认 30min（`SDK_IDLE_TIMEOUT_MS` 可覆盖），与 absolute 7min 解耦（archive 20260705211057-SDK idle超时延长至30分钟）。
 - 2026-07-05：飞书 f41 assistant plain 收尾（`feishu-plain-assistant-reply`，Run 末条 send-text）。
 - 2026-07-04：`watchdogTimedOut` 闩与 activity 门控、超时收尾去重；Task tool_call 飞书 started 含描述（archive 20260704223914）。

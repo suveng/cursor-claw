@@ -193,3 +193,22 @@ export function resolveLastInboundId(session: SdkSessionAgent): string {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+/** 多 session 共用 workspaceDir 时 WARN（每目录每进程至多 1 条） */
+const warnedWorkspaceDirs = new Set<string>()
+
+export function warnIfSharedWorkspaceDir(workspaceDir: string | undefined, sessionKey: string): void {
+  if (!workspaceDir?.trim()) return
+  let count = 0
+  for (const s of sdkSessions.values()) {
+    if (s.abortController.signal.aborted) continue
+    if (s.workspaceDir === workspaceDir) count++
+  }
+  if (count <= 1 || warnedWorkspaceDirs.has(workspaceDir)) return
+  warnedWorkspaceDirs.add(workspaceDir)
+  pushUiLog(
+    "SDK",
+    "WARN",
+    `[shared-workspace] ${count} 个活跃 session 共用 workspaceDir=${workspaceDir} sample=${sessionKey}`,
+  )
+}

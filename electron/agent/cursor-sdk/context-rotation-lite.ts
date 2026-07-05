@@ -23,12 +23,14 @@ const stateBySession = new Map<string, RotationState>()
 const ROTATION_RATIO = 0.9
 const ROTATION_HITS = 2
 const ROTATION_COOLDOWN_MS = 3 * 60 * 1000
+/** ratio≥100% 时跳过连续命中与冷却，首轮即轮转 */
+const FULL_ROTATION_RATIO = 1.0
 
 /**
  * 规则（保守默认）：
  * 1) usageRatio >= 90%
- * 2) 连续命中至少 2 次
- * 3) 距上次轮转超过冷却窗口
+ * 2) 连续命中至少 2 次（ratio≥100% 时跳过）
+ * 3) 距上次轮转超过冷却窗口（ratio≥100% 时 bypass）
  */
 export function maybeRotateContext(input: ContextRotationInput): ContextRotationDecision {
   const state = stateBySession.get(input.sessionKey) ?? { highPressureHits: 0, lastRotatedAt: 0 }
@@ -38,12 +40,15 @@ export function maybeRotateContext(input: ContextRotationInput): ContextRotation
     return { rotated: false, nextCooldownMs: 0 }
   }
   state.highPressureHits += 1
-  const cooldownRemain = Math.max(0, state.lastRotatedAt + ROTATION_COOLDOWN_MS - input.nowMs)
-  if (cooldownRemain > 0) {
-    return { rotated: false, nextCooldownMs: cooldownRemain }
-  }
-  if (state.highPressureHits < ROTATION_HITS) {
-    return { rotated: false, nextCooldownMs: 0 }
+  const forceRotate = input.usageRatio >= FULL_ROTATION_RATIO
+  if (!forceRotate) {
+    const cooldownRemain = Math.max(0, state.lastRotatedAt + ROTATION_COOLDOWN_MS - input.nowMs)
+    if (cooldownRemain > 0) {
+      return { rotated: false, nextCooldownMs: cooldownRemain }
+    }
+    if (state.highPressureHits < ROTATION_HITS) {
+      return { rotated: false, nextCooldownMs: 0 }
+    }
   }
   state.highPressureHits = 0
   state.lastRotatedAt = input.nowMs

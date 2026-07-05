@@ -21,13 +21,14 @@
 | 07 | [07-ClaudeCodeSDK执行引擎.md](./07-ClaudeCodeSDK执行引擎.md) | Claude Agent SDK |
 | 08 | [08-CodexSDK执行引擎.md](./08-CodexSDK执行引擎.md) | Codex SDK |
 | 09 | [09-OpenCodeSDK执行引擎.md](./09-OpenCodeSDK执行引擎.md) | OpenCode SDK |
+| 10 | [10-SDK上下文保护与失败归因.md](./10-SDK上下文保护与失败归因.md) | pre-send 保护、context_blocked、失败文案 |
 
 ## 推荐阅读路径
 
 1. 新人：01 → 02 → 03
 2. 运维：04 → 05
 3. IM 排查：03 → 04
-4. SDK 排查：06 → 07 → 08 → 09 → 03
+4. SDK 排查：06 → 10（上下文已满/pre-send）→ 07 → 08 → 09 → 03
 
 ## 关键源码
 
@@ -48,8 +49,8 @@
 
 ## 变更记录
 
-2026-07-02：关键源码增补 Daemon 侧编排 `src/daemon/daemon.ts`（archive 20260702120154）。
-2026-07-02：关键源码表对齐 `electron/` 语义子目录（archive 20260702112559）。
+2026-07-05：新增 10 SDK 上下文保护（archive 20260705230806）。
+2026-07-02：关键源码增补 Daemon 编排（archive 20260702120154）。
 2026-07-02：关键源码补 sdk-run-* 事件流/续接模块（archive 20260701212827）。
 2026-07-02：关键源码补 Cursor SDK 配置加载模块（archive 20260701212732）。
 2026-06-30：新增 09 OpenCode SDK；四引擎 `agent-opencode-*`（archive 20260630105159）。

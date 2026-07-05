@@ -1,0 +1,108 @@
+{
+  "change_id": "20260705230806-SDK预发送上下文保护与失败文案修复",
+  "name": "SDK预发送上下文保护与失败文案修复",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-05T23:08:06+0800",
+  "updated_at": "2026-07-05T23:16:00+0800",
+  "archived_at": "2026-07-05T23:16:00+0800",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "SdkSessionAgent 增加 lastPreSend 快照字段",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-session-types.ts"
+      ],
+      "depends_on": [],
+      "verification": "静态：lastPreSend* 字段与 JSDoc 已核对"
+    },
+    {
+      "id": "T2",
+      "title": "context-rotation-lite ratio≥1.0 强制首轮轮转",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/context-rotation-lite.ts"
+      ],
+      "depends_on": [],
+      "verification": "静态：FULL_ROTATION_RATIO forceRotate 分支已核对"
+    },
+    {
+      "id": "T3",
+      "title": "sdk-run-dispatch 预发送快照写入与 context_blocked 阻断",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-dispatch.ts"
+      ],
+      "depends_on": ["T1", "T2"],
+      "verification": "静态：快照写入与 context_blocked 返回已核对"
+    },
+    {
+      "id": "T4",
+      "title": "sdk-failure-messages 与 notifySdkFailure 失败归因",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-failure-messages.ts",
+        "electron/agent/cursor-sdk/sdk-run-finalize.ts"
+      ],
+      "depends_on": ["T1"],
+      "verification": "静态：isContextExhaustedByPreSend 与 notifySdkFailure 传参已核对"
+    },
+    {
+      "id": "T5",
+      "title": "agent-sdk context_blocked 收尾与即时 IM",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/agent-sdk.ts",
+        "electron/agent/cursor-sdk/sdk-run-finalize.ts"
+      ],
+      "depends_on": ["T3", "T4"],
+      "verification": "静态：launch/dispatch notifyPreSendContextFailure 已核对"
+    },
+    {
+      "id": "T6",
+      "title": "sdk-session-registry 共享 workspaceDir WARN（可选）",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-session-registry.ts",
+        "electron/agent/cursor-sdk/agent-sdk.ts"
+      ],
+      "depends_on": ["T5"],
+      "verification": "静态：warnIfSharedWorkspaceDir 已核对；WARN 实跑待手动"
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    "00-manifest.json",
+    "01-proposal.md",
+    "02-design.md",
+    "03-tasks.md",
+    "04-review.md",
+    "05-summary.md",
+    "06-automation-test.md",
+    "package.json",
+    "changelog/1.13.16.json",
+    "electron/agent/cursor-sdk/sdk-session-types.ts",
+    "electron/agent/cursor-sdk/context-rotation-lite.ts",
+    "electron/agent/cursor-sdk/sdk-run-dispatch.ts",
+    "electron/agent/cursor-sdk/sdk-failure-messages.ts",
+    "electron/agent/cursor-sdk/sdk-run-finalize.ts",
+    "electron/agent/cursor-sdk/agent-sdk.ts",
+    "electron/agent/cursor-sdk/sdk-session-registry.ts",
+    "electron/agent/cursor-sdk/AGENTS.md",
+    "knowledge/业务域/Agent调度/00-README.md",
+    "knowledge/业务域/Agent调度/01-概览.md",
+    "knowledge/业务域/Agent调度/02-多会话模型.md",
+    "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+    "knowledge/业务域/Agent调度/10-SDK上下文保护与失败归因.md"
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "缺陷修复",
+    "priority": "P1"
+  }
+}

@@ -13,6 +13,10 @@ export interface SdkFailureContext {
   durationMs?: number
   contextUsed?: number
   contextLimit?: number | null
+  /** send 前快照 used tokens（轮转后 peak 清零时供归因） */
+  preSendUsedTokens?: number
+  /** send 前快照 used/limit，可 >1 */
+  preSendUsageRatio?: number
   /** 由调用方传入 isRunTimeoutFailure 结果，本模块不 import finalizer */
   isTimeoutFailure: boolean
 }
@@ -71,6 +75,15 @@ function isContextExhaustedByUsage(
   return contextUsed / contextLimit >= CONTEXT_EXHAUSTED_RATIO
 }
 
+/** pre-send 快照≥95%：不依赖 error 态，peak 清零后仍可判定上下文已满 */
+function isContextExhaustedByPreSend(ctx: SdkFailureContext): boolean {
+  if (ctx.preSendUsageRatio != null && ctx.preSendUsageRatio >= CONTEXT_EXHAUSTED_RATIO) return true
+  if (ctx.preSendUsedTokens != null && ctx.contextLimit != null && ctx.contextLimit > 0) {
+    return ctx.preSendUsedTokens / ctx.contextLimit >= CONTEXT_EXHAUSTED_RATIO
+  }
+  return false
+}
+
 /** F3.2：末次 shell 仍 running + 长 duration + 不安全 message */
 function isKeepaliveTimeout(ctx: SdkFailureContext): boolean {
   const lt = ctx.lastTool
@@ -118,6 +131,10 @@ export function formatUserSdkFailureMessage(ctx: SdkFailureContext): string {
     matchesContextExhaustion(ctx.message, ctx.errorCode) ||
     isContextExhaustedByUsage(ctx.contextUsed, ctx.contextLimit, isError)
   ) {
+    return "⚠️ 上下文窗口已接近或达到上限，请精简需求或开启新话题后重新发送。"
+  }
+
+  if (isContextExhaustedByPreSend(ctx)) {
     return "⚠️ 上下文窗口已接近或达到上限，请精简需求或开启新话题后重新发送。"
   }
 

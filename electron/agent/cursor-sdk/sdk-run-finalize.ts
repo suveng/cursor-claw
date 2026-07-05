@@ -38,6 +38,8 @@ function formatSdkStreamFailure(
     runResult?: string
     contextUsed?: number
     contextLimit?: number | null
+    preSendUsedTokens?: number
+    preSendUsageRatio?: number
     isTimeoutFailure?: boolean
   },
 ): string {
@@ -50,6 +52,8 @@ function formatSdkStreamFailure(
     durationMs: ctx?.durationMs,
     contextUsed: ctx?.contextUsed,
     contextLimit: ctx?.contextLimit,
+    preSendUsedTokens: ctx?.preSendUsedTokens,
+    preSendUsageRatio: ctx?.preSendUsageRatio,
     isTimeoutFailure: ctx?.isTimeoutFailure ?? false,
   })
 }
@@ -85,7 +89,29 @@ export async function notifySdkFailure(
     runResult: run?.result ?? session.run?.result,
     contextUsed,
     contextLimit: session.contextLimitTokens ?? null,
+    preSendUsedTokens: session.lastPreSendUsedTokens,
+    preSendUsageRatio: session.lastPreSendUsageRatio,
     isTimeoutFailure: run ? isRunTimeoutFailure(session, run, last) : false,
+  })
+  const footer = formatContextFooter(
+    session.contextUsage,
+    session.contextLimitTokens ?? null,
+    session.contextUsagePeakTokens,
+    session.contextUsageFromRunTotal,
+  )
+  text = appendContextFooter(text, footer)
+  await notifySessionChat(session.sessionKey, text, true)
+}
+
+/** pre-send 上下文已满阻断：即时 IM，复用 T4 文案器 */
+export async function notifyPreSendContextFailure(session: SdkSessionAgent): Promise<void> {
+  if (session.errorNotified || session.abortController.signal.aborted) return
+  session.errorNotified = true
+  let text = formatUserSdkFailureMessage({
+    preSendUsedTokens: session.lastPreSendUsedTokens,
+    preSendUsageRatio: session.lastPreSendUsageRatio,
+    contextLimit: session.contextLimitTokens ?? null,
+    isTimeoutFailure: false,
   })
   const footer = formatContextFooter(
     session.contextUsage,

@@ -61,6 +61,9 @@ async function maybeRotateSessionForPressure(
   originalText: string,
 ): Promise<{ text: string; rotated: boolean }> {
   const pressure = evaluatePreSendContextPressure(session, pushUiLog)
+  // 每次 pre-send 覆盖快照，供 context_blocked 阻断与失败归因（轮转清零 peak 后仍可读）
+  session.lastPreSendUsedTokens = pressure.used
+  session.lastPreSendUsageRatio = pressure.ratio ?? undefined
   const ratio = pressure.ratio ?? 0
   const decision = maybeRotateContext({ sessionKey: session.sessionKey, usageRatio: ratio, nowMs: Date.now() })
   if (!decision.rotated) return { text: originalText, rotated: false }
@@ -122,6 +125,13 @@ export async function sendWithRetry(
       const rotatedResult = await maybeRotateSessionForPressure(session, text)
       text = rotatedResult.text
       rotated = rotatedResult.rotated
+      // ratio≥100% 且轮转未成功：立即阻断，不进入 agent.send
+      const preSendRatio = session.lastPreSendUsageRatio ?? 0
+      if (preSendRatio >= 1.0 && !rotated) {
+        session.lastDispatchAttempts = 1
+        pushUiLog("SDK", "WARN", `[${session.sessionKey}] pre-send context_blocked ratio=${preSendRatio}`)
+        return { attempts: 1, finalReason: "context_blocked", rotated: false }
+      }
     }
     const idempotencyKey = buildIdempotencyKey(session.sessionKey, resolveLastInboundId(session), attempt)
     try {

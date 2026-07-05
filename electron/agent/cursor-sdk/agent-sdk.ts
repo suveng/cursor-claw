@@ -12,7 +12,7 @@ import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loade
 import { ensureSdkThirdPartyPluginPatch } from "./ensure-sdk-plugin-patch"
 import { acquireRunGuard, completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import { ensureAgentSdkHttpServer } from "./agent-sdk-http"
-import { notifyDispatchFailure } from "./sdk-run-finalize"
+import { notifyDispatchFailure, notifyPreSendContextFailure } from "./sdk-run-finalize"
 import { sendWithRetry } from "./sdk-run-dispatch"
 import { startSdkRun, stopSdkSession, stopAllSdkSessions } from "./sdk-run-lifecycle"
 import {
@@ -31,6 +31,7 @@ import {
   resetSdkRunPresentationState,
   sdkResidentModeEnabled,
   sdkSessions,
+  warnIfSharedWorkspaceDir,
 } from "./sdk-session-registry"
 import type { SdkLaunchOptions } from "./sdk-session-types"
 import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
@@ -173,6 +174,7 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     }
     sdkSessions.set(sessionKey, session)
     pendingLaunches.delete(sessionKey)
+    warnIfSharedWorkspaceDir(session.workspaceDir, sessionKey)
     broadcastLog(`[SDK] 会话 ${sessionKey} 已创建, agentId=${agent.agentId}`)
     broadcastSdkSessionStatus()
 
@@ -191,6 +193,9 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
       completeRunGuard(sessionKey, guard.token)
       releaseRunGuard(sessionKey, guard.token)
       session.runGuardToken = undefined
+      if (sendResult.finalReason === "context_blocked") {
+        await notifyPreSendContextFailure(session)
+      }
       try { session.agent.close() } catch { /* best-effort */ }
       sdkSessions.delete(sessionKey)
       broadcastSdkSessionStatus()
@@ -242,6 +247,7 @@ export async function dispatchToSdkAgent(
   session.pendingDispatch = true
   try {
     resetSdkRunPresentationState(session)
+    warnIfSharedWorkspaceDir(session.workspaceDir, sessionKey)
     await resolveContextLimitForSession(session)
     evaluatePreSendContextPressure(session, pushUiLog)
     const sendResult = await sendWithRetry(session, text)
@@ -250,6 +256,9 @@ export async function dispatchToSdkAgent(
       releaseRunGuard(sessionKey, guard.token)
       session.runGuardToken = undefined
       session.pendingDispatch = false
+      if (sendResult.finalReason === "context_blocked") {
+        await notifyPreSendContextFailure(session)
+      }
       if (sendResult.finalReason === "agent_busy") {
         return { ok: false, error: `agent busy|retry_after=${sendResult.busyDelayMs ?? 1500}` }
       }

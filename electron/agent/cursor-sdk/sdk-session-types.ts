@@ -62,6 +62,13 @@ export interface SdkSessionAgent {
   contextUsageFinalized?: boolean
   /** 模型上下文上限（session 级缓存，跨 Run 复用） */
   contextLimitTokens?: number
+  /**
+   * send 前最后一次压力评估 used tokens；轮转清零 peak 后仍供失败归因。
+   * 每次 dispatch pre-send 覆盖，不清零至下次 pre-send。
+   */
+  lastPreSendUsedTokens?: number
+  /** send 前最后一次 used/limit 比例，可 >1 表示 ≥100% 占用；语义同 lastPreSendUsedTokens */
+  lastPreSendUsageRatio?: number
   /** 当前模型 id，供 resolveModelContextLimit */
   modelId?: string
   /** 当前模型参数，供 context rotation 重建 agent */
