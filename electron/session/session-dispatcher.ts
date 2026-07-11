@@ -137,6 +137,21 @@ export async function handleSessionClosed(sessionKey: string, chatType: ChatType
 
 // ── 名称解析 ──────────────────────────────────────────────
 
+/** 拉名失败 WARN 节流（同进程，避免 status poll 刷屏） */
+let lastFetchNameWarnAt = 0
+const FETCH_NAME_WARN_INTERVAL_MS = 30_000
+
+/** 拉名 catch 至少 WARN；节流后仍可丢弃重复日志，但不可全静默 */
+function warnFetchNameFailed(kind: "chat-names" | "user-names", e: unknown): void {
+  const now = Date.now()
+  if (now - lastFetchNameWarnAt < FETCH_NAME_WARN_INTERVAL_MS) return
+  lastFetchNameWarnAt = now
+  broadcastLog(
+    `[ChatName] ${kind} 失败: ${e instanceof Error ? e.message : String(e)}`,
+    "WARN",
+  )
+}
+
 export async function fetchChatNames(chatIds: string[]): Promise<void> {
   const missing = chatIds.filter((id) => id && !chatNameCache.has(id))
   if (missing.length === 0) return
@@ -147,7 +162,9 @@ export async function fetchChatNames(chatIds: string[]): Promise<void> {
     if (res?.names) {
       for (const [id, name] of Object.entries(res.names)) chatNameCache.set(id, name)
     }
-  } catch { /* ignore */ }
+  } catch (e: unknown) {
+    warnFetchNameFailed("chat-names", e)
+  }
 }
 
 export async function fetchUserNames(openIds: string[]): Promise<void> {
@@ -160,7 +177,9 @@ export async function fetchUserNames(openIds: string[]): Promise<void> {
     if (res?.names) {
       for (const [id, name] of Object.entries(res.names)) chatNameCache.set(id, name)
     }
-  } catch { /* ignore */ }
+  } catch (e: unknown) {
+    warnFetchNameFailed("user-names", e)
+  }
 }
 
 // ── 消息队列 ──────────────────────────────────────────────

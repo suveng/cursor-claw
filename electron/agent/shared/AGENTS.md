@@ -15,7 +15,7 @@
 
 ## 模块边界
 
-- `agent-launcher.ts`：仅 `ChatType` / `buildPrompt` / `resolveSessionChatName` 等跨引擎共享符号；`buildPrompt` 有名时首行注入 `group_name:`，无名透传 `taskMessage`（不写空占位、不注入 rules）；**无** CLI spawn。
+- `agent-launcher.ts`：仅 `ChatType` / `buildPrompt` / `resolveSessionChatName` 等跨引擎共享符号；`buildPrompt` **只**透传 `taskMessage` 正文（不首行注入 `group_name:`、不写占位、不注入 rules）；**禁止**再为 Prompt 组装挂 `pushUiLog group_name=`；`resolveSessionChatName` 仅服务会话状态广播，**不是** Prompt 注入入口；**无** CLI spawn。
 - `agent-run-guard.ts`：Run 并发闩与 watchdog 时钟。
 - `tool-presentation-dedup.ts`：跨引擎 tool running 去重与 Task 双推抑制（SDK/CC 共用 `ToolPresentationDedupSession` 切片）。
 - `retry-policy.ts`：幂等键与重试策略。
@@ -25,5 +25,5 @@
 
 - 配置/UI 日志分别走 `../../config/config-store`、`../../app/ui-logger`。
 - 挂接点函数在 `../cursor-sdk/` 实现，本目录仅提供 `archiveAgentFailureLogs`。
-- `buildPrompt` 末参可选、向后兼容；四引擎 launch/dispatch **直接透传**既有字段，禁止另抽 Prompt 组装 helper / 中间层。
+- `buildPrompt` 兼容参数位可保留但**勿**再传 `chatName`/`senderOpenId`（二者留给 session 广播）；四引擎 launch/dispatch 禁止另抽 Prompt 组装 helper / 中间层。
 - 单文件 ≤300 行；本目录不新增 pub 依赖。

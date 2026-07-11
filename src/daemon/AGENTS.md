@@ -14,12 +14,25 @@
 - bridge 域：`../bridge/file-queue.js`、`../bridge/wechat-manager.js`、`../bridge/lark-core.js`
 - workflow 域：`../workflow/server-workflow.js`
 - shared 跨域类型：`../shared/channel-types.js`、`../shared/feishu-presentation-gate.js`、`../shared/tool-presentation.js`、`../shared/constants.js`
-- 域内同目录：`./daemon-presentation-milestone.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`
+- 域内同目录：`./daemon-presentation-milestone.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`
+
+## Orchestrator launch 名称透传
+
+- **IM → Electron launch**：`dispatchSessionToAgent` 在 `forwardElectronAgentApi("/api/agent/launch")` **之前**须 await 解析名称；有名则 body 带 `chat_name`，无名 **omit 字段**（不传空串）。
+- **解析落点**：`chat-name-resolve.ts`（仅解析函数，≤300 行）；复用与 `/api/chat-names`、`/api/user-names` 同等 Lark client 调用；**禁止**为此大拆 `daemon.ts`。
+- **失败策略**：拉名异常 `log("WARN", …)`，**不阻断** launch。
+
+## 入队正文 group_name 拼尾
+
+- **落点**：`pushMessage` 在 `pushToFileQueue` **之前** await `resolveLaunchChatName`；有名则 `content` 末尾 append `\ngroup_name: <名称>`，无名/失败不拼、不阻断入队。
+- **语义**：群聊=群名，私聊=对方显示名；解析复用 `chat-name-resolve.ts`，禁止另起拉名体系。
+- **`pushMessage` 为 async**：同步回调处须 `.catch`；已在 async 路径（飞书 enqueue、`/enqueue`）则 `await`。
 
 ## 禁止
 
 - 禁止 barrel `index.ts` 或 re-export shim
 - 枢纽文件改动以 import 路径为主；业务逻辑变更须独立变更单
+- **不拆** `daemon.ts` 既有业务逻辑（历史超限）；新增辅助仅同目录小文件、单职责
 
 ---
 

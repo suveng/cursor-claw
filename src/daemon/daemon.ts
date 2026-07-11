@@ -49,6 +49,7 @@ import {
   sendMilestoneText,
   clearMilestoneState,
 } from "./daemon-presentation-milestone.js";
+import { resolveLaunchChatName } from "./chat-name-resolve.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
@@ -272,7 +273,9 @@ function initWeChatChannel(rt: ChannelRuntime): WeChatManager {
         );
         return;
       }
-      pushMessage(msg.text, msg.messageId, chatKey, msg.chatType, msg.senderOpenId);
+      pushMessage(msg.text, msg.messageId, chatKey, msg.chatType, msg.senderOpenId).catch((e: unknown) =>
+        log("WARN", `[WeChat:${rt.cfg.name}] 入队失败: ${e instanceof Error ? e.message : e}`),
+      );
     },
     onQrCode: (dataUrl) => {
       process.stdout.write(`__WECHAT_QR__:${channelId}:${dataUrl}\n`);
@@ -1239,7 +1242,16 @@ async function dispatchSessionToAgent(sessionKey: string, chatType: string, send
   sessionAgentPhaseMap.set(sessionKey, "starting");
   await notifySessionUser(sessionKey, "正在启动");
 
-  const result = await forwardElectronAgentApi("/api/agent/launch", {
+  // launch 前按 chat_type 解析名称并透传 chat_name；失败 WARN 不阻断
+  const chatName = await resolveLaunchChatName({
+    chatType,
+    chatId,
+    senderOpenId,
+    channels,
+    logWarn: (msg) => log("WARN", msg),
+  });
+
+  const launchBody: Record<string, unknown> = {
     session_key: sessionKey,
     task_text: claimed.text,
     chat_type: chatType,
@@ -1247,7 +1259,11 @@ async function dispatchSessionToAgent(sessionKey: string, chatType: string, send
     sender_open_id: senderOpenId,
     use_main_workspace: mainUser,
     message_ids: claimed.message_ids,
-  });
+  };
+  // 有名才带字段；无名 omit（不传空串）
+  if (chatName) launchBody.chat_name = chatName;
+
+  const result = await forwardElectronAgentApi("/api/agent/launch", launchBody);
 
   if (result.ok) {
     if (chatId !== sessionKey) setActiveSession(chatId, sessionKey);
@@ -2085,7 +2101,11 @@ function startMediaCacheCleanup(): void {
   setInterval(sweep, 6 * 60 * 60 * 1000).unref();
 }
 
-function pushMessage(content: string, messageId?: string, chatId?: string, chatType?: string, senderOpenId?: string, replyMessageId?: string, meta?: QueueMessageMeta): void {
+/**
+ * 写入文件队列。入队前按 chat_type 解析名称并 append `\ngroup_name: <名称>`；
+ * 无名/失败保持原文，WARN 不阻断入队。
+ */
+async function pushMessage(content: string, messageId?: string, chatId?: string, chatType?: string, senderOpenId?: string, replyMessageId?: string, meta?: QueueMessageMeta): Promise<void> {
   if (!content?.trim()) {
     log("WARN", `丢弃空消息 (messageId=${messageId})`);
     return;
@@ -2101,13 +2121,33 @@ function pushMessage(content: string, messageId?: string, chatId?: string, chatT
       routedId = defaultSessionKey;
     }
   }
+
+  // 有 chatType 才拉名；有名拼尾，失败/无名不拼、不阻断
+  let queueContent = content;
+  if (chatType) {
+    try {
+      const resolvedName = await resolveLaunchChatName({
+        chatType,
+        chatId: chatId ?? "",
+        senderOpenId,
+        channels,
+        logWarn: (msg) => log("WARN", msg),
+      });
+      if (resolvedName) {
+        queueContent = `${content}\ngroup_name: ${resolvedName}`;
+      }
+    } catch (e: unknown) {
+      log("WARN", `入队前名称解析异常 messageId=${messageId ?? "none"}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   const fullMeta: QueueMessageMeta = { ...(meta || {}) };
   if (chatType) fullMeta.chatType = chatType;
   if (senderOpenId) fullMeta.senderOpenId = senderOpenId;
-  const written = pushToFileQueue(content, messageId, `daemon-${process.pid}`, routedId, false, Object.keys(fullMeta).length > 0 ? fullMeta : undefined);
+  const written = pushToFileQueue(queueContent, messageId, `daemon-${process.pid}`, routedId, false, Object.keys(fullMeta).length > 0 ? fullMeta : undefined);
   if (written) {
     if (routedId && fullMeta.chatType) rememberSessionChatType(routedId, fullMeta.chatType);
-    log("INFO", `消息已写入共享队列: ${JSON.stringify(content)} (id=${messageId ?? "none"}, chat=${chatId ?? "none"}${routedId !== chatId ? ` → routed=${routedId}` : ""}${replyMessageId ? `, reply=${replyMessageId}` : ""})`);
+    log("INFO", `消息已写入共享队列: ${JSON.stringify(queueContent)} (id=${messageId ?? "none"}, chat=${chatId ?? "none"}${routedId !== chatId ? ` → routed=${routedId}` : ""}${replyMessageId ? `, reply=${replyMessageId}` : ""})`);
     broadcastQueueEvent(routedId);
     if (messageId && !messageId.startsWith("internal_") && routedId) {
       if (fullMeta.chatType === "p2p") {
@@ -2265,7 +2305,7 @@ async function startFeishuChannel(rt: ChannelRuntime): Promise<void> {
         );
         if (handled) return;
       }
-      pushMessage(content, messageId, chatKey, chatType, senderOpenId, parentId, meta);
+      await pushMessage(content, messageId, chatKey, chatType, senderOpenId, parentId, meta);
     };
 
     if (messageType === "text") {
@@ -2651,9 +2691,9 @@ function startHttpServer(): Promise<number> {
           const chatType = typeof body.chatType === "string" ? body.chatType : "p2p";
           const internalMsgId = `internal_enqueue_${Date.now()}`;
           if (chatId) {
-            pushMessage(content, internalMsgId, chatId, chatType);
+            await pushMessage(content, internalMsgId, chatId, chatType);
           } else {
-            pushMessage(content, internalMsgId);
+            await pushMessage(content, internalMsgId);
           }
           json(res, { ok: true, queueLength: getFileQueueLength() });
           return;
@@ -3515,7 +3555,9 @@ export async function daemonMain(): Promise<void> {
       const rt = pickChannel(task.channelId);
       const target = rt ? channelDefaultChatId(rt) : null;
       if (rt && target) {
-        pushMessage(content, `internal_${task.id}_${Date.now()}`, makeChatKey(rt.cfg.id, target), "p2p");
+        pushMessage(content, `internal_${task.id}_${Date.now()}`, makeChatKey(rt.cfg.id, target), "p2p").catch((e: unknown) =>
+          log("WARN", `定时任务「${task.name}」入队失败: ${e instanceof Error ? e.message : e}`),
+        );
       } else {
         log("WARN", `定时任务「${task.name}」消息无法入队: 通道无主用户且无私聊记录`);
       }

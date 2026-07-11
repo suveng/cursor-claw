@@ -24,3 +24,5 @@
 
 - 四引擎 HTTP 路由 import 自 `../agent/{cursor-sdk,claude-code,codex,opencode}/`；**禁止**旧扁平路径。
 - **禁止**在本目录 spawn Agent。
+- `fetchChatNames` / `fetchUserNames` 失败 **不可**全静默：catch 至少 `broadcastLog` WARN（允许同进程节流防刷屏）。
+- `chatName` / `senderOpenId` 透传 launch 仅服务会话列表/广播解析；**禁止**再假定由本目录驱动 `buildPrompt` 首行注入。

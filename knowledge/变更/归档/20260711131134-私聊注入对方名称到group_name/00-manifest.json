@@ -1,0 +1,276 @@
+{
+  "name": "私聊注入对方名称到group_name",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "buildPrompt 传 senderOpenId 与四引擎 launch/dispatch 对齐",
+      "status": "cancelled",
+      "files": [
+        "electron/agent/shared/agent-launcher.ts",
+        "electron/agent/cursor-sdk/agent-sdk.ts",
+        "electron/agent/claude-code/agent-claude-sdk.ts",
+        "electron/agent/codex/agent-codex-sdk.ts",
+        "electron/agent/opencode/agent-opencode-sdk.ts"
+      ],
+      "depends_on": [],
+      "cancelled_reason": "已作废（Rev1）：仅服务 Prompt 首行 group_name 注入，改入队正文末尾"
+    },
+    {
+      "id": "T2",
+      "title": "FEISHU_MENU 扫码增量补 contact 权限",
+      "status": "done",
+      "files": [
+        "src/shared/feishu-addons.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T-FIX-1",
+      "title": "Daemon launch 前解析并透传 chat_name",
+      "status": "cancelled",
+      "files": [
+        "src/daemon/daemon.ts",
+        "src/daemon/chat-name-resolve.ts",
+        "src/daemon/AGENTS.md"
+      ],
+      "depends_on": [],
+      "cancelled_reason": "已作废（Rev1）：仅服务 Prompt 首行 group_name 注入，改入队正文末尾"
+    },
+    {
+      "id": "T-FIX-2",
+      "title": "可观测 + fetch 失败 WARN",
+      "status": "cancelled",
+      "files": [
+        "electron/agent/shared/agent-launcher.ts",
+        "electron/session/session-dispatcher.ts",
+        "electron/agent/shared/AGENTS.md",
+        "electron/session/AGENTS.md"
+      ],
+      "depends_on": [],
+      "cancelled_reason": "已作废（Rev1）：仅服务 Prompt 首行 group_name 注入，改入队正文末尾"
+    },
+    {
+      "id": "T-Rev1-01",
+      "title": "Daemon pushMessage 入队前解析名称并 append group_name",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon.ts",
+        "src/daemon/chat-name-resolve.ts",
+        "src/daemon/AGENTS.md"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T-Rev1-02",
+      "title": "去掉 buildPrompt 首行 group_name 注入及相关透传/日志",
+      "status": "done",
+      "files": [
+        "electron/agent/shared/agent-launcher.ts",
+        "electron/agent/shared/AGENTS.md",
+        "electron/session/AGENTS.md",
+        "electron/agent/cursor-sdk/agent-sdk.ts",
+        "electron/agent/claude-code/agent-claude-sdk.ts",
+        "electron/agent/codex/agent-codex-sdk.ts",
+        "electron/agent/opencode/agent-opencode-sdk.ts"
+      ],
+      "depends_on": []
+    }
+  ],
+  "reviews": [],
+  "review_conclusion": "pass",
+  "review_level": "focused-review",
+  "revisions": [
+    {
+      "id": "Rev1",
+      "status": "completed",
+      "date": "2026-07-11",
+      "summary": "入队正文末尾拼 group_name；废止 buildPrompt 首行注入",
+      "task_ids": [
+        "T-Rev1-01",
+        "T-Rev1-02"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/00-manifest.json",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/01-proposal.md",
+      "kind": "change_doc",
+      "source": "revise",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/02-design.md",
+      "kind": "change_doc",
+      "source": "revise",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/03-tasks.md",
+      "kind": "change_doc",
+      "source": "revise-apply",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/07-prd-revisions.md",
+      "kind": "change_doc",
+      "source": "revise-apply",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/04-review.md",
+      "kind": "change_doc",
+      "source": "review",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/05-summary.md",
+      "kind": "change_doc",
+      "source": "archive",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "test",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/08-verify-issue.md",
+      "kind": "change_doc",
+      "source": "review",
+      "status": "archived"
+    },
+    {
+      "path": "electron/agent/shared/agent-launcher.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-claude-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/shared/AGENTS.md",
+      "kind": "other",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/session-dispatcher.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/AGENTS.md",
+      "kind": "other",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/shared/feishu-addons.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/shared/AGENTS.md",
+      "kind": "other",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/chat-name-resolve.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "other",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/02-飞书通道.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.14.2.json",
+      "kind": "other",
+      "source": "archive",
+      "status": "changed"
+    }
+  ],
+  "updated_at": "2026-07-11T18:44:00+08:00",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "Feature",
+    "priority": "P2",
+    "registry_skip": true,
+    "notifications_skip": true,
+    "skip_reason": "kb.project.json integrations 未启用",
+    "acceptance": {
+      "rounds": [
+        {
+          "round": 1,
+          "feedback": "私聊未见 group_name 注入；最终 Prompt 应可观测打印；群聊同样未注入 group_name",
+          "created_at": "2026-07-11T17:40:44+08:00"
+        }
+      ]
+    }
+  },
+  "archived_at": "2026-07-11T18:44:00+08:00"
+}
