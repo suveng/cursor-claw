@@ -1,7 +1,7 @@
 {
   "name": "私聊注入对方名称到group_name",
   "flow": "standard",
-  "stage": "archived",
+  "stage": "acceptance_reopened",
   "source": "kb-propose",
   "workflow_version": "v2.6",
   "tasks": [
@@ -32,46 +32,52 @@
   "revisions": [],
   "files": [
     {
-      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/00-manifest.json",
+      "path": "knowledge/变更/进行中/20260711131134-私聊注入对方名称到group_name/00-manifest.json",
       "kind": "change_doc",
       "source": "propose",
       "status": "active"
     },
     {
-      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/01-proposal.md",
+      "path": "knowledge/变更/进行中/20260711131134-私聊注入对方名称到group_name/01-proposal.md",
       "kind": "change_doc",
       "source": "propose",
       "status": "active"
     },
     {
-      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/02-design.md",
+      "path": "knowledge/变更/进行中/20260711131134-私聊注入对方名称到group_name/02-design.md",
       "kind": "change_doc",
       "source": "design",
       "status": "active"
     },
     {
-      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/03-tasks.md",
+      "path": "knowledge/变更/进行中/20260711131134-私聊注入对方名称到group_name/03-tasks.md",
       "kind": "change_doc",
       "source": "plan",
       "status": "active"
     },
     {
-      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/04-review.md",
+      "path": "knowledge/变更/进行中/20260711131134-私聊注入对方名称到group_name/04-review.md",
       "kind": "change_doc",
       "source": "review",
       "status": "active"
     },
     {
-      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/05-summary.md",
+      "path": "knowledge/变更/进行中/20260711131134-私聊注入对方名称到group_name/05-summary.md",
       "kind": "change_doc",
       "source": "archive",
       "status": "active"
     },
     {
-      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/06-automation-test.md",
+      "path": "knowledge/变更/进行中/20260711131134-私聊注入对方名称到group_name/06-automation-test.md",
       "kind": "change_doc",
       "source": "test",
       "status": "active"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260711131134-私聊注入对方名称到group_name/08-verify-issue.md",
+      "kind": "change_doc",
+      "source": "review",
+      "status": "changed"
     },
     {
       "path": "electron/agent/shared/agent-launcher.ts",
@@ -146,8 +152,7 @@
       "status": "added"
     }
   ],
-  "archived_at": "2026-07-11T13:31:52+0800",
-  "updated_at": "2026-07-11T13:31:52+0800",
+  "updated_at": "2026-07-11T17:40:44+08:00",
   "external": {
     "figma_confirmed": true,
     "figma_decision": "auto-none",
@@ -155,6 +160,15 @@
     "priority": "P2",
     "registry_skip": true,
     "notifications_skip": true,
-    "skip_reason": "kb.project.json integrations 未启用"
+    "skip_reason": "kb.project.json integrations 未启用",
+    "acceptance": {
+      "rounds": [
+        {
+          "round": 1,
+          "feedback": "私聊未见 group_name 注入；最终 Prompt 应可观测打印；群聊同样未注入 group_name",
+          "created_at": "2026-07-11T17:40:44+08:00"
+        }
+      ]
+    }
   }
 }
