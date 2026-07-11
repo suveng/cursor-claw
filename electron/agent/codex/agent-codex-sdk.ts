@@ -190,7 +190,7 @@ export async function launchCodexAgent(opts: CodexLaunchOptions): Promise<{ ok: 
 
     maybeRotateCodexSessionContext(session)
 
-    const prompt = buildPrompt(meta, taskMessage, sessionKey, useMainWorkspace)
+    const prompt = buildPrompt(meta, taskMessage, sessionKey, useMainWorkspace, chatName)
     pushUiLog("Codex", "INFO", `[${sessionKey}] 启动 Codex (model=${session.model || modelId} apiKey=${maskCodexApiKey(session.apiKey)} resident=${residentMode})`)
 
     session.pendingDispatch = true
@@ -237,7 +237,7 @@ export async function dispatchToCodexAgent(
     session.runStartedAt = Date.now()
 
     const mcpInline = loadCodexMcpServers(session.workspaceDir ?? "")
-    const prompt = buildPrompt(session.meta, taskText, sessionKey, session.useMainWorkspace)
+    const prompt = buildPrompt(session.meta, taskText, sessionKey, session.useMainWorkspace, session.chatName)
     pushUiLog("Codex", "INFO", `[${sessionKey}] dispatch Codex (resume=${session.codexSessionId ?? "new"})`)
     startCodexRun(session, prompt, guard.token, mcpInline)
 

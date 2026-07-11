@@ -1,0 +1,100 @@
+{
+  "name": "Agent注入群聊名提示词",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "在发给 agent 的提示词首行注入 group_name",
+      "status": "done",
+      "files": [
+        "electron/agent/shared/agent-launcher.ts",
+        "electron/agent/cursor-sdk/agent-sdk.ts",
+        "electron/agent/claude-code/agent-claude-sdk.ts",
+        "electron/agent/codex/agent-codex-sdk.ts",
+        "electron/agent/opencode/agent-opencode-sdk.ts",
+        "electron/agent/shared/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260711095806-Agent注入群聊名提示词/00-manifest.json",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711095806-Agent注入群聊名提示词/01-proposal.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711095806-Agent注入群聊名提示词/05-summary.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/shared/agent-launcher.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-sdk.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-claude-sdk.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-sdk.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-sdk.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/shared/AGENTS.md",
+      "kind": "config",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.14.0.json",
+      "kind": "other",
+      "source": "archive",
+      "status": "changed"
+    }
+  ],
+  "archived_at": "2026-07-11T10:08:00+08:00",
+  "updated_at": "2026-07-11T10:08:00+08:00"
+}

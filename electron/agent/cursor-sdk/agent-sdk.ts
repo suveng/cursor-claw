@@ -101,8 +101,8 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
       return { ok: true }
     }
     if (taskMessage?.trim()) {
-      const prompt = buildPrompt(meta, taskMessage, sessionKey, opts.useMainWorkspace)
-      return dispatchToSdkAgent(sessionKey, prompt, meta?.messageIds)
+      // 原始 taskMessage 交给 dispatch，由 buildPrompt 统一注入 group_name（避免双重注入）
+      return dispatchToSdkAgent(sessionKey, taskMessage, meta?.messageIds)
     }
     return { ok: true }
   }
@@ -122,7 +122,7 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     return { ok: false, error: "通道绑定的 SDK 资源未配置 API Key（设置 → Agent）" }
   }
 
-  const prompt = buildPrompt(meta, taskMessage, sessionKey, opts.useMainWorkspace)
+  const prompt = buildPrompt(meta, taskMessage, sessionKey, opts.useMainWorkspace, chatName)
 
   try {
     ensureSdkBinaryPaths()
@@ -230,14 +230,15 @@ export async function dispatchToSdkAgent(
   messageIds?: string[],
 ): Promise<{ ok: boolean; error?: string }> {
   ensureAgentSdkHttpServer()
-  const text = taskText?.trim()
-  if (!text) return { ok: false, error: "empty task" }
-
   const session = sdkSessions.get(sessionKey)
   if (!session || session.abortController.signal.aborted) {
     pushUiLog("SDK", "ERROR", `[${sessionKey}] dispatch_failed: no resident agent`)
     return { ok: false, error: "no resident agent" }
   }
+  // 与 launch 共用 buildPrompt，保证 HTTP dispatch 也注入 group_name
+  const text = buildPrompt(undefined, taskText, sessionKey, undefined, session.chatName).trim()
+  if (!text) return { ok: false, error: "empty task" }
+
   if (isSdkSessionProcessing(session)) return { ok: false, error: "agent busy" }
 
   session.inboundMessageIds = messageIds?.length ? messageIds : undefined
