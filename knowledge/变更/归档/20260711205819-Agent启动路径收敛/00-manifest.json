@@ -1,0 +1,175 @@
+{
+  "change_id": "20260711205819-Agent启动路径收敛",
+  "id": "20260711205819-Agent启动路径收敛",
+  "name": "Agent启动路径收敛",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-11T20:58:19+0800",
+  "updated_at": "2026-07-11T21:06:31+0800",
+  "archived_at": "2026-07-11T21:06:31+0800",
+  "related_changes": [
+    "20260711203953-巨型单体拆分"
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "统一 launchAgent 经统一网关",
+      "status": "done",
+      "files": [
+        "electron/session/session-dispatcher.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "initSessionDispatcher 引擎服务懒加载",
+      "status": "done",
+      "files": [
+        "electron/session/session-dispatcher.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "shared launch-request 解析收敛",
+      "status": "deferred",
+      "files": [],
+      "depends_on": []
+    },
+    {
+      "id": "T4",
+      "title": "知识库更新全路径统一网关",
+      "status": "done",
+      "files": [
+        "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+        "knowledge/业务域/Agent调度/00-README.md"
+      ],
+      "depends_on": [
+        "T1",
+        "T2"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "AGENTS.md 工程约定沉淀",
+      "status": "done",
+      "files": [
+        "electron/session/AGENTS.md",
+        "electron/AGENTS.md",
+        "electron/agent/cursor-sdk/AGENTS.md",
+        "electron/daemon/AGENTS.md"
+      ],
+      "depends_on": [
+        "T1",
+        "T2"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260711205819-Agent启动路径收敛/00-manifest.json",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205819-Agent启动路径收敛/01-proposal.md",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205819-Agent启动路径收敛/02-design.md",
+      "kind": "change_doc",
+      "source": "kb-design",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205819-Agent启动路径收敛/03-tasks.md",
+      "kind": "change_doc",
+      "source": "kb-plan",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205819-Agent启动路径收敛/04-review.md",
+      "kind": "change_doc",
+      "source": "kb-review",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205819-Agent启动路径收敛/05-summary.md",
+      "kind": "change_doc",
+      "source": "kb-archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205819-Agent启动路径收敛/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "kb-test",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/session-dispatcher.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "kind": "knowledge",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/AGENTS.md",
+      "kind": "agents",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/AGENTS.md",
+      "kind": "agents",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "kind": "agents",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/daemon/AGENTS.md",
+      "kind": "agents",
+      "source": "kb-apply",
+      "status": "changed"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R-DEBT-01",
+      "severity": "warning",
+      "status": "accepted_debt",
+      "file": "electron/session/session-dispatcher.ts",
+      "summary": "文件 637 行超 AGENTS ≤300 规范；本期仅删直连分支未拆分，与 Orchestrator 变更同类处理",
+      "task_id": null,
+      "resolution": "后续「巨型单体拆分」变更处理；不阻断 archive"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "技术债",
+    "priority": "P1"
+  }
+}

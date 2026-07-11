@@ -10,6 +10,7 @@
 - **续接**：`sdk-run-recover.ts` — `recoverSdkActiveRuns`（`Agent.resume`+`Agent.getRun`→`startSdkRun`）；`notifyResumeFailure` 一次 IM 提示；`daemon/daemon-manager` init 挂接。
 - **呈现/收尾/分发**：`sdk-run-presentation.ts`（stream-text/PRESENTATION_ORDERING）、`sdk-run-finalize.ts`（超时/失败 notify）、`sdk-run-dispatch.ts`（sendWithRetry）、`sdk-resident-refresh.ts`（空闲刷新）、`sdk-opaque-retry.ts`（静默 ERROR 一次重试）。
 - **会话注册表**：`sdk-session-registry.ts`+`sdk-session-types.ts` — `sdkSessions` Map、`markSessionActivity`（含 watchdog 闩门控）、`runPhase`、`watchdogTimedOut?`；`agent-sdk.ts` re-export 查询 API。
+- **统一网关 SSOT**：`agent-sdk-http.ts` 的 `launchSdkAgentFromHttp` / `dispatchAgentFromHttp` 为四引擎 launch/dispatch 唯一网关；**双入口汇入** — IM 经 Daemon `forwardElectronAgentApi`→`/api/agent/launch|dispatch`，本地任务/工作流/`/chat new` 经 `session-dispatcher.launchAgent` 进程内调用 `launchSdkAgentFromHttp`（避免 Electron→Daemon→Electron 三角跳转）。按 `resolveBoundAgentResourceType` 委托各引擎 handler。`ensureAgentSdkHttpServer` 由 `daemon-manager` init 常驻，端口 `userData/agent-api-port.json`。
 - `agent-sdk.ts`：SDK 生命周期与事件流；通知 daemon 时用 `daemon/daemon-client.httpPost`，避免与 `session/session-dispatcher` 循环 import。
 
 ## SDK 流式与 Presentation

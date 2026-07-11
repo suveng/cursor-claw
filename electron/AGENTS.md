@@ -24,7 +24,7 @@
 - **import**：使用相对子目录路径（如 `./agent/cursor-sdk/agent-sdk`）；**禁止** barrel `index.ts` 与 `@electron/*` 别名。
 - **单文件行数**：≤300 行（`daemon/daemon-manager.ts` 历史超限不拆分）。
 - **IPC**：通道名与 handler 行为不因目录迁移而变更；`preload.ts` 不 import 主进程内部模块。
-- **IM 调度**：Daemon `POST /api/agent/launch|dispatch` 经四引擎 HTTP 路由；无 CLI spawn。
+- **IM 调度**：四入口（IM、定时任务、工作流、`/chat new`）均经 `agent-sdk-http` `/api/agent/launch|dispatch`（IM 由 Daemon 转发，本地由 `launchSdkAgentFromHttp`）；`resolveBoundAgentResourceType` 路由四引擎；init 仅 `ensureAgentSdkHttpServer` 常驻，per-engine HTTP server 懒加载；无 CLI spawn。
 - **通道配置**：`MessageChannel` / `AgentResource` 变更须同步 `src/shared/channel-types.ts`、`preload.ts`、`env.d.ts`（详见 [config/AGENTS.md](config/AGENTS.md)）。
 - **SDK 可观测**：`handleSdkEvent` 写 `lastTool`；超时类 `isRunTimeoutFailure` 优先于 CANCELLED 文案（详见 [agent/cursor-sdk/AGENTS.md](agent/cursor-sdk/AGENTS.md)）。
 - **全局异常日志**：`main.ts` 的 `uncaughtException` / `unhandledRejection` **须**经 `src/shared/format-unknown-error` 的 `formatUnknownError` 输出，禁止内联 `instanceof Error` 退化。

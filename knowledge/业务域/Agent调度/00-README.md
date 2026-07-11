@@ -36,6 +36,7 @@
 |------|------|
 | 调度 | `electron/session/session-dispatcher.ts`、`electron/agent/cursor-sdk/agent-sdk.ts` |
 | Daemon 侧编排 | `src/daemon/daemon.ts` |
+| 回退栈 | `src/daemon/daemon-session-routing.ts` |
 | Daemon | `electron/daemon/daemon-manager.ts`、`electron/daemon/daemon-client.ts` |
 | 远程/Cron | `electron/scheduling/command-handler.ts`、`electron/scheduling/cron-scheduler.ts` |
 | Cursor | `electron/agent/cursor-sdk/agent-sdk.ts`、`electron/agent/cursor-sdk/sdk-run-*.ts`、`electron/mcp/loaders/mcp-sdk-loader.ts`、`electron/session/session-mcp-sdk-path.ts` |
@@ -44,7 +45,7 @@
 | OpenCode | `electron/agent/opencode/agent-opencode-sdk.ts`、`electron/agent/opencode/agent-opencode-*.ts`、`electron/mcp/loaders/opencode-mcp-loader.ts`、`electron/agent/opencode/opencode-failure-messages.ts` |
 | Session MCP | `electron/session/session-mcp-status.ts` |
 | 跨引擎 | `electron/agent/shared/agent-launcher.ts`、`electron/agent/shared/crash-log-archiver.ts` |
-| HTTP | `electron/agent/claude-code/agent-cc-http.ts`（cc）、`electron/agent/codex/agent-codex-http.ts`（codex）、`electron/agent/opencode/agent-opencode-http.ts`（opencode） |
+| HTTP | `electron/agent/cursor-sdk/agent-sdk-http.ts`（统一网关）、`electron/agent/claude-code/agent-cc-http.ts`（cc）、`electron/agent/codex/agent-codex-http.ts`（codex）、`electron/agent/opencode/agent-opencode-http.ts`（opencode） |
 | 配置 | `electron/config/config-store.ts`（`newOpencodeResourceId`/`isOpencodeResourceId`） |
 
 ## 变更记录

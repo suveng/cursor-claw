@@ -21,13 +21,13 @@ import {
 } from "../agent/cursor-sdk/agent-sdk"
 import {
   isClaudeCodeSessionRunning, stopClaudeCodeSession, stopAllClaudeCodeSessions,
-  getClaudeCodeSessionList, ensureClaudeCodeHttpServer, getCcAgentApiPort,
+  getClaudeCodeSessionList,
 } from "../agent/claude-code/agent-claude-sdk"
-import { ensureCodexHttpServer, getCodexAgentApiPort, isCodexSessionRunning, stopCodexSession, stopAllCodexSessions, getCodexSessionList } from "../agent/codex/agent-codex-sdk"
+import { isCodexSessionRunning, stopCodexSession, stopAllCodexSessions, getCodexSessionList } from "../agent/codex/agent-codex-sdk"
 import {
-  ensureOpencodeHttpServer, getOpencodeAgentApiPort,
   isOpencodeSessionRunning, stopOpencodeSession, stopAllOpencodeSessions, getOpencodeSessionList,
 } from "../agent/opencode/agent-opencode-sdk"
+import { launchSdkAgentFromHttp } from "../agent/cursor-sdk/agent-sdk-http"
 
 // ── readLockFile 短 TTL 缓存 ─────────────────────────────
 let _lockCache: { value: ReturnType<typeof readLockFile>; ts: number } | null = null
@@ -359,46 +359,8 @@ async function launchAgent(p: LaunchAgentParams): Promise<{ ok: boolean; error?:
     ...(p.meta?.messageIds?.length && { message_ids: p.meta.messageIds }),
   }
 
-  if (resource.type === "sdk") {
-    const lock = cachedLock()
-    if (!lock?.port) return { ok: false, error: "Daemon 未运行" }
-    try {
-      const res = await httpPost(`http://127.0.0.1:${lock.port}/api/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
-      return { ok: !!res?.ok, error: res?.error }
-    } catch (e: unknown) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
-    }
-  }
-  // Codex 引擎：独立 HTTP server
-  if (resource.type === "codex") {
-    const codexPort = getCodexAgentApiPort()
-    if (!codexPort) return { ok: false, error: "Codex Agent 引擎未启动" }
-    try {
-      const res = await httpPost(`http://127.0.0.1:${codexPort}/api/codex/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
-      return { ok: !!res?.ok, error: res?.error }
-    } catch (e: unknown) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
-    }
-  }
-  if (resource.type === "opencode") {
-    const opencodePort = getOpencodeAgentApiPort()
-    if (!opencodePort) return { ok: false, error: "OpenCode Agent 引擎未启动" }
-    try {
-      const res = await httpPost(`http://127.0.0.1:${opencodePort}/api/opencode/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
-      return { ok: !!res?.ok, error: res?.error }
-    } catch (e: unknown) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
-    }
-  }
-  // resource.type === "claude-code"
-  const ccPort = getCcAgentApiPort()
-  if (!ccPort) return { ok: false, error: "Claude Agent 引擎未启动" }
-  try {
-    const res = await httpPost(`http://127.0.0.1:${ccPort}/api/cc/agent/launch`, launchBody, 120_000) as { ok?: boolean; error?: string }
-    return { ok: !!res?.ok, error: res?.error }
-  } catch (e: unknown) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
-  }
+  // 统一经 agent-sdk-http 网关（resolveBoundAgentResourceType 路由四引擎），避免 Daemon 三角跳转或直 POST 各引擎独立端口
+  return launchSdkAgentFromHttp(launchBody)
 }
 
 export async function launchSessionAgent(
@@ -671,7 +633,5 @@ export function initSessionDispatcher(): void {
       `[${sessionKey}] group_name=${injected ? groupName : "未注入"} | ${preview}`,
     )
   })
-  ensureClaudeCodeHttpServer()
-  ensureCodexHttpServer()
-  ensureOpencodeHttpServer()
+  // 非 SDK 引擎 HTTP server 懒加载：首次 launch 经 launchSdkAgentFromHttp 进程内委托，init 仅常驻统一网关（ensureAgentSdkHttpServer 由 daemon-manager 调用）
 }

@@ -2,7 +2,7 @@
 
 ## 模块边界
 
-- `session-dispatcher.ts`：任务/工作流/`/chat` 经 Daemon `POST /api/agent/launch` 启动；**不**扫描 IM 队列（已迁入 Daemon）；临时会话回退经 `daemon-client` fallback API；**launch 前不得**调用 `agent/shared/workspace-injector` 写盘。
+- `session-dispatcher.ts`：任务/工作流/`/chat` 经 `launchSdkAgentFromHttp`（`agent-sdk-http` 统一网关）启动；**不**按引擎直 POST 独立端口；**不**扫描 IM 队列（已迁入 Daemon）；临时会话回退经 `daemon-client` fallback API；**launch 前不得**调用 `agent/shared/workspace-injector` 写盘。
 - `session-mcp-status.ts`：展示层按 sessionKey 取运行时 MCP 状态的唯一入口。
 - `session-mcp-sdk-path.ts`：SDK 路径磁盘列表与 `lastInjectedMcpServers` 合并。
 
