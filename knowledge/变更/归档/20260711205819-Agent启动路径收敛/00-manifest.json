@@ -3,12 +3,12 @@
   "id": "20260711205819-Agent启动路径收敛",
   "name": "Agent启动路径收敛",
   "flow": "standard",
-  "stage": "archived_with_debt",
+  "stage": "archived",
   "source": "kb-propose",
   "workflow_version": "v2.6",
   "created_at": "2026-07-11T20:58:19+0800",
-  "updated_at": "2026-07-11T21:06:31+0800",
-  "archived_at": "2026-07-11T21:06:31+0800",
+  "updated_at": "2026-07-11T21:27:03+0800",
+  "archived_at": "2026-07-11T21:27:03+0800",
   "related_changes": [
     "20260711203953-巨型单体拆分"
   ],
@@ -18,7 +18,7 @@
       "title": "统一 launchAgent 经统一网关",
       "status": "done",
       "files": [
-        "electron/session/session-dispatcher.ts"
+        "electron/session/session-dispatcher-launch.ts"
       ],
       "depends_on": []
     },
@@ -27,18 +27,41 @@
       "title": "initSessionDispatcher 引擎服务懒加载",
       "status": "done",
       "files": [
-        "electron/session/session-dispatcher.ts"
+        "electron/session/session-dispatcher-lifecycle.ts"
       ],
       "depends_on": [
         "T1"
       ]
     },
     {
+      "id": "T-DEBT-1",
+      "title": "拆分 session-dispatcher.ts 至 ≤300 行",
+      "status": "done",
+      "files": [
+        "electron/session/session-dispatcher.ts",
+        "electron/session/session-dispatcher-launch.ts",
+        "electron/session/session-dispatcher-chat.ts",
+        "electron/session/session-dispatcher-lifecycle.ts",
+        "electron/session/session-dispatcher-runtime.ts",
+        "electron/session/session-dispatcher-shared.ts"
+      ],
+      "depends_on": []
+    },
+    {
       "id": "T3",
       "title": "shared launch-request 解析收敛",
-      "status": "deferred",
-      "files": [],
-      "depends_on": []
+      "status": "done",
+      "files": [
+        "electron/agent/shared/launch-request-resolve.ts",
+        "electron/session/session-dispatcher-launch.ts",
+        "electron/agent/cursor-sdk/agent-sdk-http.ts",
+        "electron/agent/claude-code/agent-cc-http.ts",
+        "electron/agent/codex/agent-codex-http.ts",
+        "electron/agent/opencode/agent-opencode-http.ts"
+      ],
+      "depends_on": [
+        "T-DEBT-1"
+      ]
     },
     {
       "id": "T4",
@@ -61,7 +84,8 @@
         "electron/session/AGENTS.md",
         "electron/AGENTS.md",
         "electron/agent/cursor-sdk/AGENTS.md",
-        "electron/daemon/AGENTS.md"
+        "electron/daemon/AGENTS.md",
+        "electron/agent/shared/AGENTS.md"
       ],
       "depends_on": [
         "T1",
@@ -119,6 +143,66 @@
       "status": "changed"
     },
     {
+      "path": "electron/session/session-dispatcher-launch.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/session-dispatcher-chat.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/session-dispatcher-lifecycle.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/session-dispatcher-runtime.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/session-dispatcher-shared.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/shared/launch-request-resolve.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-sdk-http.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-http.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-http.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-http.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
       "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
       "kind": "knowledge",
       "source": "kb-apply",
@@ -153,17 +237,23 @@
       "kind": "agents",
       "source": "kb-apply",
       "status": "changed"
+    },
+    {
+      "path": "electron/agent/shared/AGENTS.md",
+      "kind": "agents",
+      "source": "kb-apply",
+      "status": "changed"
     }
   ],
   "reviews": [
     {
       "id": "R-DEBT-01",
       "severity": "warning",
-      "status": "accepted_debt",
+      "status": "fixed",
       "file": "electron/session/session-dispatcher.ts",
-      "summary": "文件 637 行超 AGENTS ≤300 规范；本期仅删直连分支未拆分，与 Orchestrator 变更同类处理",
-      "task_id": null,
-      "resolution": "后续「巨型单体拆分」变更处理；不阻断 archive"
+      "summary": "文件 637 行超 AGENTS ≤300 规范",
+      "task_id": "T-DEBT-1",
+      "resolution": "拆分为 session-dispatcher-{launch,chat,lifecycle,runtime,shared}.ts，主入口 46 行 re-export，各子文件 ≤212 行"
     }
   ],
   "external": {

@@ -9,19 +9,21 @@
 ```
 T1 ──→ T2 ──→ T4
           └──→ T5
-T3（deferred，本期不实施）
+T-DEBT-1 ──→ T3
 ```
 
 - **T1 / T2** 均修改 `electron/session/session-dispatcher.ts` 不同区段，须**串行**（先统一 `launchAgent`，再改 `initSessionDispatcher`）。
 - **T4 / T5** 在 T1+T2 实现落地后并行，分别更新业务域知识库与工程 AGENTS 约定。
-- **T3** 按 02 §二 ponytail 口径 defer，manifest `status=deferred`，不纳入 apply 调度。
+- **T-DEBT-1** 先拆分 637 行 `session-dispatcher.ts` 至每文件 ≤300 行，消除 R-DEBT-01 债务。
+- **T3** 在 T-DEBT-1 完成后实施，收敛 `launchBody` 解析 SSOT，避免与 launch 区段同文件冲突。
 
 ### （二）分组调度
 
-- **第一轮**：T1（`launchAgent` 统一网关）
-- **第二轮**：T2（`initSessionDispatcher` 懒加载）
-- **第三轮（并行）**：T4（知识库）、T5（AGENTS 沉淀）
-- **不调度**：T3（deferred）
+- **第一轮**：T1（`launchAgent` 统一网关）— **done**
+- **第二轮**：T2（`initSessionDispatcher` 懒加载）— **done**
+- **第三轮（并行）**：T4（知识库）、T5（AGENTS 沉淀）— **done**
+- **第四轮**：T-DEBT-1（`session-dispatcher.ts` 拆分清债）
+- **第五轮**：T3（`launch-request-resolve` 解析收敛）
 
 ## 二、任务清单
 
@@ -118,37 +120,92 @@ T3（deferred，本期不实施）
 
 ---
 
-## T3: shared launch-request 解析收敛（deferred）
+## T-DEBT-1: 拆分 session-dispatcher.ts 至 ≤300 行
 
 ### 背景
 
-02 §二 明确 `launchBody` 解析分散在 `session-dispatcher` 与 `agent-sdk-http` 两处，抽取 `shared/launch-request.ts` 属 scope 过大的 ponytail 预建通用层。本期 YAGNI defer 至后续变更；body 组装与解析保持现网分散实现，由 T1 统一网关委托覆盖产品目标。
+R-DEBT-01：`session-dispatcher.ts` 当前 637 行，超 AGENTS ≤300 规范。T1/T2 仅删直连分支未拆分，用户要求清债后无债务归档。须按设计模式将单体拆为多文件，保持对外 export 兼容，消除行数债务。
 
 ### 上下文文件
 
-- 参考: `electron/session/session-dispatcher.ts` — `launchBody` 组装（约 L347-360）
-- 参考: `electron/agent/cursor-sdk/agent-sdk-http.ts` — `launchSdkAgentFromHttp` body 解析（L107-122）
-- 参考: `knowledge/变更/进行中/20260711205819-Agent启动路径收敛/02-design.md` §二 边界说明
+- 必读: `electron/session/session-dispatcher.ts` — 全文（637 行），识别 launch / chat / lifecycle 职责区段
+- 参考: `electron/session/AGENTS.md` — 模块边界与 ≤300 行约定
+- 参考: `knowledge/变更/进行中/20260711203953-巨型单体拆分/02-design.md` — 同类拆分模式（若已落地可对齐命名）
 
 ### 实现范围
 
-- **本期不实施**。不得新建 `electron/agent/shared/launch-request.ts` 或等价抽象模块。
-- 后续变更再评估：在确认 IM/本地入口 body 字段漂移风险后，再收敛解析 SSOT。
+- 拆分: `electron/session/session-dispatcher.ts` → 主入口 + 子模块（文件名可微调）：
+  - `session-dispatcher-launch.ts` — `launchAgent`、`launchIndependentAgent`、`launchWorkflowAgent`、`launchSessionAgent` 等启动链路
+  - `session-dispatcher-chat.ts` — 会话消息、chat 相关调度
+  - `session-dispatcher-lifecycle.ts` — `initSessionDispatcher`、resolver 注册、observability
+  - `session-dispatcher.ts` — 保留对外 re-export，行数 ≤300
+- 保持: 所有现有 import 路径不变（调用方仍 `from './session-dispatcher'` 或等价路径）
+- 不改: T1/T2 已落地的统一网关与 init 懒加载行为
 
 ### 接口契约
 
-- 无（deferred）
+- 对外 export 符号与签名与拆分前一致，无破坏性变更
+- 各子文件含中文注释说明职责边界
 
 ### 验收标准
 
-- [ ] manifest `T3.status === "deferred"`
-- [ ] 本期 diff 中**无** `launch-request` 新建文件或未批准的 shared 解析层
-- [ ] T1/T2 完成后 `launchBody` 字段在 `session-dispatcher` 与 `launchSdkAgentFromHttp` 间仍兼容（手工或冒烟确认）
+- [ ] `session-dispatcher.ts` 及拆分出的各子文件均 ≤300 行
+- [ ] Grep 确认无调用方因拆分路径变更而需修改（re-export 兼容）
+- [ ] R-DEBT-01 manifest `reviews[].status` 可置 `resolved`
+- [ ] `npm run build` 通过
+- [ ] 修改含中文注释；无 02/03 未要求的抽象层或未批准的新依赖
 
 ### 依赖
 
-- 前置任务: 无（不纳入 apply）
-- 后续任务: 无（留待独立变更）
+- 前置任务: 无（T1/T2 已完成）
+- 后续任务: T3
+
+---
+
+## T3: shared launch-request 解析收敛
+
+### 背景
+
+`launchBody` 字段解析分散在 `session-dispatcher.launchAgent` 与 `agent-sdk-http.launchSdkAgentFromHttp` 及三 `agent-*-http.ts` 入口，存在 IM/本地双路径字段漂移风险。T1 已统一网关委托，现收敛解析 SSOT 至 `electron/agent/shared/launch-request-resolve.ts`，各入口改调共享模块。
+
+### 上下文文件
+
+- 必读: `electron/session/session-dispatcher.ts`（或 T-DEBT-1 拆分后的 `session-dispatcher-launch.ts`）— `launchBody` 组装
+- 必读: `electron/agent/cursor-sdk/agent-sdk-http.ts` — `launchSdkAgentFromHttp` body 解析
+- 必读: `electron/agent/claude-code/agent-cc-http.ts`、`electron/agent/codex/agent-codex-http.ts`、`electron/agent/opencode/agent-opencode-http.ts` — 各引擎 launch 入口解析
+- 参考: `electron/agent/shared/AGENTS.md` — 跨引擎共享边界
+
+### 实现范围
+
+- 新建: `electron/agent/shared/launch-request-resolve.ts` —
+  - 收敛 body 字段解析（`session_key`、`chat_type`、`task_text`、`channel_id`、`model`、`model_params`、`working_directory` 等）
+  - 收敛 workDir 解析逻辑
+  - 收敛 model 解析逻辑
+  - 导出纯函数，无 HTTP/会话副作用
+- 修改: `electron/agent/cursor-sdk/agent-sdk-http.ts` — `launchSdkAgentFromHttp` 改调共享解析
+- 修改: `electron/agent/claude-code/agent-cc-http.ts`、`electron/agent/codex/agent-codex-http.ts`、`electron/agent/opencode/agent-opencode-http.ts` — 各 launch 入口改调共享解析
+- 修改: `session-dispatcher.launchAgent`（或 `session-dispatcher-launch.ts`）— body 组装改调共享模块
+- 不改: 网关路由 `resolveBoundAgentResourceType`、各 handler 启动 Run 逻辑
+
+### 接口契约
+
+- `resolveLaunchRequestBody(raw: Record<string, unknown>): LaunchRequestBody`（或等价命名）— 统一解析 SSOT
+- `resolveLaunchWorkDir(...)` / `resolveLaunchModel(...)` — 若与 body 解析分离则单独导出
+- 各 HTTP 入口与 `launchAgent` 行为不变，仅内部解析来源统一
+
+### 验收标准
+
+- [ ] `launch-request-resolve.ts` 为 IM + 本地四入口唯一 body/workDir/model 解析 SSOT
+- [ ] `agent-sdk-http.ts` + 三 `agent-*-http.ts` + `launchAgent` 均调用共享模块，无重复解析逻辑
+- [ ] 四引擎四入口启动行为不回归（可与 01 验收 2 一并点验）
+- [ ] 新建文件含中文注释；单文件 ≤300 行
+- [ ] `npm run build` 通过
+- [ ] 无 02/03 未要求的抽象层或未批准的新依赖
+
+### 依赖
+
+- 前置任务: T-DEBT-1（launch 区段拆分后再改解析，避免同文件冲突）
+- 后续任务: 无
 
 ---
 

@@ -20,6 +20,7 @@
 - `tool-presentation-dedup.ts`：跨引擎 tool running 去重与 Task 双推抑制（SDK/CC 共用 `ToolPresentationDedupSession` 切片）。
 - `retry-policy.ts`：幂等键与重试策略。
 - `workspace-injector.ts`：自动注入（rules/mcp/skills）已废弃为 no-op；`cleanupLegacyInjection` 仅作可选手动清理，**禁止**在 launch 或 Daemon 启动路径自动调用。
+- `launch-request-resolve.ts`：IM + 本地四入口 launch body/workDir/model 解析 SSOT（`parseLaunchRequestBody` / `resolveLaunchWorkDir` / `resolveLaunchModel` / `buildLaunchRequestBody`）；纯函数、无 HTTP/会话副作用；各 `agent-*-http.ts` 与 `session-dispatcher-launch` 改调本模块，**禁止**再内联重复解析块。
 
 ## 编码规矩
 

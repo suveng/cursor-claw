@@ -3,15 +3,13 @@
  * launch/dispatch 经动态 import 避免与 agent-sdk 循环依赖。
  */
 import * as http from "node:http"
-import { resolve, join } from "node:path"
-import { existsSync, writeFileSync, mkdirSync } from "node:fs"
+import { join } from "node:path"
+import { writeFileSync, mkdirSync } from "node:fs"
 import { app } from "electron"
 import {
   getChannel, getAgentResource, isCodexResourceId, isOpencodeResourceId,
-  resolveChannelForSession, resolveChannelModel, effectiveWorkspaceDir,
-  type ModelScenario,
+  resolveChannelForSession,
 } from "../../config/config-store"
-import { type ChatType, type LaunchMeta } from "../shared/agent-launcher"
 import { launchCcAgentFromHttp } from "../claude-code/agent-cc-http"
 import { dispatchToClaudeCodeAgent } from "../claude-code/agent-claude-sdk"
 import { launchCodexAgentFromHttp } from "../codex/agent-codex-http"
@@ -19,6 +17,13 @@ import { dispatchToCodexAgent } from "../codex/agent-codex-sdk"
 import { launchOpencodeAgentFromHttp } from "../opencode/agent-opencode-http"
 import { dispatchToOpencodeAgent } from "../opencode/agent-opencode-sdk"
 import { pushUiLog } from "../../app/ui-logger"
+import {
+  isOwnTaskChatType,
+  parseInboundMessageIds,
+  parseLaunchRequestBody,
+  resolveLaunchModel,
+  resolveLaunchWorkDir,
+} from "../shared/launch-request-resolve"
 
 let agentApiServer: http.Server | null = null
 let agentApiPort = 0
@@ -46,13 +51,6 @@ function jsonAgentApi(res: http.ServerResponse, body: object, status = 200): voi
   const data = JSON.stringify(body)
   res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) })
   res.end(data)
-}
-
-function parseInboundMessageIds(body: Record<string, unknown>): string[] | undefined {
-  const raw = body.message_ids
-  if (!Array.isArray(raw)) return undefined
-  const ids = raw.filter((id): id is string => typeof id === "string" && !!id.trim()).map((id) => id.trim())
-  return ids.length ? ids : undefined
 }
 
 const LEGACY_CLI_BIND_ERROR =
@@ -105,21 +103,13 @@ async function dispatchAgentFromHttp(
 }
 
 export async function launchSdkAgentFromHttp(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
-  const sessionKey = typeof body.session_key === "string" ? body.session_key.trim() : ""
-  if (!sessionKey) return { ok: false, error: "session_key is required" }
+  const parsedResult = parseLaunchRequestBody(body)
+  if (!parsedResult.ok) return parsedResult
 
-  const chatType = (typeof body.chat_type === "string" ? body.chat_type : "p2p") as ChatType
-  const taskMessage = typeof body.task_text === "string" ? body.task_text : undefined
-  const senderOpenId = typeof body.sender_open_id === "string" ? body.sender_open_id : undefined
-  const chatName = typeof body.chat_name === "string" ? body.chat_name : undefined
-  const channelId = typeof body.channel_id === "string" ? body.channel_id : undefined
-  const explicitDir = typeof body.working_directory === "string" ? body.working_directory.trim() : ""
-  const modelOverride = typeof body.model === "string" ? body.model : undefined
-  const modelParamsOverride = typeof body.model_params === "string" ? body.model_params : undefined
-  const useMain = body.use_main_workspace === true
-  const chatId = typeof body.chat_id === "string" ? body.chat_id.trim() : sessionKey.split("::")[0]
-  const messageIds = parseInboundMessageIds(body)
-  const meta: LaunchMeta = { chatId, chatType: chatType === "group" ? "group" : "p2p", messageIds }
+  const {
+    sessionKey, chatType, taskMessage, senderOpenId, chatName, channelId,
+    explicitWorkDir, useMain, meta,
+  } = parsedResult.parsed
 
   const route = resolveBoundAgentResourceType(sessionKey, channelId)
   if (route === "cli") return { ok: false, error: LEGACY_CLI_BIND_ERROR }
@@ -135,52 +125,29 @@ export async function launchSdkAgentFromHttp(body: Record<string, unknown>): Pro
     return { ok: false, error: "请配置 SDK、Claude Code、Codex 或 OpenCode 资源（设置 → Agent）" }
   }
 
-  const isOwnTask = chatType === "task" || chatType === "temp" || chatType === "workflow"
+  const isOwnTask = isOwnTaskChatType(chatType)
   if (!useMain && !isOwnTask && !channel?.allowOthers) {
     return { ok: false, error: `通道「${channel?.name ?? "未知"}」未启用其他人使用` }
   }
 
-  let workDir = explicitDir
-  if (!workDir) {
-    if (useMain || isOwnTask) {
-      workDir = effectiveWorkspaceDir(channel)
-    } else {
-      const mode = channel?.othersWorkspaceMode ?? "isolated"
-      if (mode === "isolated") {
-        const safeChatId = sessionKey.replace(/[^a-zA-Z0-9_-]/g, "_")
-        workDir = join(app.getPath("userData"), "workspaces", safeChatId)
-        if (!existsSync(workDir)) mkdirSync(workDir, { recursive: true })
-      } else {
-        const dir = channel?.othersWorkspaceDir?.trim() ?? ""
-        if (!dir) {
-          workDir = effectiveWorkspaceDir(channel)
-        } else {
-          const resolved = resolve(dir)
-          if (!existsSync(resolved)) return { ok: false, error: "目录不存在，请检查路径或省略 -dir 使用当前主会话目录" }
-          workDir = resolved
-        }
-      }
-    }
-  } else if (chatType !== "temp" && !existsSync(workDir)) {
-    mkdirSync(workDir, { recursive: true })
-  }
-  if (!workDir) return { ok: false, error: "工作目录未配置" }
+  const workDirResult = resolveLaunchWorkDir({
+    sessionKey, chatType, explicitDir: explicitWorkDir, useMain, channel,
+  })
+  if (!workDirResult.ok) return { ok: false, error: workDirResult.error }
 
-  let model: string
-  let modelParams: string
-  if (modelOverride?.trim()) {
-    model = modelOverride.trim()
-    modelParams = modelParamsOverride ?? ""
-  } else {
-    const scenario: ModelScenario = useMain || isOwnTask ? "primary" : "others"
-    const resolved = resolveChannelModel(channel, scenario)
-    model = resolved.model
-    modelParams = resolved.modelParams
-  }
+  const { model, modelParams } = resolveLaunchModel({
+    engine: "sdk",
+    modelOverride: parsedResult.parsed.modelOverride,
+    modelParamsOverride: parsedResult.parsed.modelParamsOverride,
+    resource,
+    channel,
+    useMain,
+    chatType,
+  })
 
   const { launchSdkAgent } = await import("./agent-sdk")
   return launchSdkAgent({
-    sessionKey, chatType, meta, workspaceDir: workDir, useMainWorkspace: useMain,
+    sessionKey, chatType, meta, workspaceDir: workDirResult.workDir, useMainWorkspace: useMain,
     senderOpenId, chatName, taskMessage,
     apiKey: resource.apiKey ?? "", model, modelParams,
   })
