@@ -8,7 +8,7 @@
 - **watchdog**：`sdk-run-watchdog.ts` — `armRunWatchdog`；idle 默认 **30min**（`SDK_IDLE_TIMEOUT_MS` 可覆盖），absolute 默认 7min（`SDK_RUN_WATCHDOG_MS`/`PLATFORM_RUN_LIMIT_MS`），二者解耦；`NEVER_CANCEL_ON_DURATION` 默认 true 不按总时长硬杀；`tool_running`/`awaiting_user`/`lastTool.running` 豁免 idle 取消（对称 CC）。**`watchdogTimedOut`**（`sdk-session-types.ts`，对称 CC）：`onTimeout` 在 `cancelRunAndWait` **前**置 `true`；用户 `stopSdkSession`（aborted）**不**置闩；`resetSdkRunPresentationState` 清零。**`markSessionActivity` 门控**（`sdk-session-registry.ts`）：`watchdogState==='cancelling'` 或 `watchdogTimedOut` 时仅刷新 `lastActivityAt`，**禁止** `activity_resume`（防 stream `CANCELLED` status 复活 watchdog）。
 - **持久化**：`sdk-run-persistence.ts` — `userData/sdk-active-runs.json` 读写；`sdk-run-persist.ts` 呈现游标 3s 节流写盘。
 - **续接**：`sdk-run-recover.ts` — `recoverSdkActiveRuns`（`Agent.resume`+`Agent.getRun`→`startSdkRun`）；`notifyResumeFailure` 一次 IM 提示；`daemon/daemon-manager` init 挂接。
-- **呈现/收尾/分发**：`sdk-run-presentation.ts`（stream-text/PRESENTATION_ORDERING）、`sdk-run-finalize.ts`（超时/失败 notify）、`sdk-run-dispatch.ts`（sendWithRetry）。
+- **呈现/收尾/分发**：`sdk-run-presentation.ts`（stream-text/PRESENTATION_ORDERING）、`sdk-run-finalize.ts`（超时/失败 notify）、`sdk-run-dispatch.ts`（sendWithRetry）、`sdk-resident-refresh.ts`（空闲刷新）、`sdk-opaque-retry.ts`（静默 ERROR 一次重试）。
 - **会话注册表**：`sdk-session-registry.ts`+`sdk-session-types.ts` — `sdkSessions` Map、`markSessionActivity`（含 watchdog 闩门控）、`runPhase`、`watchdogTimedOut?`；`agent-sdk.ts` re-export 查询 API。
 - `agent-sdk.ts`：SDK 生命周期与事件流；通知 daemon 时用 `daemon/daemon-client.httpPost`，避免与 `session/session-dispatcher` 循环 import。
 
@@ -29,11 +29,14 @@
 - **SDK 自动压缩飞书通知**：`summary-started` 经 `notifySessionChat` 下发「正在压缩上下文…」（与「Agent 处理中…」同语义，不传 `stop_progress`）；每 Run 至多一次（`compressionNotified`）；`summary-completed` 仅写 UI 日志。
 - **SDK 长驻 Agent（`SDK_RESIDENT_AGENT`）**：默认开启；`SDK_RESIDENT_AGENT=0` 回退 Run 结束 `close()`。**非超时 error**：`completeSdkRun` 在 `residentMode` **保留**实例、`reportSessionAgentPhase(idle)` 触发 Daemon flush。**超时类**：`finalizeSdkRunOnTimeout` 后 `agent.close()` + 删 session（长驻与非长驻均清理），下条 launch 重建；**不写 `failedCooldowns`**。`isSdkSessionRunning` 仅 processing（`run`/`pendingDispatch`），idle 用 `hasSdkSession`。二次任务 `dispatchToSdkAgent`；`launchSdkAgent` 遇 processing 会话 WARN 早退 `{ ok: true }`。失败日志 `dispatch_failed` / `agent_failed`。`ensureAgentSdkHttpServer` 应用 init 启动，端口 `userData/agent-api-port.json`；Daemon 转发 `POST /api/agent/launch|dispatch`。**Daemon 统一入口路由**：`launchSdkAgentFromHttp` / `dispatchAgentFromHttp` 按 `resolveBoundAgentResourceType` 委托 — `claude-code` → `launchCcAgentFromHttp` / `dispatchToClaudeCodeAgent`，`sdk` → 现有 SDK 逻辑，legacy `cli` 绑定返回明确错误；与 `session/session-dispatcher.launchAgent` 双引擎口径一致。
 
-## ContextRotation
+## ContextRotation / 长驻空闲刷新 / 静默 ERROR 重试
 
-- 轮转必须"先 `Agent.create` 成功，再替换 `session.agent`，最后 best-effort 关闭旧实例"；创建失败时保留旧实例继续 send，禁止先 `close` 再创建导致会话假存活。
+- 轮转必须"先 `Agent.create` 成功，再替换 `session.agent`，最后 best-effort 关闭旧实例"；创建失败时保留旧实例继续 send，禁止先 `close` 再创建导致会话假存活。共用 `sdk-resident-refresh.recreateSessionAgent`。
 - **ratio≥100%**：`context-rotation-lite` 跳过连续 2 次命中与冷却，首轮即轮转；ratio∈[90%,100%) 保留现网 2 次 + 冷却规则。
 - **共享 workspaceDir**：`warnIfSharedWorkspaceDir` 多活跃 session 同目录时 WARN（每目录每进程 1 条），仅可观测不改行为。
+- **resident-refresh**（`sdk-resident-refresh.ts`）：长驻且 `Date.now()-lastActivityAt ≥ RESIDENT_STALE_IDLE_MS`（15min）时，`sendWithRetry` attempt===1 先重建 Agent；日志 `[sessionKey] resident-refresh idle=…ms`；create 失败保留旧实例。
+- **opaque_retry**（`sdk-opaque-retry.ts`）：`completeSdkRun` 遇静默早期 ERROR（无可用 message/result/errorCode、无 lastTool、duration<15s、本 turn usage≈0）且有 `lastSendText`、尚未 `opaqueRetryDone` 时，重建并重发一次；**不** notify、**不**写 `failedCooldowns`；成功则清旧 run 态后 `startSdkRun` 并提前 return；失败再走原 notify。`lastSendText` 在 send 前写入；`opaqueRetryDone` 由 `resetSdkRunPresentationState` 清零；opaque 成功路径在 `startSdkRun` **前**置 true；`startSdkRun` 不再清零该闩。
+- **失败兜底文案**：非上下文静默失败用「临时故障，请重新发送」；上下文 peak/pre-send≥95% 仍用「上下文窗口已接近或达到上限」。
 
 ## IM 调度
 

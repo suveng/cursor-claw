@@ -1,6 +1,6 @@
 /**
  * SDK Run 失败用户可见文案分类器（纯函数，供 agent-sdk notify 路径调用）。
- * 优先级：超时 → 上下文已满 → 会话异常 → 可安全展示 message → 带建议兜底。
+ * 优先级：超时 → 上下文已满 → 会话异常 → 可安全展示 message → 临时故障兜底。
  */
 
 /** 失败归因输入（由 agent-sdk 从 session / run 组装） */
@@ -154,6 +154,6 @@ export function formatUserSdkFailureMessage(ctx: SdkFailureContext): string {
     return `⚠️ Agent 处理失败：${msg}`
   }
 
-  // 带类别建议的兜底，禁止仅「请稍后重试」
-  return "⚠️ Agent 处理失败，建议精简输入后重新发送；若仍失败请稍后重试。"
+  // 静默/无详情且非上下文：临时故障语义（避免误导「精简输入」）
+  return "⚠️ Agent 处理遇到临时故障，请重新发送；若仍失败请稍后重试。"
 }

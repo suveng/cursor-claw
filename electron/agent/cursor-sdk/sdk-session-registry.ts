@@ -52,6 +52,8 @@ export function resetSdkRunPresentationState(session: SdkSessionAgent): void {
   session.watchdogStateAt = Date.now()
   session.watchdogTimedOut = undefined
   session.abortController = new AbortController()
+  // 新 turn 呈现复位时清零 opaque 闩；lastSendText 由下次 send 覆盖
+  session.opaqueRetryDone = undefined
 }
 
 export function setWatchdogState(

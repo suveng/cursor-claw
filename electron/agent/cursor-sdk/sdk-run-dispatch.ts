@@ -1,9 +1,8 @@
 /**
  * SDK agent.send 调度与 ContextRotation（拆分自 agent-sdk.ts）
  */
-import { Agent, type SDKAgent, type Run, type McpServerConfig } from "@cursor/sdk"
+import type { Run, McpServerConfig, SDKAgent } from "@cursor/sdk"
 import {
-  ZERO_CONTEXT_USAGE,
   createAgentSendOptions,
   evaluatePreSendContextPressure,
 } from "./context-usage"
@@ -11,6 +10,7 @@ import { appendInlineMcpToSendOptions } from "../../mcp/loaders/mcp-sdk-loader"
 import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loaders/plugin-sdk-bootstrap"
 import { buildIdempotencyKey, shouldRetry } from "../shared/retry-policy"
 import { maybeRotateContext } from "./context-rotation-lite"
+import { recreateSessionAgent, maybeRefreshStaleResidentAgent } from "./sdk-resident-refresh"
 import { notifySessionChat } from "../../daemon/sdk-daemon-notify"
 import {
   markSessionActivity,
@@ -18,7 +18,6 @@ import {
   sleep,
 } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
-import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
 import { pushUiLog } from "../../app/ui-logger"
 
 const SEND_RETRY_MAX_ATTEMPTS = 3
@@ -55,7 +54,7 @@ export function buildSendOptions(session: SdkSessionAgent, idempotencyKey: strin
   return options as Parameters<SDKAgent["send"]>[1]
 }
 
-/** ContextRotation-lite：先建新实例再切换 */
+/** ContextRotation-lite：先建新实例再切换（复用 recreateSessionAgent） */
 async function maybeRotateSessionForPressure(
   session: SdkSessionAgent,
   originalText: string,
@@ -67,47 +66,8 @@ async function maybeRotateSessionForPressure(
   const ratio = pressure.ratio ?? 0
   const decision = maybeRotateContext({ sessionKey: session.sessionKey, usageRatio: ratio, nowMs: Date.now() })
   if (!decision.rotated) return { text: originalText, rotated: false }
-  const modelSelection: { id: string; params?: { id: string; value: string }[] } = { id: session.modelId ?? "composer-2" }
-  if (session.modelParams?.trim()) {
-    try {
-      modelSelection.params = JSON.parse(session.modelParams)
-    } catch { /* 忽略非法模型参数 */ }
-  }
-  const previousAgent = session.agent
-  const previousAgentId = session.agentId
-  const pluginBoot = bootstrapSdkPluginWorkspace(session.workspaceDir ?? process.cwd())
-  logSdkPluginConfig(session.workspaceDir ?? process.cwd(), pluginBoot, (level, msg) => pushUiLog("SDK", level, msg), { detailed: true })
-  const injected = pluginBoot.mcpServers
-  let nextAgent: SDKAgent
-  try {
-    nextAgent = await Agent.create({
-      apiKey: session.apiKey ?? "",
-      model: modelSelection,
-      mcpServers: injected,
-      local: {
-        cwd: session.workspaceDir ?? process.cwd(),
-        settingSources: [...SDK_SETTING_SOURCES],
-        sandboxOptions: { enabled: false },
-      },
-    })
-  } catch (err: unknown) {
-    pushUiLog(
-      "SDK",
-      "WARN",
-      `[${session.sessionKey}] context_rotation skipped: ${err instanceof Error ? err.message : String(err)}`,
-    )
-    session.agent = previousAgent
-    session.agentId = previousAgentId
-    return { text: originalText, rotated: false }
-  }
-  session.agent = nextAgent
-  session.agentId = nextAgent.agentId
-  session.lastInjectedMcpServers = injected
-  try {
-    previousAgent.close()
-  } catch { /* best-effort */ }
-  session.contextUsage = { ...ZERO_CONTEXT_USAGE }
-  session.contextUsagePeakTokens = undefined
+  const ok = await recreateSessionAgent(session, "context_rotation")
+  if (!ok) return { text: originalText, rotated: false }
   const summary = decision.summary ?? "已执行上下文轮转。"
   return { text: `${summary}\n\n${originalText}`, rotated: true }
 }
@@ -122,6 +82,8 @@ export async function sendWithRetry(
   let lastReason = "unknown"
   for (let attempt = 1; attempt <= SEND_RETRY_MAX_ATTEMPTS; attempt += 1) {
     if (attempt === 1) {
+      // 长驻空闲超阈值：先刷新再压力轮转（create 失败保留旧实例）
+      await maybeRefreshStaleResidentAgent(session)
       const rotatedResult = await maybeRotateSessionForPressure(session, text)
       text = rotatedResult.text
       rotated = rotatedResult.rotated
@@ -135,6 +97,8 @@ export async function sendWithRetry(
     }
     const idempotencyKey = buildIdempotencyKey(session.sessionKey, resolveLastInboundId(session), attempt)
     try {
+      // 即将 send 时写入，供 completeSdkRun 静默 ERROR opaque_retry
+      session.lastSendText = text
       const run = await session.agent.send(text, buildSendOptions(session, idempotencyKey))
       session.lastDispatchAttempts = attempt
       pushUiLog("SDK", "INFO", `[${session.sessionKey}] dispatch_retry status=ok attempts=${attempt} idempotency=${idempotencyKey}`)

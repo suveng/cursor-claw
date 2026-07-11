@@ -25,6 +25,8 @@
 5. **Rev2 end-only**：ordering+已见过程时 `maybeReleaseDeferredAssistant`/`flushDeferredStreamPost`/`doFlushStreamPost` non-final 均 no-op；assistant 首建仅 Run 收尾 `flushStreamPost(true)`。
 6. **handleStreamText**：`presentationProcessActive` 且 non-final → 累积 `deferredAssistantText`、返回 `deferred: true`；final 经 `enqueueReleaseDeferredAssistantStream` 首建+完结。飞行窗口：占位无 outbound 时 await chain 再判 `isFirst`。
 7. **pre-send 上下文保护**：`sendWithRetry` 首 attempt 经 `maybeRotateSessionForPressure` 评估并写 `lastPreSend*`；ratio≥100% 强制首轮轮转，失败则 `context_blocked` 快拒（详见 [10-SDK上下文保护与失败归因](./10-SDK上下文保护与失败归因.md)）。
+8. **长驻空闲刷新**：idle≥15min（`RESIDENT_STALE_IDLE_MS`）时 dispatch/`sendWithRetry` 前按 ContextRotation 安全顺序重建 Agent（`resident-refresh`）；create 失败保留旧实例。
+9. **静默早期 ERROR 一次重试**：无 message/result/tool、短 duration 的 opaque ERROR 经 `opaque_retry` 重建并重发一次；成功不向用户 notify；非上下文静默失败文案为临时故障/请重试（上下文≥95% 仍走上限文案）。
 
 ## 四、客户端流程
 
@@ -42,7 +44,7 @@ flowchart LR
 
 ## 六、数据
 
-`SdkSessionAgent`：`runPhase`、`seenProcessEvent`、`presentationDeferStream`、`lastPreSendUsedTokens`/`lastPreSendUsageRatio`（pre-send 快照，session 级）。磁盘 `sdk-active-runs.json`。
+`SdkSessionAgent`：`runPhase`、`seenProcessEvent`、`presentationDeferStream`、`lastPreSendUsedTokens`/`lastPreSendUsageRatio`（pre-send 快照）、`lastSendText`/`opaqueRetryDone`（opaque_retry）。磁盘 `sdk-active-runs.json`。
 
 ## 七、非功能与可观测
 
@@ -58,6 +60,7 @@ RunGuard+watchdog（idle 30min / absolute 7min 解耦，`SDK_IDLE_TIMEOUT_MS` �
 
 ## 十、变更记录
 
+- 2026-07-11：长驻空闲 resident-refresh + 静默早期 ERROR opaque_retry + 非上下文临时故障文案（hotfix-lite 20260711113147）。
 - 2026-07-05：pre-send 上下文保护、context_blocked 快拒与失败文案归因（见 [10-SDK上下文保护与失败归因](./10-SDK上下文保护与失败归因.md)；archive 20260705230806）。
 - 2026-07-05：SDK idle 默认 30min（`SDK_IDLE_TIMEOUT_MS` 可覆盖），与 absolute 7min 解耦（archive 20260705211057-SDK idle超时延长至30分钟）。
 - 2026-07-05：飞书 f41 assistant plain 收尾（`feishu-plain-assistant-reply`，Run 末条 send-text）。

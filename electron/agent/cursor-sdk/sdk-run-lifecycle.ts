@@ -27,6 +27,7 @@ import {
   sdkSessions,
 } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
+import { isOpaqueEarlyRunFailure, resendAfterOpaqueFailure } from "./sdk-opaque-retry"
 import { pushUiLog } from "../../app/ui-logger"
 import {
   guardSdkPromise,
@@ -109,6 +110,31 @@ export async function completeSdkRun(session: SdkSessionAgent, run: Run): Promis
       `waitResult=${detail}`,
     ].filter(Boolean)
     pushUiLog("SDK", "ERROR", `[${sessionKey}] agent_failed 运行错误详情: ${parts.join(" ")}`)
+
+    // 静默早期 ERROR：重建 Agent 并用 lastSendText 重发一次（不 notify / 不写 cooldown）
+    const canOpaque =
+      !session.opaqueRetryDone &&
+      !!session.lastSendText?.trim() &&
+      !isRunTimeoutFailure(session, run) &&
+      isOpaqueEarlyRunFailure(session, run, { errorCode })
+    if (canOpaque) {
+      const retryRun = await resendAfterOpaqueFailure(session, run)
+      if (retryRun) {
+        // 清旧 Run 快照后挂新 Run；保留 runGuardToken；不 delete session
+        resetStreamPostChain(session)
+        clearActiveSdkRun(sessionKey)
+        clearPersistThrottle(sessionKey)
+        session.run = null
+        session.pendingDispatch = false
+        // 须在 startSdkRun 前置闩，避免重试 Run 极快 ERROR 时再次 canOpaque
+        session.opaqueRetryDone = true
+        await startSdkRun(session, retryRun)
+        pushUiLog("SDK", "INFO", `[${sessionKey}] opaque_retry complete→new run`)
+        return
+      }
+      pushUiLog("SDK", "WARN", `[${sessionKey}] opaque_retry exhausted, fallback notify`)
+    }
+
     if (!isRunTimeoutFailure(session, run)) {
       failedCooldowns.set(sessionKey, Date.now() + FAIL_COOLDOWN_MS)
     }
