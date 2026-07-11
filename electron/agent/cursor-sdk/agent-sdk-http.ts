@@ -7,7 +7,7 @@ import { join } from "node:path"
 import { writeFileSync, mkdirSync } from "node:fs"
 import { app } from "electron"
 import {
-  getChannel, getAgentResource, isCodexResourceId, isOpencodeResourceId,
+  getConfig, getChannel, getAgentResource, isCodexResourceId, isOpencodeResourceId,
   resolveChannelForSession,
 } from "../../config/config-store"
 import { launchCcAgentFromHttp } from "../claude-code/agent-cc-http"
@@ -184,6 +184,19 @@ export function ensureAgentSdkHttpServer(): void {
       if (pathname === "/api/agent/launch") {
         const result = await launchSdkAgentFromHttp(body)
         jsonAgentApi(res, result, result.ok ? 200 : 400)
+        return
+      }
+      if (pathname === "/api/sdk-warmup") {
+        const { warmupSdkAfterBind } = await import("./sdk-warmup")
+        const source = typeof body.source === "string" ? body.source.trim() : "unknown"
+        const channelId = typeof body.channel_id === "string" ? body.channel_id.trim() : ""
+        const workspaceOverride = typeof body.workspace_dir === "string" ? body.workspace_dir.trim() : ""
+        const channel = channelId ? getChannel(channelId) : undefined
+        const resource = getAgentResource(channel?.agentResourceId)
+        const workspaceDir = workspaceOverride || channel?.workspaceDir?.trim() || getConfig().workspaceDir?.trim() || ""
+        const apiKey = resource?.type === "sdk" ? resource.apiKey?.trim() : ""
+        warmupSdkAfterBind({ apiKey, workspaceDir, source })
+        jsonAgentApi(res, { ok: true }, 200)
         return
       }
       jsonAgentApi(res, { ok: false, error: "not found" }, 404)

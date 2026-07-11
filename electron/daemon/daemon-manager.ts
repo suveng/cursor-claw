@@ -8,7 +8,7 @@ import * as os from "node:os"
 import { app, BrowserWindow, ipcMain, powerSaveBlocker } from "electron"
 import {
   getConfig, saveConfig, type AppConfig,
-  getChannels, getEnabledChannels, getChannel,
+  getChannels, getEnabledChannels, getChannel, getAgentResource,
   updateChannel, migrateLegacyConfig, effectiveWorkspaceDir, migrateCliBindings,
   mainChatScopeKey, setMainChatIdForScope, type MessageChannel,
 } from "../config/config-store"
@@ -22,6 +22,7 @@ import { runWorkflowDefinition } from "../workflow/workflow-runner"
 import { pushLog, pushUiLog, broadcastLog, getLogBuffer, clearLogBuffer, escapeLogContentSingleLine, resetLogFilePath } from "../app/ui-logger"
 import { applyProxyEnv } from "../app/proxy-env"
 import { getSdkSessionCount, getSdkSessionList, checkSdkApiKey, listSdkModels, ensureAgentSdkHttpServer, recoverSdkActiveRuns } from "../agent/cursor-sdk/agent-sdk"
+import { warmupSdkAfterBind } from "../agent/cursor-sdk/sdk-warmup"
 import { getClaudeCodeSessionList } from "../agent/claude-code/agent-claude-sdk"
 import { getCodexSessionList } from "../agent/codex/agent-codex-sdk"
 import { getOpencodeSessionList } from "../agent/opencode/agent-opencode-sdk"
@@ -189,11 +190,35 @@ let tempConnAbort: (() => void) | null = null
 // ── 主用户绑定等待器（daemon armed-bind 模式）──────────────
 let bindWaiter: { channelId: string; resolve: (chatId: string) => void } | null = null
 
+/** 解析已 bind 通道的 SDK 预热参数；缺 apiKey/workspace 时返回 null（跳过预热） */
+function resolveSdkWarmupParams(channelId?: string): { apiKey: string; workspaceDir: string } | null {
+  const workspaceDir = (getConfig().workspaceDir || "").trim()
+  if (!workspaceDir) return null
+  const channel = channelId
+    ? getChannel(channelId)
+    : getChannels().find((c) => c.enabled && c.mainUserEnabled)
+  if (!channel?.mainUserEnabled) return null
+  const resource = getAgentResource(channel.agentResourceId)
+  if (resource?.type !== "sdk") return null
+  const apiKey = resource.apiKey?.trim()
+  if (!apiKey) return null
+  return { apiKey, workspaceDir: channel.workspaceDir?.trim() || workspaceDir }
+}
+
+/** B1：fire-and-forget SDK 预热；失败不阻断 bind/init */
+function triggerSdkWarmup(source: string, channelId?: string): void {
+  const params = resolveSdkWarmupParams(channelId)
+  if (!params) return
+  void warmupSdkAfterBind({ ...params, source })
+}
+
 function resolveBindWaiter(channelId: string, chatId: string): void {
   if (bindWaiter && bindWaiter.channelId === channelId) {
     const w = bindWaiter
     bindWaiter = null
     w.resolve(chatId)
+    // bind 成功：Electron 侧预热，失败不阻断
+    triggerSdkWarmup("bind-electron", channelId)
   }
 }
 
@@ -1581,6 +1606,11 @@ export function initDaemonManager(): void {
     if (!workflowId?.trim()) return { ok: false, error: "工作流 ID 不能为空" }
     return runWorkflowDefinition(workflowId.trim(), { input: input?.trim() || undefined })
   })
+
+  // B1：应用 init 且已有 bind 通道时 fire-and-forget SDK 预热
+  if (getChannels().some((c) => c.enabled && c.mainUserEnabled)) {
+    triggerSdkWarmup("init")
+  }
 
   void autoStartDaemonOnLaunch()
 }

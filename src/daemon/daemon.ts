@@ -207,8 +207,30 @@ function completeBind(rt: ChannelRuntime, chatId: string, messageId?: string): v
   if (rt.sender) rt.sender.chatId = chatId;
   process.stdout.write(`__BIND_RESULT__:${JSON.stringify({ channelId: rt.cfg.id, chatId })}\n`);
   log("INFO", `[Bind] 通道「${rt.cfg.name}」主用户绑定成功: ${chatId}`);
+  void postSdkWarmupRequest(rt, "bind-daemon");
   if (messageId) {
     replyToMessage(messageId, "✅ 主用户绑定成功！", makeChatKey(rt.cfg.id, chatId)).catch(() => {});
+  }
+}
+
+/** bind 成功后请求 Electron SDK 预热（fire-and-forget，失败不阻断 bind） */
+function postSdkWarmupRequest(rt: ChannelRuntime, source: string): void {
+  if (!APP_DATA_DIR) return;
+  try {
+    const portFile = path.join(APP_DATA_DIR, "agent-api-port.json");
+    if (!fs.existsSync(portFile)) return;
+    const data = JSON.parse(fs.readFileSync(portFile, "utf-8")) as { port?: number };
+    const port = data.port ?? 0;
+    if (!port) return;
+    void httpJson(`http://127.0.0.1:${port}/api/sdk-warmup`, {
+      source,
+      channel_id: rt.cfg.id,
+      workspace_dir: channelWorkspaceDir(rt),
+    }, 5000).catch((e: unknown) => {
+      log("WARN", `[sdk_warmup] ${source} 请求失败: ${e instanceof Error ? e.message : String(e)}`);
+    });
+  } catch (e: unknown) {
+    log("WARN", `[sdk_warmup] ${source} 跳过: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 

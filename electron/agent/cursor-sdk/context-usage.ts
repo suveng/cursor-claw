@@ -6,6 +6,7 @@ import type { InteractionUpdate } from "@cursor/sdk"
 import { evaluatePreSendContextPressureCore, logTurnEndedHighWatermark } from "./context-usage-pressure"
 
 export { HIGH_WATERMARK_RATIO } from "./context-usage-pressure"
+export { resolveContextLimitForSession, resolveModelContextLimit } from "./context-usage-model-limit"
 
 /** turn-ended.usage 最小字段（与 SDK TurnUsageInput 对齐） */
 export interface TurnUsageSlice {
@@ -30,53 +31,11 @@ export const ZERO_CONTEXT_USAGE: ContextUsageState = {
   cacheWriteTokens: 0,
 }
 
-/** models.list 查表结果缓存（apiKey:modelId → limit） */
-const modelLimitCache = new Map<string, number>()
-
-/** SDK ModelListItem 未声明但运行时可能存在的上限字段（待 API 稳定后收窄） */
-const LIMIT_FIELD_CANDIDATES = [
-  "contextWindow",
-  "contextLimit",
-  "maxContextTokens",
-  "maxContextLength",
-] as const
-
-/** models.list 无上限字段时，按 modelId 启发式推断（便于飞书展示百分比） */
-const MODEL_LIMIT_HEURISTICS: ReadonlyArray<{ pattern: RegExp; limit: number }> = [
-  { pattern: /^composer/i, limit: 200_000 },
-  { pattern: /claude/i, limit: 200_000 },
-  { pattern: /gpt-4/i, limit: 128_000 },
-  { pattern: /gpt-5/i, limit: 272_000 },
-  { pattern: /^o[13]/i, limit: 200_000 },
-  { pattern: /gemini/i, limit: 1_000_000 },
-]
-
 type UiLogFn = (channel: string, level: string, message: string) => void
 
 /** 压缩/活跃回调：onCompression 飞书通知；onActivity 刷新 watchdog */
 export type CompressionNotifyFn = (phase: "started" | "completed") => void
 export type CreateAgentSendOptionsOpts = { onCompression?: CompressionNotifyFn; onActivity?: () => void }
-
-/** 从 models.list 条目提取上下文 token 上限；无则 null */
-function extractContextLimitFromModel(model: unknown): number | null {
-  if (!model || typeof model !== "object") return null
-  const rec = model as Record<string, unknown>
-  for (const field of LIMIT_FIELD_CANDIDATES) {
-    const v = rec[field]
-    if (typeof v === "number" && Number.isFinite(v) && v > 0) return Math.floor(v)
-  }
-  return null
-}
-
-/** modelId 启发式推断上下文上限；无匹配则 null */
-function inferContextLimitFromModelId(modelId: string): number | null {
-  const id = modelId.trim()
-  if (!id) return null
-  for (const { pattern, limit } of MODEL_LIMIT_HEURISTICS) {
-    if (pattern.test(id)) return limit
-  }
-  return null
-}
 
 /** 合并单 turn usage（遗留导出；展示态用 setTurnUsage） */
 export function mergeTurnUsage(s: ContextUsageState, u: TurnUsageSlice): ContextUsageState {
@@ -133,62 +92,6 @@ export function resolveDisplayContextTokens(
   const current = totalContextTokens(state)
   if (peakTokens == null || peakTokens <= 0) return current
   return Math.max(current, peakTokens)
-}
-
-/** 查模型上下文上限；失败或未声明字段返回 null */
-export async function resolveModelContextLimit(modelId: string, apiKey: string): Promise<number | null> {
-  const id = modelId?.trim()
-  const key = apiKey?.trim()
-  if (!id || !key) return null
-
-  const cacheKey = `${key}:${id}`
-  const cached = modelLimitCache.get(cacheKey)
-  if (cached != null) return cached
-
-  // Claude 模型短路：Anthropic API Key 不兼容 Cursor.models.list，直接走启发式推断
-  if (id.startsWith("claude-")) {
-    const heuristic = inferContextLimitFromModelId(id)
-    if (heuristic != null) {
-      modelLimitCache.set(cacheKey, heuristic)
-      return heuristic
-    }
-    return null
-  }
-
-  try {
-    const { Cursor } = await import("@cursor/sdk")
-    const models = await Cursor.models.list({ apiKey: key })
-    for (const m of models) {
-      if (m.id !== id) continue
-      const limit = extractContextLimitFromModel(m)
-      if (limit != null) {
-        modelLimitCache.set(cacheKey, limit)
-        return limit
-      }
-    }
-  } catch {
-    // 查表失败不阻断 send；尝试启发式
-  }
-  const heuristic = inferContextLimitFromModelId(id)
-  if (heuristic != null) {
-    modelLimitCache.set(cacheKey, heuristic)
-    return heuristic
-  }
-  return null
-}
-
-/** 会话 send 前解析并缓存 contextLimitTokens（已有缓存则跳过） */
-export async function resolveContextLimitForSession(session: {
-  modelId?: string
-  apiKey?: string
-  contextLimitTokens?: number
-}): Promise<void> {
-  if (session.contextLimitTokens != null && session.contextLimitTokens > 0) return
-  const modelId = session.modelId?.trim()
-  const apiKey = session.apiKey?.trim()
-  if (!modelId || !apiKey) return
-  const limit = await resolveModelContextLimit(modelId, apiKey)
-  if (limit != null) session.contextLimitTokens = limit
 }
 
 /** 计算 prompt 侧已用 token（input + cache 读写，不含 output，反映窗口占用而非 billing） */

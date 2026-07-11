@@ -37,10 +37,20 @@ function logSdkConfigSources(workspaceDir: string): Record<string, McpServerConf
   return boot.mcpServers
 }
 
+/** launch/recover 已写入 MCP 快照时跳过二次 detailed bootstrap（A3） */
+function canReuseBootstrapSnapshot(session: SdkSessionAgent): boolean {
+  if (session.launchBootstrapDone === false) return false
+  const snap = session.lastInjectedMcpServers
+  return !!snap && Object.keys(snap).length > 0
+}
+
 /** 组装 send 选项并注入幂等键 */
 export function buildSendOptions(session: SdkSessionAgent, idempotencyKey: string): Parameters<SDKAgent["send"]>[1] {
   const ws = session.workspaceDir ?? process.cwd()
-  const inlineMcp = logSdkConfigSources(ws)
+  // launch 已 detailed bootstrap 时复用快照；recover/rotation 未写快照则 fallback logSdkConfigSources
+  const inlineMcp = canReuseBootstrapSnapshot(session)
+    ? session.lastInjectedMcpServers!
+    : logSdkConfigSources(ws)
   const options = appendInlineMcpToSendOptions(
     createAgentSendOptions(session, pushUiLog, {
       onCompression: makeCompressionNotify(session),

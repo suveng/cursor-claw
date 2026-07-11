@@ -35,6 +35,7 @@ import {
 } from "./sdk-session-registry"
 import type { SdkLaunchOptions } from "./sdk-session-types"
 import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
+import { notifySessionChat } from "../../daemon/sdk-daemon-notify"
 import { pushUiLog, broadcastLog } from "../../app/ui-logger"
 
 // ── 类型与拆分模块 re-export（保持外部 import 路径不变） ──
@@ -133,15 +134,22 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     }
     pushUiLog("SDK", "INFO", `[${sessionKey}] 正在创建 SDK Agent (cwd=${workspaceDir}, model=${JSON.stringify(modelSelection)})`)
 
-    const pluginBoot = bootstrapSdkPluginWorkspace(workspaceDir)
-    logSdkPluginConfig(workspaceDir, pluginBoot, (level, msg) => pushUiLog("SDK", level, msg), { detailed: true })
-    const injected = pluginBoot.mcpServers
-    const agent = await Agent.create({
-      apiKey,
-      model: modelSelection,
-      mcpServers: injected,
-      local: { cwd: workspaceDir, settingSources: [...SDK_SETTING_SOURCES], sandboxOptions: { enabled: false } },
-    })
+    // A2：Agent.create 与 limit 解析并行，缩短冷启动首条入队到 RUNNING 的等待
+    const limitTarget = { modelId, apiKey }
+    const limitPromise = resolveContextLimitForSession(limitTarget)
+    const createPromise = (async () => {
+      const pluginBoot = bootstrapSdkPluginWorkspace(workspaceDir)
+      logSdkPluginConfig(workspaceDir, pluginBoot, (level, msg) => pushUiLog("SDK", level, msg), { detailed: true })
+      const injected = pluginBoot.mcpServers
+      const agent = await Agent.create({
+        apiKey,
+        model: modelSelection,
+        mcpServers: injected,
+        local: { cwd: workspaceDir, settingSources: [...SDK_SETTING_SOURCES], sandboxOptions: { enabled: false } },
+      })
+      return { agent, injected }
+    })()
+    const [{ agent, injected }] = await Promise.all([createPromise, limitPromise])
 
     const session = {
       sessionKey,
@@ -170,7 +178,9 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
       inboundMessageIds: meta?.messageIds,
       watchdogState: "running" as const,
       watchdogStateAt: Date.now(),
+      contextLimitTokens: limitTarget.contextLimitTokens,
       lastInjectedMcpServers: injected,
+      launchBootstrapDone: true,
     }
     sdkSessions.set(sessionKey, session)
     pendingLaunches.delete(sessionKey)
@@ -178,7 +188,8 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     broadcastLog(`[SDK] 会话 ${sessionKey} 已创建, agentId=${agent.agentId}`)
     broadcastSdkSessionStatus()
 
-    await resolveContextLimitForSession(session)
+    // B2 阶段二：create+limit 完成后、send 前通知用户
+    await notifySessionChat(sessionKey, "正在准备模型…")
     evaluatePreSendContextPressure(session, pushUiLog)
     const guard = acquireRunGuard(sessionKey)
     if (!guard.acquired) {
@@ -249,6 +260,8 @@ export async function dispatchToSdkAgent(
   try {
     resetSdkRunPresentationState(session)
     warnIfSharedWorkspaceDir(session.workspaceDir, sessionKey)
+    // 热路径保持串行 resolveContextLimitForSession：cache 命中为 no-op，
+    // 不与 maybeRefreshStaleResidentAgent 并行，避免 resident 重建竞态（S13）
     await resolveContextLimitForSession(session)
     evaluatePreSendContextPressure(session, pushUiLog)
     const sendResult = await sendWithRetry(session, text)

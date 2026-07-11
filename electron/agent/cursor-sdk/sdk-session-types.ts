@@ -101,6 +101,8 @@ export interface SdkSessionAgent {
   watchdogTimedOut?: boolean
   /** 最近一次注入 SDK 的 inline mcpServers 快照（SDK 无 list/status API，展示侧据此渲染） */
   lastInjectedMcpServers?: Record<string, McpServerConfig>
+  /** launch 已完成 detailed bootstrap，供 buildSendOptions 跳过二次 bootstrap */
+  launchBootstrapDone?: boolean
   /** 最近一次成功/即将 send 的正文，供静默 ERROR opaque_retry 重发 */
   lastSendText?: string
   /** 本 turn 是否已做过一次静默早期 ERROR 重建重试（仅 resetSdkRunPresentationState 清零） */

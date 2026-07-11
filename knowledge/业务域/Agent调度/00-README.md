@@ -17,7 +17,7 @@
 | 03 | [03-启动与自动重连.md](./03-启动与自动重连.md) | 四引擎启动、resume |
 | 04 | [04-远程指令.md](./04-远程指令.md) | 远程指令 |
 | 05 | [05-定时任务.md](./05-定时任务.md) | Cron |
-| 06 | [06-CursorSDK执行引擎.md](./06-CursorSDK执行引擎.md) | Cursor SDK |
+| 06 | [06-CursorSDK执行引擎.md](./06-CursorSDK执行引擎.md) | Cursor SDK（含冷启动并行与 bind 预热） |
 | 07 | [07-ClaudeCodeSDK执行引擎.md](./07-ClaudeCodeSDK执行引擎.md) | Claude Agent SDK |
 | 08 | [08-CodexSDK执行引擎.md](./08-CodexSDK执行引擎.md) | Codex SDK |
 | 09 | [09-OpenCodeSDK执行引擎.md](./09-OpenCodeSDK执行引擎.md) | OpenCode SDK |
@@ -39,7 +39,7 @@
 | 回退栈 | `src/daemon/daemon-session-routing.ts` |
 | Daemon | `electron/daemon/daemon-manager.ts`、`electron/daemon/daemon-client.ts` |
 | 远程/Cron | `electron/scheduling/command-handler.ts`、`electron/scheduling/cron-scheduler.ts` |
-| Cursor | `electron/agent/cursor-sdk/agent-sdk.ts`、`electron/agent/cursor-sdk/sdk-run-*.ts`、`electron/mcp/loaders/mcp-sdk-loader.ts`、`electron/session/session-mcp-sdk-path.ts` |
+| Cursor | `electron/agent/cursor-sdk/agent-sdk.ts`、`electron/agent/cursor-sdk/sdk-run-*.ts`、`electron/agent/cursor-sdk/sdk-warmup.ts`、`electron/agent/cursor-sdk/context-usage-model-limit.ts`、`electron/mcp/loaders/mcp-sdk-loader.ts` |
 | Claude | `electron/agent/claude-code/agent-claude-sdk.ts`、`electron/agent/claude-code/agent-cc-*.ts`、`electron/mcp/loaders/cc-mcp-loader.ts` |
 | Codex | `electron/agent/codex/agent-codex-sdk.ts`、`electron/agent/codex/agent-codex-*.ts`、`electron/mcp/loaders/codex-mcp-loader.ts` |
 | OpenCode | `electron/agent/opencode/agent-opencode-sdk.ts`、`electron/agent/opencode/agent-opencode-*.ts`、`electron/mcp/loaders/opencode-mcp-loader.ts`、`electron/agent/opencode/opencode-failure-messages.ts` |
