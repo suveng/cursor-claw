@@ -6,7 +6,7 @@
 
 | 子目录 | 职责 | 规矩 |
 |--------|------|------|
-| [daemon/](daemon/AGENTS.md) | HTTP/MCP 枢纽、orchestrator、MergeBatch、Presentation | 不拆 `daemon.ts` 业务逻辑 |
+| [daemon/](daemon/AGENTS.md) | HTTP/MCP 枢纽、orchestrator、MergeBatch、Presentation | `daemon.ts` 薄组装 + `daemon-*` 子模块；批1 已拆 HTTP/orchestrator/presentation；queue/channel/logging 仍驻 `daemon.ts`（批2） |
 | [bridge/](bridge/AGENTS.md) | 文件队列、飞书 Lark、微信客户端 | `git mv` 迁移，无 barrel |
 | [workflow/](workflow/AGENTS.md) | 工作流引擎、定义存储、MCP 工具 | 经 daemon 注册 MCP |
 | [shared/](shared/AGENTS.md) | 跨域类型、presentation gate、常量 | 通道字段三端同步 |

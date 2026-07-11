@@ -36,3 +36,4 @@ Thumbs.db
 .obsidian
 .claude
 crash_log
+daemon/daemon.log

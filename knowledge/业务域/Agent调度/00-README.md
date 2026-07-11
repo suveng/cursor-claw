@@ -35,7 +35,9 @@
 | 模块 | 路径 |
 |------|------|
 | 调度 | `electron/session/session-dispatcher.ts`、`electron/agent/cursor-sdk/agent-sdk.ts` |
-| Daemon 侧编排 | `src/daemon/daemon.ts` |
+| Daemon 薄组装 | `src/daemon/daemon.ts`（`daemonMain`/`wireDaemonSubmodules`；queue/channel 仍驻此，批2） |
+| Daemon 编排 | `src/daemon/daemon-orchestrator.ts`（`runAgentDispatchLoop`、`forwardElectronAgentApi`、`dispatchSessionToAgent`） |
+| Daemon agent HTTP | `src/daemon/daemon-http-routes-orchestrator.ts`（`/api/agent/launch|dispatch` 路由簇） |
 | 回退栈 | `src/daemon/daemon-session-routing.ts` |
 | Daemon | `electron/daemon/daemon-manager.ts`、`electron/daemon/daemon-client.ts` |
 | 远程/Cron | `electron/scheduling/command-handler.ts`、`electron/scheduling/cron-scheduler.ts` |
@@ -50,6 +52,7 @@
 
 ## 变更记录
 
+2026-07-11：关键源码 Daemon 编排锚点自 `daemon.ts` 扩散为薄组装 + `daemon-orchestrator` / `daemon-http-routes-orchestrator`（巨型单体拆分批1）。
 2026-07-05：新增 10 SDK 上下文保护（archive 20260705230806）。
 2026-07-02：关键源码增补 Daemon 编排（archive 20260702120154）。
 2026-07-02：关键源码补 sdk-run-* 事件流/续接模块（archive 20260701212827）。

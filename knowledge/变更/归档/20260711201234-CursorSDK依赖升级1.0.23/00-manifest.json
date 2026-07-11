@@ -1,0 +1,55 @@
+{
+  "name": "CursorSDK依赖升级1.0.23",
+  "flow": "lite",
+  "stage": "archived",
+  "archived_at": "2026-07-11T20:12:34+08:00",
+  "tasks": [],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "package.json",
+      "kind": "config",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "package-lock.json",
+      "kind": "config",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.14.4.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711201234-CursorSDK依赖升级1.0.23/00-manifest.json",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711201234-CursorSDK依赖升级1.0.23/01-proposal.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "archived"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711201234-CursorSDK依赖升级1.0.23/05-summary.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "archived"
+    }
+  ],
+  "updated_at": "2026-07-11T20:12:34+08:00",
+  "workflow_version": "v1.2"
+}

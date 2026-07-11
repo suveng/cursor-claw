@@ -1,0 +1,9 @@
+{
+  "version": "1.14.4",
+  "date": "2026-07-11",
+  "changes": [
+    "升级 @cursor/sdk 至 1.0.23，改善长驻 Agent 空闲后 ERROR 与进程崩溃问题",
+    "SDK error 终态返回更完整错误详情，便于日志诊断",
+    "清理 ConnectRPC / sqlite3 等旧依赖链，安装更干净"
+  ]
+}

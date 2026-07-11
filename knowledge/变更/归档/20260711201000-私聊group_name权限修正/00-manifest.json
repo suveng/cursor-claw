@@ -1,0 +1,148 @@
+{
+  "change_id": "20260711201000-私聊group_name权限修正",
+  "id": "20260711201000-私聊group_name权限修正",
+  "name": "私聊group_name权限修正",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "related_changes": ["20260711131134-私聊注入对方名称到group_name"],
+  "updated_at": "2026-07-11T20:10:00+08:00",
+  "archived_at": "2026-07-11T20:10:00+08:00",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "修正飞书用户名称权限 SSOT 为 contact:user.base:readonly",
+      "status": "done",
+      "files": [
+        "src/renderer/constants.ts",
+        "src/shared/feishu-addons.ts",
+        "README.md",
+        "knowledge/业务域/消息桥接/02-飞书通道.md"
+      ]
+    },
+    {
+      "id": "LITE-02",
+      "title": "group_name 入队/launch/Prompt 可观测日志",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon.ts",
+        "electron/agent/shared/agent-launcher.ts",
+        "electron/session/session-dispatcher.ts"
+      ]
+    },
+    {
+      "id": "LITE-03",
+      "title": "Linux 本地打包脚本",
+      "status": "done",
+      "files": [
+        "scripts/deploy/linux.cjs",
+        "scripts/deploy/pipeline.cjs",
+        "scripts/deploy/AGENTS.md",
+        "package.json",
+        "README.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260711201000-私聊group_name权限修正/00-manifest.json",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711201000-私聊group_name权限修正/01-proposal.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711201000-私聊group_name权限修正/05-summary.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711201000-私聊group_name权限修正/08-verify-resolve.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "src/renderer/constants.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/shared/feishu-addons.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/shared/agent-launcher.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/session-dispatcher.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "scripts/deploy/linux.cjs",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "scripts/deploy/pipeline.cjs",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/02-飞书通道.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.14.3.json",
+      "kind": "other",
+      "source": "archive",
+      "status": "changed"
+    }
+  ],
+  "external": {
+    "acceptance": {
+      "rounds": [
+        {
+          "round": 1,
+          "feedback": "私聊 group_name 未注入；根因为权限 contact:user.base:readonly 未开通",
+          "resolved_by": "LITE-01 + 用户扫码开权",
+          "created_at": "2026-07-11T19:58:00+08:00",
+          "resolved_at": "2026-07-11T20:10:00+08:00"
+        }
+      ]
+    }
+  }
+}

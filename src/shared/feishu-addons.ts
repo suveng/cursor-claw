@@ -8,8 +8,8 @@ export const FEISHU_MENU_SCOPES: { scope: string; desc: string }[] = [
   { scope: "application:bot.menu:write", desc: "机器人自定义菜单写入" },
   { scope: "cardkit:card:write", desc: "CardKit 卡片写入（进入私聊帮助卡）" },
   { scope: "application:application.bot.operator_name:readonly", desc: "读取机器人操作者名称" },
-  // 与创建侧 REQUIRED_FEISHU_SCOPES 文案对齐；两套 SSOT 不合并，仅在此补扫码增量
-  { scope: "contact:contact.base:readonly", desc: "获取用户名（私聊会话显示）" },
+  // 私聊 group_name 注入：contact.user.get 的 name 字段须此权限
+  { scope: "contact:user.base:readonly", desc: "获取用户名称（私聊 group_name 注入）" },
 ];
 
 /** 菜单能力增量事件（含中文说明，供设置页展示） */

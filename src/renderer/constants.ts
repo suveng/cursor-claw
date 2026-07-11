@@ -6,7 +6,8 @@ export const REQUIRED_FEISHU_SCOPES: { scope: string; desc: string }[] = [
   { scope: "im:message.group_at_msg.include_bot:readonly", desc: "接收其他机器人 @本机器人的群消息（AI 间协作）" },
   { scope: "im:resource", desc: "上传/下载图片与文件" },
   { scope: "im:chat:read", desc: "获取群聊名称" },
-  { scope: "contact:contact.base:readonly", desc: "获取用户名（私聊会话显示）" },
+  // contact.user.get 的 name 字段须 contact:user.base:readonly（非 contact:contact.base:readonly）
+  { scope: "contact:user.base:readonly", desc: "获取用户名称（私聊 group_name 注入）" },
 ]
 
 export const FEISHU_SCOPES_JSON = JSON.stringify(

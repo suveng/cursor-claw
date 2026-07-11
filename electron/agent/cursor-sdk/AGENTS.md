@@ -3,6 +3,7 @@
 ## Cursor SDK Run 模块边界
 
 - **入口编排**：`agent-sdk.ts` launch/dispatch/HTTP 路由；复杂逻辑下沉 `sdk-run-*`；**单文件 ≤300 行**。
+- **bind 后预热**：`sdk-warmup.ts` — `warmupSdkAfterBind` fire-and-forget；日志关键字 `sdk_warmup`；调用方 void 不 await。
 - **事件流 SSOT**：`sdk-run-stream.ts` — `streamRunEvents`+`handleSdkEvent`；运行期仅 `for await (run.stream())`；`run.wait()` 仅 `finalizeRunContextUsage`/`completeSdkRun` 收尾。
 - **生命周期**：`sdk-run-lifecycle.ts` — `startSdkRun`（挂 watchdog+stream+持久化）、`completeSdkRun`（幂等收尾+`clearActiveSdkRun`）、`stopSdkSession`（`markSdkRunUserStopped`+abort）。
 - **watchdog**：`sdk-run-watchdog.ts` — `armRunWatchdog`；idle 默认 **30min**（`SDK_IDLE_TIMEOUT_MS` 可覆盖），absolute 默认 7min（`SDK_RUN_WATCHDOG_MS`/`PLATFORM_RUN_LIMIT_MS`），二者解耦；`NEVER_CANCEL_ON_DURATION` 默认 true 不按总时长硬杀；`tool_running`/`awaiting_user`/`lastTool.running` 豁免 idle 取消（对称 CC）。**`watchdogTimedOut`**（`sdk-session-types.ts`，对称 CC）：`onTimeout` 在 `cancelRunAndWait` **前**置 `true`；用户 `stopSdkSession`（aborted）**不**置闩；`resetSdkRunPresentationState` 清零。**`markSessionActivity` 门控**（`sdk-session-registry.ts`）：`watchdogState==='cancelling'` 或 `watchdogTimedOut` 时仅刷新 `lastActivityAt`，**禁止** `activity_resume`（防 stream `CANCELLED` status 复活 watchdog）。

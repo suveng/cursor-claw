@@ -1,0 +1,459 @@
+{
+  "change_id": "20260711203953-巨型单体拆分",
+  "id": "20260711203953-巨型单体拆分",
+  "name": "巨型单体拆分",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-11T20:39:53+0800",
+  "updated_at": "2026-07-11T22:40:00+0800",
+  "archived_at": "2026-07-11T22:40:00+0800",
+  "related_changes": [
+    "20260711205108-Orchestrator会话路由SSOT收尾"
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "DaemonContext 与子域 deps 接口定义",
+      "status": "done",
+      "batch": 1,
+      "depends_on": [],
+      "files": ["src/daemon/daemon.ts"]
+    },
+    {
+      "id": "T2",
+      "title": "抽出 daemon-presentation-ordering.ts",
+      "status": "done",
+      "batch": 1,
+      "depends_on": ["T1"],
+      "files": [
+        "src/daemon/daemon-presentation-ordering.ts",
+        "src/daemon/daemon-presentation-ordering-eligible.ts",
+        "src/daemon/daemon-presentation-ordering-release.ts",
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "抽出 daemon-orchestrator.ts",
+      "status": "done",
+      "batch": 1,
+      "depends_on": ["T1"],
+      "files": ["src/daemon/daemon-orchestrator.ts", "src/daemon/daemon.ts"]
+    },
+    {
+      "id": "T4",
+      "title": "抽出 daemon-presentation-handlers.ts",
+      "status": "done",
+      "batch": 1,
+      "depends_on": ["T2", "T3"],
+      "files": [
+        "src/daemon/daemon-presentation-handlers.ts",
+        "src/daemon/daemon-presentation-enqueue.ts",
+        "src/daemon/daemon-presentation-merge-preview.ts",
+        "src/daemon/daemon-presentation-stream.ts",
+        "src/daemon/daemon-presentation-process-events.ts",
+        "src/daemon/daemon-presentation-assistant-events.ts",
+        "src/daemon/daemon-presentation-types.ts",
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "抽出 daemon-http-routes.ts",
+      "status": "done",
+      "batch": 1,
+      "depends_on": ["T3", "T4"],
+      "files": [
+        "src/daemon/daemon-http-routes.ts",
+        "src/daemon/daemon-http-routes-types.ts",
+        "src/daemon/daemon-http-routes-orchestrator.ts",
+        "src/daemon/daemon-http-routes-send.ts",
+        "src/daemon/daemon-http-routes-session.ts",
+        "src/daemon/daemon-http-routes-misc.ts",
+        "src/daemon/daemon-http-admin-crud.ts",
+        "src/daemon/daemon-http-admin-content.ts",
+        "src/daemon/daemon-http-admin-io.ts",
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "抽出 daemon-http-server.ts",
+      "status": "done",
+      "batch": 1,
+      "depends_on": ["T5"],
+      "files": [
+        "src/daemon/daemon-http-server.ts",
+        "src/daemon/daemon-http-mcp.ts",
+        "src/daemon/daemon-http-non-api-routes.ts",
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "daemon.ts 组装入口收敛与批1回归",
+      "status": "done",
+      "batch": 1,
+      "depends_on": ["T2", "T3", "T4", "T5", "T6"],
+      "files": ["src/daemon/daemon.ts", "src/daemon/AGENTS.md"]
+    },
+    {
+      "id": "T-FIX-01",
+      "title": "R1 批1 超限文件垂直切分",
+      "status": "done",
+      "batch": 1,
+      "depends_on": ["T7"],
+      "files": [
+        "src/daemon/daemon-http-server.ts",
+        "src/daemon/daemon-http-mcp.ts",
+        "src/daemon/daemon-http-non-api-routes.ts",
+        "src/daemon/daemon-http-routes.ts",
+        "src/daemon/daemon-http-routes-types.ts",
+        "src/daemon/daemon-http-routes-orchestrator.ts",
+        "src/daemon/daemon-http-routes-send.ts",
+        "src/daemon/daemon-http-routes-session.ts",
+        "src/daemon/daemon-http-routes-misc.ts",
+        "src/daemon/daemon-http-admin-crud.ts",
+        "src/daemon/daemon-http-admin-content.ts",
+        "src/daemon/daemon-http-admin-io.ts",
+        "src/daemon/daemon-presentation-handlers.ts",
+        "src/daemon/daemon-presentation-enqueue.ts",
+        "src/daemon/daemon-presentation-merge-preview.ts",
+        "src/daemon/daemon-presentation-ordering.ts",
+        "src/daemon/daemon-presentation-ordering-eligible.ts",
+        "src/daemon/daemon-presentation-ordering-release.ts",
+        "src/daemon/daemon.ts",
+        "src/daemon/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T8",
+      "title": "抽出 daemon-queue.ts",
+      "status": "deferred",
+      "batch": 2,
+      "depends_on": ["T7"],
+      "files": ["src/daemon/daemon-queue.ts", "src/daemon/daemon.ts"]
+    },
+    {
+      "id": "T9",
+      "title": "抽出 daemon-feishu-channel.ts",
+      "status": "deferred",
+      "batch": 2,
+      "depends_on": ["T7"],
+      "files": ["src/daemon/daemon-feishu-channel.ts", "src/daemon/daemon.ts"]
+    },
+    {
+      "id": "T10",
+      "title": "抽出 daemon-logging.ts",
+      "status": "deferred",
+      "batch": 2,
+      "depends_on": ["T7"],
+      "files": ["src/daemon/daemon-logging.ts", "src/daemon/daemon.ts"]
+    },
+    {
+      "id": "T11",
+      "title": "daemon.ts 瘦身至薄入口",
+      "status": "deferred",
+      "batch": 2,
+      "depends_on": ["T8", "T9", "T10"],
+      "files": ["src/daemon/daemon.ts"]
+    },
+    {
+      "id": "T12",
+      "title": "拆分 electron/daemon/daemon-manager.ts",
+      "status": "deferred",
+      "batch": 3,
+      "depends_on": ["T11"],
+      "files": ["electron/daemon/daemon-manager.ts"]
+    },
+    {
+      "id": "T13",
+      "title": "拆分 src/bridge/lark-core.ts",
+      "status": "deferred",
+      "batch": 4,
+      "depends_on": ["T12"],
+      "files": ["src/bridge/lark-core.ts"]
+    },
+    {
+      "id": "T14",
+      "title": "拆分 session-dispatcher.ts",
+      "status": "deferred",
+      "batch": 4,
+      "depends_on": ["T12"],
+      "files": ["electron/session/session-dispatcher.ts"]
+    },
+    {
+      "id": "T15",
+      "title": "拆分 command-handler.ts",
+      "status": "deferred",
+      "batch": 4,
+      "depends_on": ["T13", "T14"],
+      "files": ["electron/scheduling/command-handler.ts"]
+    },
+    {
+      "id": "T16",
+      "title": "全批完成后知识库与 AGENTS.md 同步",
+      "status": "deferred",
+      "batch": 4,
+      "depends_on": ["T15"],
+      "files": [
+        "knowledge/业务域/Agent调度/00-README.md",
+        "knowledge/业务域/消息桥接/00-README.md",
+        "src/daemon/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "source": "04-review.md",
+      "conclusion": "resolved",
+      "summary": "T-FIX-01 垂直切分 17 个子文件；全部 daemon-*.ts ≤300；npm run build:mcp 通过"
+    },
+    {
+      "id": "R2",
+      "source": "04-review.md",
+      "conclusion": "debt_accepted",
+      "summary": "批1 部分模块 @ts-nocheck 削弱 deps 类型检查；建议 T-FIX-02 或随批2 queue 拆分一并收紧"
+    },
+    {
+      "id": "R3",
+      "source": "04-review.md",
+      "conclusion": "resolved",
+      "summary": "src/AGENTS.md daemon 行已与 src/daemon/AGENTS.md 批1 模块表对齐"
+    },
+    {
+      "id": "R4",
+      "source": "04-review.md",
+      "conclusion": "debt_accepted",
+      "summary": "并行变更 20260711205108 渗透 daemon-session-routing.ts；交叉引用 related_changes"
+    },
+    {
+      "id": "R5",
+      "source": "04-review.md",
+      "conclusion": "debt_accepted",
+      "summary": "01 验收 1～4（冷启动、入队、dispatch、/restart）E2E 待手工/发布 checklist"
+    }
+  ],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260711203953-巨型单体拆分/00-manifest.json",
+      "kind": "change_doc",
+      "source": "kb-archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711203953-巨型单体拆分/01-proposal.md",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711203953-巨型单体拆分/02-design.md",
+      "kind": "change_doc",
+      "source": "kb-design",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711203953-巨型单体拆分/03-tasks.md",
+      "kind": "change_doc",
+      "source": "kb-plan",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711203953-巨型单体拆分/04-review.md",
+      "kind": "change_doc",
+      "source": "kb-review",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711203953-巨型单体拆分/05-summary.md",
+      "kind": "change_doc",
+      "source": "kb-archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711203953-巨型单体拆分/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "kb-test",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-orchestrator.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-ordering.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-ordering-eligible.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-ordering-release.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-handlers.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-enqueue.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-merge-preview.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-stream.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-process-events.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-assistant-events.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-types.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-types.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-orchestrator.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-send.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-session.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-misc.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-http-admin-crud.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-http-admin-content.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-http-admin-io.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-http-server.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-http-mcp.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/daemon-http-non-api-routes.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "config",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/AGENTS.md",
+      "kind": "config",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "kind": "knowledge",
+      "source": "kb-librarian",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/00-README.md",
+      "kind": "knowledge",
+      "source": "kb-librarian",
+      "status": "changed"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "技术债",
+    "priority": "P1"
+  }
+}

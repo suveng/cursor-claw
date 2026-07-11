@@ -1,6 +1,5 @@
-// @ts-nocheck — 批1 通道类型与 daemon ChannelRuntime 对齐留批2
 /**
- * Presentation handlers 工厂：入队确认、合并预览回复、里程碑降级与 stream/events 组装。
+ * Presentation handlers 工厂：里程碑降级与 stream/events 组装。
  */
 
 import type { QueueMessageMeta } from "../bridge/file-queue.js";
@@ -12,10 +11,11 @@ import {
   type PresentationOrderingDeps,
   type SessionProgressState,
 } from "./daemon-presentation-ordering.js";
-import { createStreamTextHandler } from "./daemon-presentation-stream.js";
+import { createStreamTextHandler, type StreamHandlerDeps } from "./daemon-presentation-stream.js";
 import { createProcessPresentationHandlers } from "./daemon-presentation-process-events.js";
 import { createAssistantPresentationHandlers } from "./daemon-presentation-assistant-events.js";
-import { MERGE_EDIT_MAX_CHARS } from "./daemon-presentation-types.js";
+import { createEnqueueHandlers, type EnqueueHandlerDeps } from "./daemon-presentation-enqueue.js";
+import { createMergePreviewHandler } from "./daemon-presentation-merge-preview.js";
 import type { PresentationEvent, PresentationHandlerCtx } from "./daemon-presentation-types.js";
 export type { PresentationEvent, PresentationKind } from "./daemon-presentation-types.js";
 
@@ -66,15 +66,7 @@ export interface PresentationHandlerApi {
   confirmEnqueueAndStartProgress: (messageId: string, sessionKey: string, chatId?: string) => Promise<void>;
   stopSessionProgress: (sessionKey: string) => void;
   buildEnqueueStatusText: (sessionKey: string, pending: number) => string;
-  tryHandleMergePreviewReply: (
-    parentId: string | undefined,
-    text: string,
-    messageId: string,
-    chatKey: string,
-    chatType: string,
-    senderOpenId?: string,
-    meta?: QueueMessageMeta,
-  ) => Promise<boolean>;
+  tryHandleMergePreviewReply: ReturnType<typeof createMergePreviewHandler>;
   getPresentationReplyAnchor: (sessionKey: string) => string | undefined;
   logPresentationFailed: (sessionKey: string, kind: string, reason: string) => void;
   recordGetReactions: (sessionKey: string, messageIds: string[]) => void;
@@ -101,7 +93,7 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     if (ch.type === "wechat") {
       return ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
     }
-    const sentMsgId = await ch.rt.sender!.sendMessage(text, undefined, ch.chatId, title);
+    const sentMsgId = await ch.rt.sender!.sendMessage(text, undefined, (ch as { chatId?: string }).chatId, title);
     if (sentMsgId) {
       deps.trackMessageSession(sentMsgId, sessionKey);
       deps.sessionLastReplyAt.set(sessionKey, Date.now());
@@ -113,54 +105,13 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     deps.log("WARN", message);
   }
 
-  function buildEnqueueStatusText(sessionKey: string, pending: number): string {
-    const phase = deps.getSessionAgentPhase(sessionKey) ?? "idle";
-    let text: string;
-    if (phase === "starting") {
-      text = "已收到。正在连接 Agent，你的消息已排队";
-    } else if (phase === "processing") {
-      text = "已收到。Agent 正在处理上一条，你的消息已排队";
-    } else if (pending <= 1) {
-      text = "已收到，等待 Agent 领取";
-    } else {
-      text = "已收到，已加入待处理队列";
-    }
-    if (pending > 1) text += `（前面还有 ${pending - 1} 条待处理）`;
-    return text;
-  }
-
-  function getGetReactedIds(sessionKey: string): Set<string> {
-    let set = deps.sessionGetReactedIds.get(sessionKey);
-    if (!set) {
-      set = new Set();
-      deps.sessionGetReactedIds.set(sessionKey, set);
-    }
-    const state = deps.sessionProgressMap.get(sessionKey);
-    if (state) state.getReactedMessageIds = set;
-    return set;
-  }
-
-  function recordGetReactions(sessionKey: string, messageIds: string[]): void {
-    const set = getGetReactedIds(sessionKey);
-    for (const id of messageIds) {
-      if (id) set.add(id);
-    }
-  }
-
-  function clearGetReactions(sessionKey: string, messageIds: string[]): void {
-    const set = deps.sessionGetReactedIds.get(sessionKey);
-    if (!set) return;
-    for (const id of messageIds) set.delete(id);
-    if (set.size === 0) deps.sessionGetReactedIds.delete(sessionKey);
-  }
-
   function stopSessionProgress(sessionKey: string): void {
     const state = deps.sessionProgressMap.get(sessionKey);
     if (!state) return;
     if (state.typingActive) {
       const ch = deps.resolveChannel(sessionKey);
       if (ch.type === "wechat") {
-        ch.rt.wechat!.stopProgressTyping(ch.chatId).catch((e: unknown) => {
+        (ch.rt.wechat as { stopProgressTyping?: (chatId: string) => Promise<void> }).stopProgressTyping?.(ch.chatId).catch((e: unknown) => {
           deps.log("WARN", `stopProgressTyping 失败: ${e instanceof Error ? e.message : e}`);
         });
       }
@@ -168,6 +119,17 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     clearMilestoneState(state);
     deps.sessionProgressMap.delete(sessionKey);
   }
+
+  const enqueue = createEnqueueHandlers({
+    log: deps.log,
+    sessionProgressMap: deps.sessionProgressMap,
+    sessionGetReactedIds: deps.sessionGetReactedIds,
+    getSessionAgentPhase: deps.getSessionAgentPhase,
+    getSessionUnclaimedCount: deps.getSessionUnclaimedCount,
+    resolveChannel: deps.resolveChannel as EnqueueHandlerDeps["resolveChannel"],
+    replyToMessage: deps.replyToMessage,
+    addReactionToMessages: deps.addReactionToMessages,
+  });
 
   const { handleStreamText } = createStreamTextHandler({
     log: deps.log,
@@ -197,7 +159,7 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     replaceSessionUnclaimedMessages: deps.replaceSessionUnclaimedMessages,
     formatMergeBody: deps.formatMergeBody,
     isTerminalMergePhase: deps.isTerminalMergePhase,
-    renderMergeBatchCardForSession: deps.renderMergeBatchCardForSession,
+    renderMergeBatchCardForSession: deps.renderMergeBatchCardForSession as PresentationHandlerCtx["renderMergeBatchCardForSession"],
     replyToMessage: deps.replyToMessage,
     addReactionToMessages: deps.addReactionToMessages,
     resolveChannel: deps.resolveChannel as PresentationHandlerCtx["resolveChannel"],
@@ -231,108 +193,29 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     }
   }
 
-  async function tryHandleMergePreviewReply(
-    parentId: string | undefined,
-    text: string,
-    messageId: string,
-    chatKey: string,
-    chatType: string,
-    senderOpenId?: string,
-    meta?: QueueMessageMeta,
-  ): Promise<boolean> {
-    if (!parentId) return false;
-    const entry = deps.mergeCardRegistry.get(parentId);
-    if (!entry) return false;
-
-    const { sessionKey, batchId } = entry;
-    const batch = deps.mergeBatchBySession.get(sessionKey);
-    if (!batch || batch.batchId !== batchId) return false;
-
-    const failReply = async (reason: string) => {
-      await deps.replyToMessage(messageId, `${reason}请直接回复合并卡片，并发送完整合并正文。`, chatKey);
-    };
-
-    if (batch.phase === "locked" || batch.phase === "dispatched") {
-      await deps.replyToMessage(messageId, "该批消息 Agent 已开始处理，无法修改。如需补充请直接发送新消息。", chatKey);
-      return true;
-    }
-
-    const claimed = deps.getSessionPendingCount(sessionKey) - deps.getSessionUnclaimedCount(sessionKey);
-    if (claimed > 0) {
-      await deps.replyToMessage(messageId, "该批消息 Agent 已开始处理，无法修改。如需补充请直接发送新消息。", chatKey);
-      return true;
-    }
-
-    const trimmed = text?.trim();
-    if (!trimmed) {
-      await failReply("未能识别修改。");
-      return true;
-    }
-    if (trimmed.length > MERGE_EDIT_MAX_CHARS) {
-      await failReply(`正文过长（>${MERGE_EDIT_MAX_CHARS} 字）。`);
-      return true;
-    }
-
-    const fullMeta: QueueMessageMeta = { ...(meta || {}), chatType, senderOpenId };
-    const result = deps.replaceSessionUnclaimedMessages(sessionKey, trimmed, fullMeta);
-    if (!result.ok) {
-      await failReply("未能识别修改。");
-      return true;
-    }
-
-    batch.overrideText = trimmed;
-    batch.updatedAt = Date.now();
-    deps.renderMergeBatchCardForSession(batch).catch((e: unknown) => {
-      deps.log("WARN", `合并卡编辑后更新失败: ${e instanceof Error ? e.message : e}`);
-    });
-    await deps.replyToMessage(messageId, "已按你的内容更新合并批次。Agent 领取后将按新内容处理。", chatKey);
-    return true;
-  }
-
-  async function confirmEnqueueAndStartProgress(
-    messageId: string,
-    sessionKey: string,
-    chatId?: string,
-  ): Promise<void> {
-    const pending = deps.getSessionUnclaimedCount(sessionKey);
-    const statusText = buildEnqueueStatusText(sessionKey, pending);
-    try {
-      await deps.replyToMessage(messageId, statusText, chatId);
-    } catch (e: unknown) {
-      deps.log("WARN", `入队确认发送失败: ${e instanceof Error ? e.message : e}`);
-    }
-
-    let state = deps.sessionProgressMap.get(sessionKey);
-    if (!state) {
-      state = { typingActive: false };
-      deps.sessionProgressMap.set(sessionKey, state);
-    }
-
-    const ch = deps.resolveChannel(sessionKey);
-    if (ch.type === "wechat") {
-      state.typingActive = true;
-      ch.rt.wechat!.startProgressTyping(ch.chatId).catch((e: unknown) => {
-        deps.log("WARN", `startProgressTyping 失败: ${e instanceof Error ? e.message : e}`);
-      });
-    } else if (ch.type === "feishu") {
-      state.typingActive = true;
-      deps.addReactionToMessages([messageId], sessionKey, "Get");
-      recordGetReactions(sessionKey, [messageId]);
-    }
-  }
+  const tryHandleMergePreviewReply = createMergePreviewHandler({
+    log: deps.log,
+    mergeBatchBySession: deps.mergeBatchBySession,
+    mergeCardRegistry: deps.mergeCardRegistry,
+    getSessionPendingCount: deps.getSessionPendingCount,
+    getSessionUnclaimedCount: deps.getSessionUnclaimedCount,
+    replaceSessionUnclaimedMessages: deps.replaceSessionUnclaimedMessages,
+    renderMergeBatchCardForSession: deps.renderMergeBatchCardForSession,
+    replyToMessage: deps.replyToMessage,
+  });
 
   return {
     ordering,
     rememberSessionChatType: ordering.rememberSessionChatType,
     handleStreamText,
     handlePresentationEvent,
-    confirmEnqueueAndStartProgress,
+    confirmEnqueueAndStartProgress: enqueue.confirmEnqueueAndStartProgress,
     stopSessionProgress,
-    buildEnqueueStatusText,
+    buildEnqueueStatusText: enqueue.buildEnqueueStatusText,
     tryHandleMergePreviewReply,
     getPresentationReplyAnchor,
     logPresentationFailed,
-    recordGetReactions,
-    clearGetReactions,
+    recordGetReactions: enqueue.recordGetReactions,
+    clearGetReactions: enqueue.clearGetReactions,
   };
 }

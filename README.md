@@ -375,7 +375,7 @@ Daemon 进程独立于 Cursor 运行，即使 Agent 会话中断，系统也能�
 | `im:message.group_at_msg:readonly` | 接收群聊 @消息 |
 | `im:resource` | 上传/下载图片与文件 |
 | `im:chat:read` | 获取群聊名称 |
-| `contact:contact.base:readonly` | 获取用户名（私聊会话显示） |
+| `contact:user.base:readonly` | 获取用户名称（私聊 group_name 注入） |
 
 <details>
 <summary>批量导入权限 JSON</summary>
@@ -389,7 +389,7 @@ Daemon 进程独立于 Cursor 运行，即使 Agent 会话中断，系统也能�
       "im:message.group_at_msg:readonly",
       "im:resource",
       "im:chat:read",
-      "contact:contact.base:readonly"
+      "contact:user.base:readonly"
     ],
     "user": []
   }
@@ -501,12 +501,21 @@ npm run build
 npm run dist:win   # Windows
 npm run dist:mac   # macOS（dmg，默认打包后安装并以 --profile=swg 启动）
 npm run pack:mac   # macOS 目录包（同上）
+npm run dist:linux # Linux（AppImage，默认打包后安装并以 --profile=swg 启动）
+npm run pack:linux # Linux 目录包（同上）
 
 # macOS 也可直接调用 deploy CLI
 node scripts/deploy/mac.cjs              # 打包 + 安装 + 以 profile=swg 启动
 node scripts/deploy/mac.cjs --profile=dev
 node scripts/deploy/mac.cjs --no-profile # 使用默认 userData
 node scripts/deploy/mac.cjs --no-install # 仅打包，不安装
+
+# Linux 也可直接调用 deploy CLI
+node scripts/deploy/linux.cjs              # 打包 AppImage + 安装 + 以 profile=swg 启动
+node scripts/deploy/linux.cjs --profile=dev
+node scripts/deploy/linux.cjs --no-profile # 使用默认 userData
+node scripts/deploy/linux.cjs --no-install # 仅打包，不安装
+node scripts/deploy/linux.cjs --artifact=deb # 打包 deb 并以 sudo dpkg -i 安装
 ```
 
 ## License

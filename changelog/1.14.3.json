@@ -1,0 +1,9 @@
+{
+  "version": "1.14.3",
+  "date": "2026-07-11",
+  "changes": [
+    "修正飞书私聊用户名权限为 contact:user.base:readonly，修复私聊 group_name 无法注入的问题",
+    "增加 group_name 入队、launch 与 Prompt 可观测日志，便于验收排查",
+    "新增 Linux 本地打包脚本（npm run dist:linux / pack:linux）"
+  ]
+}

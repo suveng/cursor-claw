@@ -8,17 +8,30 @@
 |------|------|
 | `daemon.ts` | 组装入口、`wireDaemonSubmodules`、queue/MergeBatch/channel/logging |
 | `daemon-orchestrator.ts` | `createOrchestrator` — dispatch loop、Electron API 转发、busy 重排 |
-| `daemon-presentation-ordering.ts` | `createPresentationOrdering` — PRESENTATION_ORDERING 与 eligible |
+| `daemon-presentation-ordering.ts` | `createPresentationOrdering` — 编排入口（eligible + release 组装） |
+| `daemon-presentation-ordering-eligible.ts` | eligible 门控、节流、`presentation_order_violation` 日志 |
+| `daemon-presentation-ordering-release.ts` | deferred assistant release 串行链 |
 | `daemon-presentation-stream.ts` | `createStreamTextHandler` — `/api/stream-text` |
 | `daemon-presentation-process-events.ts` | tool/thinking presentation-event |
 | `daemon-presentation-assistant-events.ts` | assistant/task/merge_batch presentation-event |
-| `daemon-presentation-handlers.ts` | `createPresentationHandlers` — 入队确认、合并预览回复 |
+| `daemon-presentation-handlers.ts` | `createPresentationHandlers` — 工厂壳层 |
+| `daemon-presentation-enqueue.ts` | 入队确认、F1/Get、排队文案 |
+| `daemon-presentation-merge-preview.ts` | 合并预览卡回复编辑 |
 | `daemon-presentation-types.ts` | presentation 共享类型（避免 handlers/events 环引） |
 | `daemon-presentation-milestone.ts` | 里程碑 send-text 降级（已有） |
-| `daemon-http-routes.ts` | `createAdminApiHandler` — `/api/*` |
+| `daemon-http-routes.ts` | `createAdminApiHandler` — `/api/*` 分发入口 |
+| `daemon-http-routes-types.ts` | `HttpRoutesDeps`（routes 子模块共享，防环引） |
+| `daemon-http-routes-orchestrator.ts` | orchestrator / merge / agent launch|dispatch 路由簇 |
+| `daemon-http-routes-send.ts` | send-text/image/file、presentation、stream-text |
+| `daemon-http-routes-session.ts` | active-session、session-fallback 等 |
+| `daemon-http-routes-misc.ts` | SSE queue-events、chat-names、user-names |
 | `daemon-session-routing.ts` | `fallbackSessionMap` — 临时会话回退栈 SSOT（与 `activeSessionMap` 并列） |
-| `daemon-http-admin-crud.ts` | admin CRUD 子路由表 |
-| `daemon-http-server.ts` | `startHttpServer` — MCP、`/health`、`/enqueue` 等非 `/api` |
+| `daemon-http-admin-crud.ts` | admin CRUD 入口（tasks + workspace/agent entity） |
+| `daemon-http-admin-content.ts` | mcp / rules / skills admin 子路由 |
+| `daemon-http-admin-io.ts` | admin 文件 IO 辅助、`AdminRouteHandler` 类型 |
+| `daemon-http-server.ts` | `startHttpServer` — 监听壳 |
+| `daemon-http-mcp.ts` | MCP Server 工厂（agent + admin） |
+| `daemon-http-non-api-routes.ts` | `/health`、`/enqueue`、队列/通道 bind 等非 `/api` |
 | `feishu-event-handlers.ts` / `server-admin.ts` / `daemon-scheduled-tasks.ts` / `chat-name-resolve.ts` | 已有边界锚点 |
 
 ## 依赖注入规矩（批1）

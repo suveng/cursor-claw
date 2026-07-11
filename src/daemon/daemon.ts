@@ -1652,8 +1652,6 @@ export async function daemonMain(): Promise<void> {
     configuredPort: CONFIGURED_PORT,
     readBody,
     json,
-    httpJson,
-    localDaemonUrl,
     handleAdminApi: handleAdminApiRef,
     activeMcpConnections,
     lastMcpRequestTime,

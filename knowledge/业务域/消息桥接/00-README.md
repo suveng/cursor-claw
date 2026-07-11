@@ -27,7 +27,11 @@
 | 微信客户端 | `src/bridge/wechat/` |
 | 微信管理 | `src/bridge/wechat-manager.ts` |
 | 文件队列 | `src/bridge/file-queue.ts` |
-| Daemon 路由 | `src/daemon/daemon.ts` |
+| Daemon 薄组装 | `src/daemon/daemon.ts`（组装；`pushMessage`/MergeBatch/通道仍驻此，批2） |
+| Daemon HTTP | `daemon-http-server.ts`、`daemon-http-routes*.ts`、`daemon-http-mcp.ts`、`daemon-http-non-api-routes.ts` |
+| Daemon 编排 | `daemon-orchestrator.ts`（claim/dispatch loop；MergeBatch claim 路由经 `daemon-http-routes-orchestrator.ts`） |
+| Presentation 出站 | `daemon-presentation-enqueue.ts`（F1/Get/排队）、`daemon-presentation-stream.ts`（stream-text）、`daemon-presentation-handlers.ts` 及 `daemon-presentation-*` 子模块 |
+| 飞书事件 | `feishu-event-handlers.ts`（已有边界锚点） |
 
 ## 推荐阅读路径
 
@@ -38,6 +42,7 @@
 
 ## 变更记录
 
+2026-07-11：Daemon 路由/队列锚点补充批1 子模块（HTTP、orchestrator、presentation-*）；queue/MergeBatch 落点仍注记批2（巨型单体拆分批1）。
 2026-07-02：源码锚点对齐 `src/bridge/*` 与 `src/daemon/daemon.ts`（archive 20260702120154）。
 2026-06-27：Daemon IM 编排与 MergeBatch（archive 20260627162620）。
 2026-06-27：kb-sync 初始建立。
