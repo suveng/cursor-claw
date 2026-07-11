@@ -30,7 +30,7 @@ export interface LaunchMeta {
 
 /**
  * 构建 Agent 启动/续派 Prompt（四引擎共用）。
- * 有群名时首行注入 `group_name: <名>`；无则省略该行（不写空占位）。
+ * 有群名/对方名时首行注入 `group_name: <名>`；无则省略该行（不写空占位）。
  * 不注入 rules、分隔线或其他 session 元数据包装。
  */
 export function buildPrompt(
@@ -39,14 +39,16 @@ export function buildPrompt(
   sessionKey?: string,
   // 保留参数以兼容既有调用方；workspace 路由仍由 session-dispatcher / SDK 负责
   _useMainWorkspace?: boolean,
-  /** 显式群名；缺省时按 sessionKey 查 chatNameCache */
+  /** 显式群名；缺省时按 sessionKey / senderOpenId 查 chatNameCache */
   chatName?: string,
+  /** 私聊对方 open_id；用于缓存未命中 chatId 时按 open_id 查名称 */
+  senderOpenId?: string,
 ): string {
   const body = taskMessage?.trim() ? taskMessage! : ""
-  // 优先显式名，其次缓存解析；trim 后仍空则不注入
+  // 优先显式名，其次按 sessionKey / senderOpenId 查缓存；trim 后仍空则不注入
   const name = (
     chatName?.trim() ||
-    (sessionKey ? resolveSessionChatName(sessionKey) : undefined)
+    (sessionKey ? resolveSessionChatName(sessionKey, undefined, senderOpenId) : undefined)
   )?.trim()
   if (!name) return body
   return `group_name: ${name}\n${body}`

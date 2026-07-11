@@ -12,6 +12,13 @@
 | `sdk-tool-presentation-tier.ts` | 归一化后工具名 → notify/silent 分级 SSOT | electron cursor-sdk、claude-code |
 | `format-unknown-error.ts` | `formatUnknownError` 未知 rejection/exception 诊断格式化 SSOT | electron `main.ts`、daemon 全局 handler、cursor-sdk `sdk-async-guard` |
 | `constants.ts` | `LOCK_FILE_NAME` 等进程级常量 | daemon-entry |
+| `feishu-addons.ts` | 扫码增量 scopes/events SSOT（`FEISHU_MENU_*`）与菜单 event_key 映射 | renderer Settings、registerApp addons |
+
+## feishu-addons 约定
+
+- **两套权限 SSOT 禁止合并**：创建侧 `REQUIRED_FEISHU_SCOPES`（`src/renderer/constants.ts`）与扫码增量 `FEISHU_MENU_SCOPES`（本文件）各自维护；增量开权只改本文件。
+- **ADDONS 派生**：`FEISHU_MENU_ADDONS.scopes.tenant` / `events.items.tenant` **须**由对应数组 `.map` 生成，禁止手写第二份 scope/event 列表。
+- **设置页展示**：增量表直接 `FEISHU_MENU_SCOPES.map` / `FEISHU_MENU_EVENTS.map`，改 SSOT 即可见，勿为单条权限改 UI。
 
 ## import 约定
 

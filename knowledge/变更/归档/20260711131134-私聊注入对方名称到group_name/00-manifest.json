@@ -1,0 +1,160 @@
+{
+  "name": "私聊注入对方名称到group_name",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "buildPrompt 传 senderOpenId 与四引擎 launch/dispatch 对齐",
+      "status": "done",
+      "files": [
+        "electron/agent/shared/agent-launcher.ts",
+        "electron/agent/cursor-sdk/agent-sdk.ts",
+        "electron/agent/claude-code/agent-claude-sdk.ts",
+        "electron/agent/codex/agent-codex-sdk.ts",
+        "electron/agent/opencode/agent-opencode-sdk.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "FEISHU_MENU 扫码增量补 contact 权限",
+      "status": "done",
+      "files": [
+        "src/shared/feishu-addons.ts"
+      ],
+      "depends_on": []
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/00-manifest.json",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "active"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/01-proposal.md",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "active"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/02-design.md",
+      "kind": "change_doc",
+      "source": "design",
+      "status": "active"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/03-tasks.md",
+      "kind": "change_doc",
+      "source": "plan",
+      "status": "active"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/04-review.md",
+      "kind": "change_doc",
+      "source": "review",
+      "status": "active"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/05-summary.md",
+      "kind": "change_doc",
+      "source": "archive",
+      "status": "active"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711131134-私聊注入对方名称到group_name/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "test",
+      "status": "active"
+    },
+    {
+      "path": "electron/agent/shared/agent-launcher.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-claude-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/shared/AGENTS.md",
+      "kind": "other",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/shared/feishu-addons.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/shared/AGENTS.md",
+      "kind": "other",
+      "source": "apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/02-飞书通道.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.14.2.json",
+      "kind": "other",
+      "source": "archive",
+      "status": "added"
+    }
+  ],
+  "archived_at": "2026-07-11T13:31:52+0800",
+  "updated_at": "2026-07-11T13:31:52+0800",
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "Feature",
+    "priority": "P2",
+    "registry_skip": true,
+    "notifications_skip": true,
+    "skip_reason": "kb.project.json integrations 未启用"
+  }
+}

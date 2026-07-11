@@ -150,7 +150,7 @@ export async function launchClaudeCodeAgent(opts: import("./agent-cc-types").Cla
       }
     }
 
-    const prompt = buildPrompt(meta, taskMessage, sessionKey, useMainWorkspace, chatName)
+    const prompt = buildPrompt(meta, taskMessage, sessionKey, useMainWorkspace, chatName, senderOpenId)
     pushUiLog("CC", "INFO", `[${sessionKey}] 启动 Claude Agent (model=${session.model || "claude-sonnet-4-6"} resident=${residentMode} resume=${session.ccSessionId ?? "new"})`)
 
     session.pendingDispatch = true
@@ -187,7 +187,7 @@ export async function dispatchToClaudeCodeAgent(
     session.runGuardToken = guard.token
     session.runStartedAt = Date.now()
 
-    const prompt = buildPrompt(session.meta, taskText, sessionKey, session.useMainWorkspace, session.chatName)
+    const prompt = buildPrompt(session.meta, taskText, sessionKey, session.useMainWorkspace, session.chatName, session.senderOpenId)
     pushUiLog("CC", "INFO", `[${sessionKey}] dispatch Claude Agent (resume=${session.ccSessionId ?? "new"})`)
     startCcQuery(session, prompt, guard.token)
 

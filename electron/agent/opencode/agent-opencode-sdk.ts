@@ -194,7 +194,7 @@ export async function launchOpencodeAgent(opts: OpencodeLaunchOptions): Promise<
     resolveOpencodeContextLimit(opts.sessionKey, opts.model, opts.apiKey)
     maybeRotateOpencodeSessionContext(session)
 
-    const prompt = buildPrompt(opts.meta, opts.taskMessage, opts.sessionKey, opts.useMainWorkspace, opts.chatName)
+    const prompt = buildPrompt(opts.meta, opts.taskMessage, opts.sessionKey, opts.useMainWorkspace, opts.chatName, opts.senderOpenId)
     pushUiLog("OpenCode", "INFO", `[${opts.sessionKey}] launch (provider=${opts.providerId} key=${maskOpencodeApiKey(opts.apiKey)})`)
     session.pendingDispatch = true
     await startOpencodeRun(session, prompt, guard.token, opts)
@@ -239,7 +239,7 @@ export async function dispatchToOpencodeAgent(sessionKey: string, taskText: stri
       providerId: session.providerId, apiKey: session.apiKey, model: session.model,
       deployMode: session.deployMode, profileResourceId: session.profileResourceId,
     }
-    await startOpencodeRun(session, buildPrompt(session.meta, taskText, sessionKey, session.useMainWorkspace, session.chatName), guard.token, opts)
+    await startOpencodeRun(session, buildPrompt(session.meta, taskText, sessionKey, session.useMainWorkspace, session.chatName, session.senderOpenId), guard.token, opts)
     broadcastOpencodeSessionStatus([...OPENCODE_SESSIONS.values()])
     await notifyOpencodeSessionChat(sessionKey, NOTIFY)
     await reportSessionAgentPhase(sessionKey, "processing")

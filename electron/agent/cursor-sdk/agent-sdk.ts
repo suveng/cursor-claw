@@ -122,7 +122,7 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     return { ok: false, error: "通道绑定的 SDK 资源未配置 API Key（设置 → Agent）" }
   }
 
-  const prompt = buildPrompt(meta, taskMessage, sessionKey, opts.useMainWorkspace, chatName)
+  const prompt = buildPrompt(meta, taskMessage, sessionKey, opts.useMainWorkspace, chatName, senderOpenId)
 
   try {
     ensureSdkBinaryPaths()
@@ -235,8 +235,8 @@ export async function dispatchToSdkAgent(
     pushUiLog("SDK", "ERROR", `[${sessionKey}] dispatch_failed: no resident agent`)
     return { ok: false, error: "no resident agent" }
   }
-  // 与 launch 共用 buildPrompt，保证 HTTP dispatch 也注入 group_name
-  const text = buildPrompt(undefined, taskText, sessionKey, undefined, session.chatName).trim()
+  // 与 launch 共用 buildPrompt，保证 HTTP dispatch 也注入 group_name（含私聊 senderOpenId）
+  const text = buildPrompt(undefined, taskText, sessionKey, undefined, session.chatName, session.senderOpenId).trim()
   if (!text) return { ok: false, error: "empty task" }
 
   if (isSdkSessionProcessing(session)) return { ok: false, error: "agent busy" }
