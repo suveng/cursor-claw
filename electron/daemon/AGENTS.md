@@ -10,7 +10,7 @@
 ## 模块边界
 
 - `daemon-manager.ts`：Daemon 子进程生命周期、IPC 注册枢纽、工作流/任务/通道汇聚；**不拆分**（历史行数超限属已知）。
-- `daemon-client.ts`：`httpPost` / `httpGet` / 锁文件 / 会话同步；各引擎经此通知 Daemon，避免与 `session/session-dispatcher` 循环 import。
+- `daemon-client.ts`：`httpPost` / `httpGet` / 锁文件 / 会话同步（`syncActiveSession`、`setSessionFallback` 等）；各引擎经此通知 Daemon，避免与 `session/session-dispatcher` 循环 import。
 - `sdk-daemon-notify.ts`：SDK 会话 IM notify 封装。
 
 ## 编码规矩

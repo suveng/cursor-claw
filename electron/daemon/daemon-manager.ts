@@ -39,14 +39,14 @@ import {
 } from "../mcp/mcp-manager"
 import { FileCommand, reportCommandResult, handleFeishuModelCommand, handleFeishuMcpCommand, handleFeishuTaskCommand, handleFeishuWorkflowCommand, parseListModelsStdout, type TaskRunFn } from "../scheduling/command-handler"
 import { buildHelpText } from "../scheduling/feishu-help-text"
-import { readLockFile, getLockFilePath, httpGet, httpPost, syncActiveSession, getCurrentActiveSession, enqueueToMainSession } from "./daemon-client"
+import { readLockFile, getLockFilePath, httpGet, httpPost, syncActiveSession, getCurrentActiveSession, enqueueToMainSession, setSessionFallback } from "./daemon-client"
 import {
   isSessionAgentRunning, stopSessionAgent, stopAllSessionAgents,
   launchSessionAgent, launchIndependentAgent,
   launchWorkflowAgent, notifyWorkflowChat,
   getSessionAgentList, handleChatCommand, clearMessageQueue, getQueueMessages,
   pullMergedMessagesFromQueue, isMainUser, extractChatId, chatNameCache,
-  fetchChatNames, fetchUserNames, initSessionDispatcher, previousActiveSessionMap,
+  fetchChatNames, fetchUserNames, initSessionDispatcher,
 } from "../session/session-dispatcher"
 
 export { applyProxyEnv } from "../app/proxy-env"
@@ -611,7 +611,9 @@ export async function startDaemon(): Promise<{ ok: boolean; error?: string }> {
             ).then(async (result) => {
               if (result.ok && chatId && cachedPort) {
                 const currentActive = await getCurrentActiveSession(cachedPort, chatId)
-                if (currentActive && currentActive !== payload.taskId) previousActiveSessionMap.set(payload.taskId, currentActive)
+                if (currentActive && currentActive !== payload.taskId) {
+                  await setSessionFallback(cachedPort, payload.taskId, currentActive)
+                }
                 await syncActiveSession(cachedPort, chatId, payload.taskId)
               }
             })

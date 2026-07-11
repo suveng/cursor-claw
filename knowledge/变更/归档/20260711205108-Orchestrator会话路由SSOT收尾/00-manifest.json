@@ -1,0 +1,193 @@
+{
+  "change_id": "20260711205108-Orchestrator会话路由SSOT收尾",
+  "id": "20260711205108-Orchestrator会话路由SSOT收尾",
+  "name": "Orchestrator会话路由SSOT收尾",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-11T20:51:08+0800",
+  "updated_at": "2026-07-11T20:58:00+0800",
+  "archived_at": "2026-07-11T20:58:00+0800",
+  "related_changes": [
+    "20260711203953-巨型单体拆分"
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Daemon 持有回退栈与 session-fallback API",
+      "status": "done",
+      "batch": 1,
+      "depends_on": [],
+      "files": [
+        "src/daemon/daemon.ts",
+        "src/daemon/daemon-http-routes.ts",
+        "src/daemon/daemon-session-routing.ts"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "Electron 改调 Daemon fallback API",
+      "status": "done",
+      "batch": 2,
+      "depends_on": ["T1"],
+      "files": [
+        "electron/daemon/daemon-client.ts",
+        "electron/session/session-dispatcher.ts",
+        "electron/daemon/daemon-manager.ts"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "清理 dead code 与知识库同步",
+      "status": "done",
+      "batch": 3,
+      "depends_on": ["T2"],
+      "files": [
+        "electron/session/session-dispatcher.ts",
+        "knowledge/业务域/Agent调度/02-多会话模型.md",
+        "knowledge/业务域/Agent调度/05-定时任务.md"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "可选 session-routing 持久化（ponytail）",
+      "status": "deferred",
+      "batch": 0,
+      "depends_on": ["T1"],
+      "files": [
+        "src/daemon/daemon-session-routing-persist.ts",
+        "src/daemon/daemon.ts"
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "source": "04-review.md",
+      "conclusion": "通过",
+      "debt_accepted": [
+        "T4 session-routing 持久化 deferred",
+        "手动 E2E 01 §六 验收 1～4 待发布 checklist",
+        "daemon-http-routes.ts 历史行数超限"
+      ]
+    }
+  ],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260711205108-Orchestrator会话路由SSOT收尾/00-manifest.json",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205108-Orchestrator会话路由SSOT收尾/01-proposal.md",
+      "kind": "change_doc",
+      "source": "kb-propose",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205108-Orchestrator会话路由SSOT收尾/02-design.md",
+      "kind": "change_doc",
+      "source": "kb-design",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205108-Orchestrator会话路由SSOT收尾/03-tasks.md",
+      "kind": "change_doc",
+      "source": "kb-plan",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205108-Orchestrator会话路由SSOT收尾/04-review.md",
+      "kind": "change_doc",
+      "source": "kb-review",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205108-Orchestrator会话路由SSOT收尾/05-summary.md",
+      "kind": "change_doc",
+      "source": "kb-archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711205108-Orchestrator会话路由SSOT收尾/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "kb-test",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-session-routing.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "config",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/daemon/daemon-client.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/session-dispatcher.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "kind": "code",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/daemon/AGENTS.md",
+      "kind": "config",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "electron/session/AGENTS.md",
+      "kind": "config",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/02-多会话模型.md",
+      "kind": "knowledge",
+      "source": "kb-apply",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/05-定时任务.md",
+      "kind": "knowledge",
+      "source": "kb-apply",
+      "status": "changed"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "技术债",
+    "priority": "P1"
+  }
+}

@@ -60,6 +60,40 @@ export async function syncActiveSession(port: number, chatId: string, sessionKey
   } catch {}
 }
 
+/** 记录临时会话回退目标（Daemon SSOT）；失败静默，不阻断 launch */
+export async function setSessionFallback(port: number, sessionKey: string, fallbackSessionKey: string): Promise<void> {
+  try {
+    await httpPost(`http://127.0.0.1:${port}/api/session-fallback`, { sessionKey, fallbackSessionKey })
+  } catch {}
+}
+
+/** 读取临时会话回退目标；无记录或失败返回 undefined */
+export async function getSessionFallback(port: number, sessionKey: string): Promise<string | undefined> {
+  try {
+    const res = (await httpGet(
+      `http://127.0.0.1:${port}/api/session-fallback?sessionKey=${encodeURIComponent(sessionKey)}`,
+    )) as { fallbackSessionKey?: string | null }
+    const fb = res?.fallbackSessionKey
+    return fb ?? undefined
+  } catch { return undefined }
+}
+
+/** 清除临时会话回退关系（幂等）；失败静默 */
+export async function clearSessionFallback(port: number, sessionKey: string): Promise<void> {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const req = http.request(
+        `http://127.0.0.1:${port}/api/session-fallback?sessionKey=${encodeURIComponent(sessionKey)}`,
+        { method: "DELETE", timeout: 3000 },
+        () => resolve(),
+      )
+      req.on("error", reject)
+      req.on("timeout", () => { req.destroy(); reject(new Error("timeout")) })
+      req.end()
+    })
+  } catch {}
+}
+
 export async function getCurrentActiveSession(port: number, chatId: string): Promise<string | undefined> {
   try {
     const res = (await httpGet(`http://127.0.0.1:${port}/api/active-sessions`)) as { sessions?: Record<string, string> }

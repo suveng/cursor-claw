@@ -1,20 +1,38 @@
 # daemon 域编码约定
 
-> 入口：`src/daemon-entry.ts` → `daemon/daemon.ts`。HTTP 路由、orchestrator、MergeBatch、Presentation、stream-text 均在本域枢纽实现。
+> 入口：`src/daemon-entry.ts` → `daemon/daemon.ts`（薄组装）+ `daemon-*` 子模块。批1 已拆 HTTP / orchestrator / presentation；queue / channel / logging 仍驻 `daemon.ts`（批2）。
 
-## 目录职责
+## 目录职责（批1 模块边界）
 
-- `daemon.ts` — 守护进程枢纽（HTTP 路由、orchestrator、Presentation、stream-text）
-- `daemon-presentation-milestone.ts` — 飞书 CardKit 抑制时的里程碑 `send-text` 降级；`sendMilestoneText` 返回 `sent` 布尔（true=实际出站）；节流 ≥3s、同文案 ≤4 次/Run
-- `daemon-scheduled-tasks.ts` — 定时任务调度
-- `server-admin.ts` — MCP admin 工具注册
+| 文件 | 职责 |
+|------|------|
+| `daemon.ts` | 组装入口、`wireDaemonSubmodules`、queue/MergeBatch/channel/logging |
+| `daemon-orchestrator.ts` | `createOrchestrator` — dispatch loop、Electron API 转发、busy 重排 |
+| `daemon-presentation-ordering.ts` | `createPresentationOrdering` — PRESENTATION_ORDERING 与 eligible |
+| `daemon-presentation-stream.ts` | `createStreamTextHandler` — `/api/stream-text` |
+| `daemon-presentation-process-events.ts` | tool/thinking presentation-event |
+| `daemon-presentation-assistant-events.ts` | assistant/task/merge_batch presentation-event |
+| `daemon-presentation-handlers.ts` | `createPresentationHandlers` — 入队确认、合并预览回复 |
+| `daemon-presentation-types.ts` | presentation 共享类型（避免 handlers/events 环引） |
+| `daemon-presentation-milestone.ts` | 里程碑 send-text 降级（已有） |
+| `daemon-http-routes.ts` | `createAdminApiHandler` — `/api/*` |
+| `daemon-session-routing.ts` | `fallbackSessionMap` — 临时会话回退栈 SSOT（与 `activeSessionMap` 并列） |
+| `daemon-http-admin-crud.ts` | admin CRUD 子路由表 |
+| `daemon-http-server.ts` | `startHttpServer` — MCP、`/health`、`/enqueue` 等非 `/api` |
+| `feishu-event-handlers.ts` / `server-admin.ts` / `daemon-scheduled-tasks.ts` / `chat-name-resolve.ts` | 已有边界锚点 |
+
+## 依赖注入规矩（批1）
+
+- 子模块**禁止**互相 import；跨域仅经 `daemon.ts` 内 `wireDaemonSubmodules` 注入 `*Deps`。
+- 参照 `feishu-event-handlers.ts` 的 `FeishuEventHandlerDeps` 模式；禁止 `daemon-context.ts` barrel、`index.ts`。
+- `scheduleAgentDispatch` 由 orchestrator 产出，queue 侧经 `scheduleAgentDispatchRef` 回调，避免 queue↔orchestrator 环引。
 
 ## import 规矩
 
 - bridge 域：`../bridge/file-queue.js`、`../bridge/wechat-manager.js`、`../bridge/lark-core.js`
 - workflow 域：`../workflow/server-workflow.js`
 - shared 跨域类型：`../shared/channel-types.js`、`../shared/feishu-presentation-gate.js`、`../shared/tool-presentation.js`、`../shared/constants.js`
-- 域内同目录：`./daemon-presentation-milestone.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`
+- 域内同目录：`./daemon-orchestrator.js`、`./daemon-presentation-*.js`、`./daemon-http-*.js`、`./daemon-session-routing.js`、`./daemon-presentation-milestone.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`、`./feishu-event-handlers.js`
 
 ## Orchestrator launch 名称透传
 
@@ -31,8 +49,7 @@
 ## 禁止
 
 - 禁止 barrel `index.ts` 或 re-export shim
-- 枢纽文件改动以 import 路径为主；业务逻辑变更须独立变更单
-- **不拆** `daemon.ts` 既有业务逻辑（历史超限）；新增辅助仅同目录小文件、单职责
+- 枢纽 `daemon.ts` 仅做组装与批2 域（queue/channel/logging）；子模块单文件目标 ≤300 行，超限须再切或批2 跟进
 
 ---
 

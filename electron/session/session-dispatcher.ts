@@ -7,11 +7,12 @@ import {
   type MessageChannel, type ModelScenario,
 } from "../config/config-store"
 import { parseChatKey } from "../../src/shared/channel-types"
-import { broadcastLog } from "../app/ui-logger"
-import { readLockFile, httpGet, httpPost, syncActiveSession, getCurrentActiveSession, drainSessionMessages, reportSessionAgentPhase } from "../daemon/daemon-client"
+import { broadcastLog, pushUiLog } from "../app/ui-logger"
+import { readLockFile, httpGet, httpPost, syncActiveSession, getCurrentActiveSession, drainSessionMessages, reportSessionAgentPhase, getSessionFallback, clearSessionFallback, setSessionFallback } from "../daemon/daemon-client"
 import { reportCommandResult } from "../scheduling/command-handler"
 import {
   setChatNameResolver,
+  setPromptObservabilityLogger,
   type ChatType, type LaunchMeta,
 } from "../agent/shared/agent-launcher"
 import {
@@ -81,7 +82,6 @@ export function stopAllSessionAgents(): void {
 // ── Session 状态 ──────────────────────────────────────────
 
 export const chatNameCache = new Map<string, string>()
-export const previousActiveSessionMap = new Map<string, string>()
 
 // ── Session 工具 ──────────────────────────────────────────
 
@@ -118,12 +118,12 @@ export async function handleSessionClosed(sessionKey: string, chatType: ChatType
     await notifyChat(sessionKey, "Agent已退出", true)
   }
 
-  const previous = previousActiveSessionMap.get(sessionKey)
-  previousActiveSessionMap.delete(sessionKey)
-  if (!previous) return
-
   const lock = cachedLock()
   if (!lock) return
+
+  const previous = await getSessionFallback(lock.port, sessionKey)
+  await clearSessionFallback(lock.port, sessionKey)
+  if (!previous) return
 
   const currentActive = await getCurrentActiveSession(lock.port, chatId)
   if (currentActive !== sessionKey) return
@@ -475,9 +475,6 @@ export function getSessionAgentList() {
   return [...sdkList, ...ccList, ...codexList, ...opencodeList]
 }
 
-// ponytail: T7 调度迁入 Daemon；保留空实现供旧调用方兼容
-export async function dispatchSessionAgents(): Promise<void> {}
-
 // ── /chat new 参数解析与目录校验 ────────────────────────────
 
 const CHAT_NEW_DIR_FLAG = "-dir"
@@ -595,7 +592,9 @@ export async function handleChatCommand(tokens: string[], port: number, messageI
     )
     if (result.ok && chatId) {
       const currentActive = await getCurrentActiveSession(port, chatId)
-      if (currentActive && currentActive !== taskId) previousActiveSessionMap.set(taskId, currentActive)
+      if (currentActive && currentActive !== taskId) {
+        await setSessionFallback(port, taskId, currentActive)
+      }
       await syncActiveSession(port, chatId, taskId)
     }
     if (result.ok) {
@@ -664,6 +663,14 @@ export async function handleChatCommand(tokens: string[], port: number, messageI
 
 export function initSessionDispatcher(): void {
   setChatNameResolver((chatId) => chatNameCache.get(chatId))
+  // 四引擎 buildPrompt 共用：UI 日志可观测 group_name 是否出现在最终 Prompt
+  setPromptObservabilityLogger(({ sessionKey, injected, groupName, preview }) => {
+    pushUiLog(
+      "Prompt",
+      injected ? "INFO" : "WARN",
+      `[${sessionKey}] group_name=${injected ? groupName : "未注入"} | ${preview}`,
+    )
+  })
   ensureClaudeCodeHttpServer()
   ensureCodexHttpServer()
   ensureOpencodeHttpServer()
