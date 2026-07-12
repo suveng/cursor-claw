@@ -58,8 +58,14 @@ function assertStaticContracts(): void {
       patterns: [/notifySessionChat\([^)]*stop_progress:\s*true/],
     },
     {
-      file: "src/daemon/daemon-http-routes-orchestrator.ts",
+      // dispatch 失败终态 notify（stop_progress: true）已迁至 retry 耗尽路径
+      file: "src/daemon/daemon-orchestrator-retry.ts",
       patterns: [/notifySessionUser\([\s\S]{0,240}?,\s*true\s*,/],
+    },
+    {
+      // HTTP dispatch 失败须委托共用 handleLaunchFailure，而非路由层直接 notify
+      file: "src/daemon/daemon-http-routes-orchestrator.ts",
+      patterns: [/handleLaunchFailure\s*\(/],
     },
     {
       file: "electron/agent/cursor-sdk/sdk-run-finalize.ts",
