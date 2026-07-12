@@ -17,6 +17,7 @@ Daemon HTTP Server（`startHttpServer`）、StreamableHTTP MCP（`/mcp`、`/mcp-
 - 群聊须 @ 入队；斜杠写 `.fcmd`。
 - ack 删队列；DONE 在 ack 路径（T7 无 poll）。
 - MergeBatch：`merge-batch/action`；collecting 静默窗口内禁止 orchestrator claim。
+- **IM launch 编排**失败走 `releaseClaimedMessages`+有限重试（见 [01-概览](./01-概览.md) §九）；**`POST /api/agent/dispatch` HTTP 旁路**失败仍 notify+ack、busy 仅 timer 不 release（与 launch 未对齐）。
 
 ## 四、客户端流程
 
@@ -51,7 +52,7 @@ manage_agent / manage_mcp / manage_rules / manage_skills / manage_tasks / manage
 | POST | /api/merge-batch/action | 合并卡控制 |
 | POST | /api/orchestrator/claim-and-merge | claim 合并批次 |
 | POST | /api/agent/launch | 转发 Electron agent-api launch |
-| POST | /api/agent/dispatch | 转发 Electron agent-api dispatch |
+| POST | /api/agent/dispatch | 转发 Electron agent-api dispatch；失败/busy **未**接线 release+有限重试（旁路债） |
 | POST | /api/session-agent-phase | Agent 阶段 |
 | POST | /api/stream-text | 流式出站 |
 | POST | /api/send-text | 文本出站 |
@@ -76,9 +77,11 @@ SSE；stdout `__WECHAT_QR__` 等供 Electron 解析。
 - poll-message 404 后旧 CLI 规则须更新为 Daemon dispatch。
 - manage_* 依赖 lock.port；T10 迁移至 Daemon-only 管理 API。
 - HTTP 404 统一 `{ error: "not found" }`。
+- HTTP `/api/agent/dispatch` 旁路与 IM launch 失败策略未对齐（失败即 ack / busy 无 release）。
 
 ## 十、变更记录
 
+2026-07-12：注明 HTTP dispatch 旁路与 launch 重入队策略差异（archive 20260711232817）。
 2026-06-27：Presentation/merge/agent API；poll 404（archive 20260627162620）。
 2026-06-27：poll wait=false 说明（IM 路径已移除 poll）。
 2026-06-27：kb-sync 初始建立。

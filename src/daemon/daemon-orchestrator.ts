@@ -8,6 +8,7 @@ import * as path from "node:path";
 import type { QueueMessage } from "../bridge/file-queue.js";
 import { resolveLaunchChatName } from "./chat-name-resolve.js";
 import { createOrchestratorNotify } from "./daemon-orchestrator-notify.js";
+import { createDispatchRetry } from "./daemon-orchestrator-retry.js";
 
 export type AgentPhase = "starting" | "processing" | "idle";
 
@@ -43,6 +44,8 @@ export interface OrchestratorDeps {
   collectFreshAndTrack: (messages: QueueMessage[], sessionKey: string) => string[];
   applyPollGetReactions: (freshIds: string[], sessionKey: string) => void;
   ackMessages: (messageId: string, sessionKey?: string) => string[];
+  /** 失败重入队：.claimed→.qmsg（T1 原语；勿与 ack 删除混淆） */
+  releaseClaimedMessages: (messageIds: string[], sessionKey?: string) => string[];
   setActiveSession: (chatId: string, sessionKey: string) => void;
   resolveChannelRuntime: (
     sessionKey: string,
@@ -74,7 +77,16 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
   const sessionAgentPhaseMap = new Map<string, AgentPhase>();
   let dispatchLoopBusy = false;
   let dispatchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  const busyRetryTimerBySession = new Map<string, ReturnType<typeof setTimeout>>();
+
+  // scheduleAgentDispatch 为 function 声明（提升），供 retry 工厂闭包延后调用
+  const dispatchRetry = createDispatchRetry({
+    log: deps.log,
+    releaseClaimedMessages: deps.releaseClaimedMessages,
+    ackMessages: deps.ackMessages,
+    notifySessionUser,
+    formatOrchestratorFailure,
+    scheduleAgentDispatch: (sk) => scheduleAgentDispatch(sk),
+  });
 
   function getSessionAgentPhase(sessionKey: string): AgentPhase | undefined {
     return sessionAgentPhaseMap.get(sessionKey);
@@ -118,17 +130,6 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     const parsed = m ? Number(m[1]) : NaN;
     if (!Number.isFinite(parsed) || parsed <= 0) return 1500;
     return Math.min(10_000, parsed);
-  }
-
-  function scheduleBusyRetry(sessionKey: string, delayMs: number): void {
-    const existing = busyRetryTimerBySession.get(sessionKey);
-    if (existing) clearTimeout(existing);
-    const timer = setTimeout(() => {
-      busyRetryTimerBySession.delete(sessionKey);
-      scheduleAgentDispatch(sessionKey);
-    }, Math.max(500, delayMs));
-    busyRetryTimerBySession.set(sessionKey, timer);
-    deps.log("INFO", `agent_busy_requeue session=${sessionKey} delay_ms=${Math.max(500, delayMs)}`);
   }
 
   function extractSessionChatId(sessionKey: string): string {
@@ -214,20 +215,19 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
 
     if (result.ok) {
       if (chatId !== sessionKey) deps.setActiveSession(chatId, sessionKey);
+      // launch 成功：清零重试计数，后续新消息独立计数；不 ack（等 final/ackOnReply）
+      dispatchRetry.clearAttempt(sessionKey);
       return;
     }
 
     deps.log("WARN", `dispatch_failed: session=${sessionKey} error=${result.error ?? "unknown"}`);
-    const busyDelay = parseBusyRetryDelayMs(result.error);
-    if (busyDelay > 0) {
-      sessionAgentPhaseMap.delete(sessionKey);
-      scheduleBusyRetry(sessionKey, busyDelay);
-      return;
-    }
     sessionAgentPhaseMap.delete(sessionKey);
-    await notifySessionUser(sessionKey, formatOrchestratorFailure(result.error), true);
-    const lastId = claimed.message_ids[claimed.message_ids.length - 1];
-    if (lastId) deps.ackMessages(lastId, sessionKey);
+    await dispatchRetry.handleLaunchFailure({
+      sessionKey,
+      messageIds: claimed.message_ids,
+      error: result.error,
+      busyDelayMs: parseBusyRetryDelayMs(result.error),
+    });
   }
 
   async function runAgentDispatchLoop(): Promise<void> {
@@ -257,7 +257,7 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     getSessionAgentPhase,
     setSessionAgentPhase,
     parseBusyRetryDelayMs,
-    scheduleBusyRetry,
+    scheduleBusyRetry: dispatchRetry.scheduleBusyRetry,
     notifySessionUser,
     formatOrchestratorFailure,
   };

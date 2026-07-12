@@ -26,8 +26,10 @@
 - **磁盘布局**：`APP_DATA_DIR/file-queue/<sessionHash>/` 下 `.qmsg`（待处理）与 `.claimed`（已 claim 待 ack）；`initFileQueue` 须在 daemon 启动早期调用。
 - **入队/出队**：`pushMessage` 写入 `.qmsg`；orchestrator claim 时原子 rename 为 `.claimed`；`ackOnReply` 删除 `.claimed`。
 - **冷启动回收**：`cleanupOrphanClaimedOnColdStart` 将遗留 `.claimed` 还原为 `.qmsg`（由 daemon `initQueue` 调用，全应用重启后无 live Agent）。
+- **按 id 释放**：`releaseClaimedMessages(ids, sessionKey?)` 将匹配的 `.claimed` rename 回 `.qmsg`（与冷启动同构）；**禁止**与 `ackMessages`（unlink）混用同一语义。
 - **计数口径**：`getSessionUnclaimedCount` 仅统计 `.qmsg`；**禁止**用 `.claimed` 推断 Agent processing（phase 以 daemon `sessionAgentPhaseMap` 为准）。
 - **导出**：`pushToFileQueue` 等对外符号不变；队列目录路径变更不影响 HTTP 契约。
+- **行数债务**：`file-queue.ts` 已超 300 行硬限；新增原语优先同文件增量，整体拆分另开任务，禁止顺手扩 scope。
 
 ## 飞书 Lark 核心（lark-core.ts）
 

@@ -533,3 +533,51 @@ export function cleanupOrphanClaimedOnColdStart(): number {
   }
   return count;
 }
+
+/**
+ * 失败重入队用：按 messageId 将 .claimed rename 回 .qmsg，供再次 claim。
+ * 勿与 ackMessages（删除 .claimed）混淆——本函数保留消息体，不是确认删除。
+ * 与 cleanupOrphanClaimedOnColdStart 同构（rename；目标 .qmsg 已存在则删孤儿 claimed），范围按 id。
+ * @returns 实际释放成功的 messageId 列表（找不到或 IO 失败则跳过，不抛错）
+ */
+export function releaseClaimedMessages(messageIds: string[], filterSessionKey?: string): string[] {
+  if (!queueDir || !messageIds?.length) return [];
+  const dirs = filterSessionKey
+    ? [getSessionDir(filterSessionKey)]
+    : [queueDir, ...listSessionDirs()];
+  const released: string[] = [];
+
+  for (const messageId of messageIds) {
+    if (!messageId) continue;
+    const safeId = messageId.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    for (const dir of dirs) {
+      let files: string[];
+      try {
+        files = fs.readdirSync(dir).filter((f) => f.endsWith(".claimed"));
+      } catch {
+        continue;
+      }
+
+      const target = files.find((f) => matchesSafeId(f, safeId));
+      if (!target) continue;
+
+      const src = path.join(dir, target);
+      const dest = src.replace(/\.claimed$/, ".qmsg");
+      try {
+        if (fs.existsSync(dest)) {
+          // 异常双份：删孤儿 claimed，保留已有 .qmsg（与冷启动一致）
+          fs.unlinkSync(src);
+        } else {
+          fs.renameSync(src, dest);
+        }
+        released.push(messageId);
+      } catch {
+        /* 并发 rename 失败可忽略（与 claim 既有策略一致） */
+      }
+      break;
+    }
+  }
+
+  return released;
+}

@@ -1,0 +1,187 @@
+{
+  "change_id": "20260711232817",
+  "id": "20260711232817-dispatch失败重入队与ack策略",
+  "name": "dispatch失败重入队与ack策略",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-11T23:28:17+0800",
+  "updated_at": "2026-07-12T11:43:22+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "source": "archive",
+      "status": "done",
+      "note": "archive 完成：已迁移至归档；stage=archived_with_debt（D1/D2/D3）"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/file-queue.ts",
+      "kind": "code",
+      "source": "T1",
+      "status": "applied"
+    },
+    {
+      "path": "src/bridge/AGENTS.md",
+      "kind": "code",
+      "source": "T1",
+      "status": "applied"
+    },
+    {
+      "path": "src/daemon/daemon-orchestrator.ts",
+      "kind": "code",
+      "source": "T2",
+      "status": "applied"
+    },
+    {
+      "path": "src/daemon/daemon-orchestrator-retry.ts",
+      "kind": "code",
+      "source": "T2",
+      "status": "applied"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "T2",
+      "status": "applied"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "code",
+      "source": "T2",
+      "status": "applied"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/01-概览.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "done",
+      "note": "§九 R3：失败重入队+有限重试；耗尽通知后 ack；HTTP 旁路债"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/01-概览.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "done",
+      "note": "§九：IM launch 可重试；HTTP dispatch 旁路仍可能失败即丢"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/04-消息队列与路由.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "done",
+      "note": "§二/§三/§九：releaseClaimedMessages 与失败策略；源码锚点已更新"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/02-HTTP与MCP服务.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "done",
+      "note": "注明 HTTP /api/agent/dispatch 旁路仍旧失败 ack（债 D1）"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "实现 releaseClaimedMessages 重入队原语",
+      "status": "done",
+      "files": [
+        "src/bridge/file-queue.ts",
+        "src/bridge/AGENTS.md"
+      ],
+      "depends_on": [],
+      "evidence": "claim/release 磁盘实测 + ST-1；见 06 §7"
+    },
+    {
+      "id": "T2",
+      "title": "Orchestrator 失败释放重试与耗尽 ack 接线",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-orchestrator.ts",
+        "src/daemon/daemon-orchestrator-retry.ts",
+        "src/daemon/daemon.ts",
+        "src/daemon/AGENTS.md"
+      ],
+      "depends_on": [
+        "T1"
+      ],
+      "evidence": "ST-2～ST-7 静态/tsc 通过；E2E-1～4 待用户；见 06 §7"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "D1",
+      "severity": "debt",
+      "status": "accepted_debt",
+      "file": "src/daemon/daemon-http-routes-orchestrator.ts",
+      "summary": "HTTP POST /api/agent/dispatch 失败/busy 未接线 releaseClaimedMessages 与有限重试；主 IM launch 路径已闭环",
+      "task_id": "T2",
+      "resolution": "范围外；另开变更或 T-FIX 对齐 launch/dispatch 双入口；archive 建议 archived_with_debt",
+      "source": "04-review.md §7"
+    },
+    {
+      "id": "D2",
+      "severity": "debt",
+      "status": "accepted_debt",
+      "file": "src/bridge/file-queue.ts",
+      "summary": "file-queue.ts 约 583 行，超出 AGENTS 单文件 ≤300 行；T1 允许增量",
+      "task_id": "T1",
+      "resolution": "整体拆分另任务，不阻断本变更",
+      "source": "04-review.md §7"
+    },
+    {
+      "id": "D3",
+      "severity": "debt",
+      "status": "accepted_debt",
+      "file": "06-automation-test.md",
+      "summary": "E2E-1～4 未跑（瞬时失败可恢复 / busy 释放再调度 / 耗尽停试 / 成功不双跑）",
+      "task_id": "T2",
+      "resolution": "静态 ST-1～ST-7 与 tsc 已通过；主路径手工 E2E 待用户，不阻断步骤 5 文档准备",
+      "source": "06-automation-test.md §2/§7"
+    }
+  ],
+  "revisions": [],
+  "archived_at": "2026-07-12T11:43:22+0800",
+  "external": {
+    "sync_skipped": true,
+    "sync_skip_reason": "kb.project.json integrations 未配置；archive 步骤 10 跳过"
+  }
+}
