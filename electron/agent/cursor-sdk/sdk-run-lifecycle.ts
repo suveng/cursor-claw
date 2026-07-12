@@ -18,7 +18,9 @@ import {
 } from "./engine-port-adapter"
 import {
   broadcastSdkSessionStatus,
+  failedCooldowns,
   markSessionActivity,
+  pendingLaunches,
   sdkSessions,
 } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
