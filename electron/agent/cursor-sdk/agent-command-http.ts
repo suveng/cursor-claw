@@ -91,6 +91,7 @@ export async function handleCommandExecuteHttp(body: Record<string, unknown>): P
             if (!restartResult.ok) {
               broadcastLog(`[指令] Daemon 重启失败: ${restartResult.error}`, "ERROR")
             }
+            return restartResult.ok ? { ok: true } : { ok: false, error: restartResult.error }
           },
           applyWorkspaceSwitch: dm.applyWorkspaceSwitch,
           taskRunFn: (task, content) =>

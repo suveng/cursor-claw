@@ -54,7 +54,7 @@ export interface CommandExecutorContext {
   reply: (ok: boolean, message: string) => Promise<void>
   getDaemonStatus: () => Promise<DaemonStatusSnapshot>
   stopAgent: () => void
-  restartDaemon: () => Promise<void>
+  restartDaemon: () => Promise<{ ok: boolean; error?: string }>
   applyWorkspaceSwitch: (workspaceDir: string, stopOldSessions: boolean) => Promise<{ ok: boolean; error?: string }>
   taskRunFn: TaskRunFn
   enqueueToMainSession: (content: string, preferredChatId?: string) => Promise<{ ok: boolean; error?: string }>
@@ -175,8 +175,13 @@ export async function executeFileCommand(
     case "/restart": {
       ctx.stopAgent()
       const cleared = await clearMessageQueue()
-      await reply(true, `✅ Agent 已停止，已清空 ${cleared} 条队列消息，正在重启 Daemon...`)
-      await ctx.restartDaemon()
+      // 仅在 restartDaemon 完成后 reply 一次终态文案，避免中间态与成功/失败消息重复
+      const result = await ctx.restartDaemon()
+      if (result.ok) {
+        await reply(true, `✅ Daemon 重启成功（已停止 Agent，已清空 ${cleared} 条队列消息）`)
+      } else {
+        await reply(false, `❌ Daemon 重启失败: ${result.error ?? "未知错误"}（已停止 Agent，已清空 ${cleared} 条队列消息）`)
+      }
       break
     }
 

@@ -999,7 +999,11 @@ async function checkAndExecutePendingCommands(): Promise<void> {
         messageId: claimed.messageId,
         chatId: claimed.chatId,
         chatType: claimed.chatType,
-        reply: (ok, msg) => reportCommandResult(lock.port, claimed.messageId, ok, msg, claimed.chatId),
+        reply: (ok, msg) => {
+          // /restart 后 lock.port 可能过期，上报前刷新为当前 Daemon 端口
+          const currentPort = readLockFile()?.port ?? lock.port
+          return reportCommandResult(currentPort, claimed.messageId, ok, msg, claimed.chatId)
+        },
         getDaemonStatus,
         stopAgent,
         restartDaemon: async () => {
@@ -1007,6 +1011,7 @@ async function checkAndExecutePendingCommands(): Promise<void> {
           await new Promise((r) => setTimeout(r, 1500))
           const result = await startDaemon()
           if (!result.ok) broadcastLog(`[指令] Daemon 重启失败: ${result.error}`, "ERROR")
+          return result.ok ? { ok: true } : { ok: false, error: result.error }
         },
         applyWorkspaceSwitch,
         taskRunFn: (task, content) => launchIndependentAgent(

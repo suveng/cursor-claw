@@ -25,3 +25,4 @@
 - 配置读 `../config/config-store`；MCP CRUD 走 `../mcp/mcp-manager`。
 - **禁止**在本目录 spawn Agent 或写 workspace 注入。
 - 单文件 ≤300 行；新增斜杠分支：产品路由改 `command-executor.ts`，handler 实现落入对应 `command-handler-*.ts`。
+- `/restart`：停止 Agent + 清队列后 `restartDaemon()`，**仅完成后** `reply` 一条终态文案；poll 路径 `reply` 上报前须 `readLockFile()?.port` 刷新端口。
