@@ -18,7 +18,7 @@ import { parseChatKey } from "../../src/shared/channel-types"
 import { FEISHU_MENU_ADDONS } from "../../src/shared/feishu-addons"
 import { validateCron, readTasksFromFile, writeTasksToFile, previewCronNextRuns, getNextCronFireLabel } from "../scheduling/cron-scheduler"
 import { seedBuiltins, listDefinitions, saveDefinition, deleteDefinition, listInstances, getInstance, saveInstance, deleteInstance } from "../workflow/workflow-file"
-import { runWorkflowDefinition } from "../workflow/workflow-runner"
+import { runWorkflowDefinition, resumeWorkflowInstance } from "../workflow/workflow-runner"
 import { pushLog, pushUiLog, broadcastLog, getLogBuffer, clearLogBuffer, escapeLogContentSingleLine, resetLogFilePath } from "../app/ui-logger"
 import { applyProxyEnv } from "../app/proxy-env"
 import { getSdkSessionCount, getSdkSessionList, checkSdkApiKey, listSdkModels, ensureAgentSdkHttpServer } from "../agent/cursor-sdk/agent-sdk"
@@ -1555,6 +1555,16 @@ export function initDaemonManager(): void {
   ipcMain.handle("workflow:run", async (_, workflowId: string, input?: string) => {
     if (!workflowId?.trim()) return { ok: false, error: "工作流 ID 不能为空" }
     return runWorkflowDefinition(workflowId.trim(), { input: input?.trim() || undefined })
+  })
+
+  // 设置页恢复 paused 实例（委托 workflow-runner SSOT）
+  ipcMain.handle("workflow:resume", async (_, instanceId: string) => {
+    const id = instanceId?.trim()
+    if (!id) return { ok: false, error: "实例 ID 不能为空" }
+    console.log(JSON.stringify({ workflow_resume: { instance_id: id, source: "ui" } }))
+    const result = await resumeWorkflowInstance(id)
+    console.log(JSON.stringify({ workflow_resume: { instance_id: id, source: "ui", ok: result.ok } }))
+    return result
   })
 
   // B1：应用 init 且已有 bind 通道时 fire-and-forget SDK 预热

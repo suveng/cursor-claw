@@ -22,6 +22,12 @@
 - `SettingsMcpSdkSection.tsx`：SDK MCP CRUD 实现细节；由 `SettingsMcpEngineBlock` 在 `engineType === "sdk"` 时调用；`SettingsMcpPanel.tsx` 仅为过渡 re-export，Settings 页应经 Shell 直挂 `SettingsMcpEngineBlock`。
 - `Settings.tsx`：`rules`/`skills`/`mcp`/`tasks` tab 共用 `loadChannelContext()`；Rules/Skills 传 `allBoundTypes`（全量）+ `boundTypes`（SDK 子集）；`channelContextLoaded` 防首次空态闪烁。
 
+## 工作流 UI 拆分
+
+- `WorkflowPanel.tsx`：定义/实例列表与启动弹窗（≤300 行）。
+- `WorkflowDefEditor.tsx`：工作流定义编辑弹窗；`emptyWorkflowDef()` 供新建入口。
+- `WorkflowInstanceDetail.tsx`：实例详情弹窗；导出 `STATUS_STYLE`/`STATUS_LABEL`；paused 态「恢复」经 `resumeWorkflowInstance` IPC。
+
 ## 通用
 
 - 单文件不超过 300 行；新增引擎 Profile 时优先扩展现有文件或按上列拆分，不引入新抽象层。

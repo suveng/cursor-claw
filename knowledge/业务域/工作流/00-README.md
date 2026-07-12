@@ -30,8 +30,9 @@
 | MCP | `src/workflow/server-workflow.ts` |
 | 启动 | `electron/workflow-runner.ts` |
 | 内置示例 | `src/workflow/builtin-workflows.ts`、`resources/template/workflow/` |
-| UI | `src/renderer/components/WorkflowPanel.tsx` |
-| 飞书指令 | `electron/command-handler.ts` |
+| UI | `src/renderer/components/WorkflowPanel.tsx`、`WorkflowInstanceDetail.tsx` |
+| 飞书指令 | `electron/scheduling/command-handler.ts` |
+| HTTP 信号 | `src/daemon/daemon-http-workflow-signal.ts` |
 
 ## 推荐阅读路径
 
@@ -42,5 +43,6 @@
 
 ## 变更记录
 
+2026-07-12：补 resume 锚点（`WorkflowInstanceDetail`、`daemon-http-workflow-signal`）（archive 20260712113344）。
 2026-07-02：源码锚点对齐 `src/workflow/*`（archive 20260702120154）。
 2026-06-27：kb-sync 初始建立

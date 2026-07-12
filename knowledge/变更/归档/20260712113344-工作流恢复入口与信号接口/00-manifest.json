@@ -1,0 +1,213 @@
+{
+  "change_id": "20260712113344",
+  "id": "20260712113344-工作流恢复入口与信号接口",
+  "name": "工作流恢复入口与信号接口",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T11:33:44+0800",
+  "updated_at": "2026-07-12T14:29:00+0800",
+  "archived_at": "2026-07-12T14:29:00+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation-test",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-workflow-resume-contract.sh",
+      "role": "auto_test",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-workflow-resume-contract.mts",
+      "role": "auto_test",
+      "status": "done"
+    },
+    {
+      "path": "electron/workflow/workflow-runner.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/scheduling/command-handler.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/renderer/components/WorkflowPanel.tsx",
+      "kind": "code"
+    },
+    {
+      "path": "src/renderer/components/WorkflowInstanceDetail.tsx",
+      "kind": "code"
+    },
+    {
+      "path": "src/renderer/components/WorkflowDefEditor.tsx",
+      "kind": "code"
+    },
+    {
+      "path": "electron/preload.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/renderer/env.d.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/workflow/server-workflow.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon-http-workflow-signal.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/workflow/AGENTS.md",
+      "kind": "agents"
+    },
+    {
+      "path": "src/workflow/AGENTS.md",
+      "kind": "agents"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "agents"
+    },
+    {
+      "path": "src/renderer/components/AGENTS.md",
+      "kind": "agents"
+    },
+    {
+      "path": "knowledge/业务域/工作流/00-README.md",
+      "kind": "knowledge"
+    },
+    {
+      "path": "knowledge/业务域/工作流/01-概览.md",
+      "kind": "knowledge"
+    },
+    {
+      "path": "knowledge/业务域/工作流/03-节点执行与流转.md",
+      "kind": "knowledge"
+    },
+    {
+      "path": "knowledge/业务域/工作流/04-触发与管理入口.md",
+      "kind": "knowledge"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/04-远程指令.md",
+      "kind": "knowledge"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/02-HTTP与MCP服务.md",
+      "kind": "knowledge"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Electron 侧 resumeWorkflowInstance SSOT",
+      "status": "done",
+      "files": [
+        "electron/workflow/workflow-runner.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "/workflow resume 斜杠子命令与 help 文案",
+      "status": "done",
+      "files": [
+        "electron/scheduling/command-handler.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": ["T1"]
+    },
+    {
+      "id": "T3",
+      "title": "设置页恢复按钮与 workflow:resume IPC",
+      "status": "done",
+      "files": [
+        "src/renderer/components/WorkflowPanel.tsx",
+        "src/renderer/components/WorkflowInstanceDetail.tsx",
+        "src/renderer/components/WorkflowDefEditor.tsx",
+        "electron/preload.ts",
+        "src/renderer/env.d.ts",
+        "electron/daemon/daemon-manager.ts"
+      ],
+      "depends_on": ["T1"]
+    },
+    {
+      "id": "T4",
+      "title": "Daemon 侧 resumeWorkflowAndEmit SSOT",
+      "status": "done",
+      "files": [
+        "src/workflow/server-workflow.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T5",
+      "title": "POST /api/workflow-signal HTTP 路由",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-http-workflow-signal.ts",
+        "src/daemon/daemon-http-routes.ts"
+      ],
+      "depends_on": ["T4"]
+    },
+    {
+      "id": "T6",
+      "title": "端到端验收联调",
+      "status": "done",
+      "files": [],
+      "depends_on": ["T2", "T3", "T5"]
+    }
+  ],
+  "reviews": [],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  }
+}

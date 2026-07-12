@@ -8,8 +8,8 @@ import { broadcastLog } from "../app/ui-logger"
 import { listSdkModels } from "../agent/cursor-sdk/agent-sdk"
 import { McpServerEntry, getMcpServerList, getMcpEnabledMap, getMcpStatusMap, toggleMcpServer, deleteMcpServer, saveMcpServer } from "../mcp/mcp-manager"
 import { httpPost } from "../daemon/daemon-client"
-import { deleteDefinition, getDefinition, listDefinitions, listInstances } from "../workflow/workflow-file"
-import { runWorkflowDefinition } from "../workflow/workflow-runner"
+import { deleteDefinition, getDefinition, getInstance, listDefinitions, listInstances } from "../workflow/workflow-file"
+import { resumeWorkflowInstance, runWorkflowDefinition } from "../workflow/workflow-runner"
 import type { WorkflowDefinition } from "../../src/workflow/workflow-types"
 import { CLAUDE_CODE_MODEL_LIST } from "../agent/claude-code/agent-cc-types"
 
@@ -581,6 +581,7 @@ const WORKFLOW_SUBCMD_HELP =
   "🔹 /workflow ls — 列出工作流定义\n" +
   "🔹 /workflow info <序号|ID> — 查看定义详情\n" +
   "🔹 /workflow run <序号|ID> [初始输入] — 启动工作流\n" +
+  "🔹 /workflow resume <实例ID|序号> — 恢复暂停的工作流\n" +
   "🔹 /workflow status [实例ID] — 查看实例状态\n" +
   "🔹 /workflow delete <序号|ID> — 删除工作流定义"
 
@@ -661,6 +662,43 @@ export async function handleFeishuWorkflowCommand(
       messageId,
       true,
       `🚀 工作流「${target.name}」已启动\n实例 ID: ${result.instanceId}${input ? `\n初始输入: ${input}` : ""}`,
+      chatId,
+    )
+    return
+  }
+
+  if (sub === "resume") {
+    const token = parts[2]
+    if (!token) {
+      await reportCommandResult(port, messageId, false, "💡 用法：/workflow resume <实例ID|序号>")
+      return
+    }
+    const instances = listInstances().sort((a, b) => b.updatedAt - a.updatedAt)
+    const idx = parseTaskOneBasedIndex(token)
+    const inst = instances.find((i) => i.id === token)
+      ?? (idx !== null && idx >= 1 && idx <= instances.length ? instances[idx - 1] : undefined)
+    if (!inst) {
+      await reportCommandResult(port, messageId, false, "❌ 找不到该实例")
+      return
+    }
+    // 斜杠入口结构化日志（与 workflow-runner 的 electron 源区分）
+    console.log(JSON.stringify({ workflow_resume: { instance_id: inst.id, source: "slash" } }))
+    const result = await resumeWorkflowInstance(inst.id)
+    console.log(JSON.stringify({ workflow_resume: { instance_id: inst.id, source: "slash", ok: result.ok } }))
+    if (!result.ok) {
+      await reportCommandResult(port, messageId, false, `❌ ${result.error}`)
+      return
+    }
+    const fresh = getInstance(inst.id)
+    const def = fresh ? getDefinition(fresh.workflowId) : undefined
+    const nodeName = def?.nodes.find((n) => n.id === fresh?.currentNodeId)?.name
+      || fresh?.currentNodeId
+      || "(无)"
+    await reportCommandResult(
+      port,
+      messageId,
+      true,
+      `✅ 工作流已恢复，继续节点: ${nodeName}\n实例 ID: ${inst.id}`,
       chatId,
     )
     return

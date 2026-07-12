@@ -27,6 +27,7 @@
 | `daemon-http-routes-send.ts` | send-text/image/file、presentation、stream-text |
 | `daemon-http-routes-session.ts` | active-session、session-fallback 等 |
 | `daemon-http-routes-misc.ts` | SSE queue-events、chat-names、user-names |
+| `daemon-http-workflow-signal.ts` | `POST /api/workflow-signal`（action=resume） |
 | `daemon-session-routing.ts` | `fallbackSessionMap` — 临时会话回退栈 SSOT（与 `activeSessionMap` 并列） |
 | `daemon-http-admin-crud.ts` | admin CRUD 入口（tasks + workspace/agent entity） |
 | `daemon-http-admin-content.ts` | mcp / rules / skills admin 子路由 |

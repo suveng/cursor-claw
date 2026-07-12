@@ -29,14 +29,14 @@
 | `workflow-definition-store.ts` | 定义持久化 |
 | `workflow-store.ts` | 实例与定义运行时存储 |
 | `workflow-engine.ts` | `createInstance`、`startWorkflow`、`handleNext`/`handleReject` |
-| `server-workflow.ts` | Daemon MCP 工具注册与 HTTP 桥接 |
+| `server-workflow.ts` | Daemon MCP 工具注册、`resumeWorkflowAndEmit` stdout 信号 SSOT |
 | `builtin-workflows.ts` | 内置工作流加载 |
 | `template-utils.ts` | 模板变量与占位符工具 |
 
 ## 引擎与 Daemon 协作
 
 - **MCP 注册**：`registerWorkflowAgentTools` 由 `daemon/daemon.ts` 的 `daemonMain` 在 MCP 初始化时调用；`registerAdminTools` 在同处由 `daemon/server-admin.ts` 注册；工具 handler 读写 `workflow-store`，不直接 spawn Agent。
-- **启动信号**：需启动 Agent 节点时 `server-workflow` 经 stdout 写 `__WF_LAUNCH__:` JSON 行；Electron `daemon-manager` 解析后走 `session-dispatcher`，**不**在 workflow 域内 HTTP 调 Electron。
+- **启动信号**：需启动 Agent 节点时 `server-workflow` 经 stdout 写 `__WF_LAUNCH__:` JSON 行；恢复暂停实例经 `resumeWorkflowAndEmit` 同步写 `__WF_INSTANCE__` / `__WF_LAUNCH__` / `__WF_NOTIFY__`；结构化日志写 **stderr**（`workflow_resume`，`source: "daemon"`），避免污染 stdout 信号行。Electron `daemon-manager` 解析后走 `session-dispatcher`，**不**在 workflow 域内 HTTP 调 Electron。
 - **导出符号稳定**：`WorkflowDefinition`、`createInstance`、`startWorkflow`、`loadBuiltinWorkflows` 等对外 API 不因目录迁移而更名。
 
 ## 存储与解析约定

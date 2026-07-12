@@ -13,6 +13,7 @@ import {
   handleReject,
   createInstance,
   startWorkflow,
+  resumeWorkflow,
   type EngineResult,
 } from "./workflow-engine.js";
 import type { WorkflowDefinition, WorkflowInstance } from "./workflow-types.js";
@@ -47,6 +48,13 @@ function emitInstanceUpdate(inst: WorkflowInstance): void {
   process.stdout.write(`__WF_INSTANCE__:${JSON.stringify(inst)}\n`);
 }
 
+/** 工作流恢复结构化日志（写 stderr，避免污染 stdout 信号行） */
+function logWorkflowResume(instanceId: string, ok: boolean): void {
+  process.stderr.write(
+    `workflow_resume ${JSON.stringify({ instance_id: instanceId, source: "daemon", ok })}\n`,
+  );
+}
+
 function validateRunning(instanceId: string): string | null {
   const inst = getInstance(instanceId);
   if (!inst) return `❌ 工作流实例 "${instanceId}" 不存在`;
@@ -77,6 +85,35 @@ function respondEngineResult(
   return result.prompt ?? "✅ 已提交";
 }
 
+/** Daemon 侧恢复暂停工作流并发射 stdout 信号（HTTP / 可选 MCP 共用 SSOT） */
+export function resumeWorkflowAndEmit(
+  instanceId: string,
+): { ok: boolean; error?: string; message?: string; instanceId?: string } {
+  const id = instanceId.trim();
+  logWorkflowResume(id, false);
+
+  const result = resumeWorkflow(id);
+  if (result.failed) {
+    logWorkflowResume(id, false);
+    return { ok: false, error: result.message };
+  }
+
+  const fresh = getInstance(id);
+  if (!fresh) {
+    logWorkflowResume(id, false);
+    return { ok: false, error: "实例不存在" };
+  }
+
+  emitInstanceUpdate(fresh);
+  emitLaunch(fresh, result);
+  const nodeName = result.node?.name ?? "未知节点";
+  const message = `▶️ 工作流已恢复，继续节点: ${nodeName}`;
+  emitNotify(fresh.notifyChatId, message);
+
+  logWorkflowResume(id, true);
+  return { ok: true, message, instanceId: id };
+}
+
 // ── Agent 侧工具：workflow_next / workflow_reject ────────
 
 export function registerWorkflowAgentTools(mcpServer: McpServer): void {
@@ -95,7 +132,7 @@ export function registerWorkflowAgentTools(mcpServer: McpServer): void {
       emitNotify(inst?.notifyChatId, `✅ 节点产物已提交: ${output}`);
 
       const result = handleNext(instance_id, { output });
-      return txt(respondEngineResult(instance_id, result, ));
+      return txt(respondEngineResult(instance_id, result));
     },
   );
 

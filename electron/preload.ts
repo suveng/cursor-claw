@@ -409,6 +409,8 @@ const api = {
   deleteWorkflowInstance: (id: string): Promise<{ ok: boolean }> => ipcRenderer.invoke("workflow:delete-instance", id),
   runWorkflow: (workflowId: string, input?: string): Promise<{ ok: boolean; error?: string; instanceId?: string }> =>
     ipcRenderer.invoke("workflow:run", workflowId, input),
+  resumeWorkflowInstance: (instanceId: string): Promise<{ ok: boolean; error?: string; instanceId?: string }> =>
+    ipcRenderer.invoke("workflow:resume", instanceId),
   onWorkflowInstanceUpdate: (cb: (inst: WorkflowInstance) => void): (() => void) => {
     const handler = (_: unknown, inst: WorkflowInstance) => cb(inst)
     ipcRenderer.on("workflow:instance-updated", handler)

@@ -6,6 +6,7 @@ import { tryHandleOrchestratorRoute } from "./daemon-http-routes-orchestrator.js
 import { tryHandleSendRoute } from "./daemon-http-routes-send.js";
 import { tryHandleSessionRoute } from "./daemon-http-routes-session.js";
 import { tryHandleMiscApiRoute } from "./daemon-http-routes-misc.js";
+import { tryHandleWorkflowSignalRoute } from "./daemon-http-workflow-signal.js";
 
 export type { HttpRoutesDeps } from "./daemon-http-routes-types.js";
 
@@ -37,6 +38,7 @@ export function createAdminApiHandler(deps: HttpRoutesDeps) {
     const crudHandler = deps.adminCrudRoutes[pathname];
     if (crudHandler) return crudHandler(method, req, res);
 
+    if (await tryHandleWorkflowSignalRoute(deps, pathname, method, req, res)) return true;
     if (await tryHandleOrchestratorRoute(deps, pathname, method, req, res)) return true;
     if (await tryHandleSendRoute(deps, pathname, method, req, res)) return true;
     if (await tryHandleSessionRoute(deps, pathname, method, req, res)) return true;
