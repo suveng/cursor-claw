@@ -1,23 +1,23 @@
 /**
  * Codex Run 收尾：代际校验、失败 notify、guard 释放与会话清理。
+ * 终态 IM 委托 engine-port-adapter → RunLifecycle + shared 模板。
  */
 import { reportSessionAgentPhase } from "../../daemon/daemon-client"
 import { pushUiLog } from "../../app/ui-logger"
 import { appendContextFooter, formatContextFooter } from "../cursor-sdk/context-usage"
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
-import { archiveAgentFailureLogs } from "../shared/crash-log-archiver"
 import type { CodexSessionAgent } from "./agent-codex-types"
-import { maskCodexApiKey } from "./agent-codex-utils"
 import {
   flushCodexLog,
   flushCodexStreamPost,
-  notifyCodexSessionChat,
   maybeRotateCodexSessionContext,
   broadcastCodexSessionStatus,
 } from "./agent-codex-stream"
-
-/** IM 失败兜底文案（上游未写入 lastStatus 时直出，不经 formatCodexFailureMessage 二次归因） */
-const CODEX_FAILURE_FALLBACK_MSG = "⚠️ Agent 处理失败，建议精简输入后重新发送；若仍失败请稍后重试。"
+import {
+  completeCodexViaLifecycle,
+  notifyCodexRunFailure,
+  notifyCodexWatchdogTimeout,
+} from "./engine-port-adapter"
 
 export interface CompleteCodexRunOptions {
   deleteSession: (key: string) => void
@@ -64,37 +64,25 @@ export async function completeCodexRun(
   if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
     await flushCodexStreamPost(session, true)
   } else if (session.streamBuffer.trim()) {
-    const footer = formatContextFooter(session.contextUsage, session.contextLimitTokens ?? null, session.contextUsagePeakTokens)
-    await notifyCodexSessionChat(sessionKey, appendContextFooter(session.streamBuffer, footer), true)
+    const footer = formatContextFooter(
+      session.contextUsage,
+      session.contextLimitTokens ?? null,
+      session.contextUsagePeakTokens,
+      session.contextUsageFromRunTotal,
+    )
+    await completeCodexViaLifecycle(session, {
+      source: "success",
+      assistantText: appendContextFooter(session.streamBuffer, footer),
+    })
   }
 
   const isWatchdogTimeout = session.watchdogTimedOut === true
   const isError = session.lastStatus?.status === "ERROR" || (exitCode !== null && exitCode !== 0)
-  const footer = formatContextFooter(session.contextUsage, session.contextLimitTokens ?? null, session.contextUsagePeakTokens)
 
   if (isWatchdogTimeout) {
-    if (!session.errorNotified) {
-      session.errorNotified = true
-      session.watchdogTimedOut = false
-      const userMsg = session.lastStatus?.message ?? CODEX_FAILURE_FALLBACK_MSG
-      await notifyCodexSessionChat(sessionKey, appendContextFooter(userMsg, footer), true)
-      archiveAgentFailureLogs({
-        sessionKey,
-        failureType: "sdk_timeout",
-        session,
-        detail: `apiKey=${maskCodexApiKey(session.apiKey)} watchdog=1`,
-      })
-    }
+    await notifyCodexWatchdogTimeout(session)
   } else if (isError && !session.errorNotified) {
-    session.errorNotified = true
-    const userMsg = session.lastStatus?.message ?? CODEX_FAILURE_FALLBACK_MSG
-    await notifyCodexSessionChat(sessionKey, appendContextFooter(userMsg, footer), true)
-    archiveAgentFailureLogs({
-      sessionKey,
-      failureType: "sdk_run_error",
-      session,
-      detail: `apiKey=${maskCodexApiKey(session.apiKey)} status=${session.lastStatus?.status ?? "ERROR"}`,
-    })
+    await notifyCodexRunFailure(session, exitCode)
     setFailedCooldown(sessionKey, Date.now() + failCooldownMs)
   }
 

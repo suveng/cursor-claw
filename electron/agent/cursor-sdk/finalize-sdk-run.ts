@@ -4,7 +4,6 @@
 import type { Run, SDKAgent } from "@cursor/sdk"
 import { reportSessionAgentPhase } from "../../daemon/daemon-client"
 import { pushUiLog } from "../../app/ui-logger"
-import { archiveAgentFailureLogs } from "../shared/crash-log-archiver"
 
 /** 观测约 23min 档 Run 超时；与 agent-sdk KEEPALIVE_TIMEOUT_MS 对齐 */
 const KEEPALIVE_TIMEOUT_MS = 20 * 60 * 1000
@@ -33,7 +32,8 @@ export interface SdkSessionForFinalizer {
 export interface FinalizerContext {
   sdkSessions: Map<string, SdkSessionForFinalizer>
   resetStreamPostChain: (session: SdkSessionForFinalizer) => void
-  notifySdkFailure: (session: SdkSessionForFinalizer, override?: string, run?: Run | null) => Promise<void>
+  /** 超时终态 IM：经 RunLifecycle + completeRunFromTemplate（禁止平行 notifySessionChat） */
+  notifySdkTimeoutFailure: (session: SdkSessionForFinalizer, run: Run) => Promise<void>
   broadcastSdkSessionStatus: () => void
 }
 
@@ -145,14 +145,8 @@ export async function finalizeSdkRunOnTimeout(
     ].filter(Boolean)
     pushUiLog("SDK", "WARN", `[${sessionKey}] finalizeSdkRunOnTimeout 超时收尾: ${parts.join(" ")}`)
 
-    // 先归档 + notify（abort 前，避免 aborted 闩跳过 IM）
-    archiveAgentFailureLogs({
-      sessionKey,
-      failureType: "sdk_timeout",
-      session,
-      runStatus: run.status,
-    })
-    await ctx.notifySdkFailure(session, undefined, run)
+    // 先 notify（abort 前，避免 aborted 闩跳过 IM）；归档由 completeRunFromTemplate 统一处理
+    await ctx.notifySdkTimeoutFailure(session, run)
 
     const waitOutcome = await cancelRunAndWait(run)
     pushUiLog("SDK", "INFO", `[${sessionKey}] finalizeSdkRunOnTimeout wait 结果: ${waitOutcome}`)

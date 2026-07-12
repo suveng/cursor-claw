@@ -37,6 +37,9 @@ export interface HttpRoutesDeps {
   forwardElectronAgentApi: (subpath: string, body: object) => Promise<{ ok: boolean; error?: string }>;
   parseBusyRetryDelayMs: (error?: string) => number;
   scheduleBusyRetry: (sessionKey: string, delayMs: number) => void;
+  notifySessionUser: (sessionKey: string, text: string, stopProgress?: boolean) => Promise<void>;
+  formatOrchestratorFailure: (error?: string) => string;
+  ackMessages: (messageId: string, sessionKey?: string) => string[];
   getEarliestMessageTime: (sessionKey: string) => number | null;
   setActiveSession: (chatId: string, sessionKey: string) => void;
   activeSessionMap: Map<string, string>;

@@ -19,6 +19,8 @@ import {
   handleCcToolRunningPresentation,
 } from "./agent-cc-presentation-tool"
 import { formatCcHookUiLog } from "./cc-sdk-hooks"
+import { emitCcQueryTerminalRunEvent, mapCcSdkMessageToRunEvent } from "./engine-port-adapter"
+import { createRunLifecycle } from "../shared/run-lifecycle"
 
 /** content block 最小结构（含 tool_use.input） */
 type CcContentBlock = {
@@ -168,6 +170,10 @@ export function handleSdkMessage(
       const errMsg = "errors" in msg && Array.isArray(msg.errors) ? msg.errors.join("; ") : msg.result
       session.lastStatus = { status: "ERROR", message: errMsg ?? "unknown error" }
     }
+    const runEvent = mapCcSdkMessageToRunEvent(msg)
+    if (runEvent) {
+      createRunLifecycle(session).onStreamEvent(runEvent)
+    }
     return
   }
 
@@ -268,6 +274,7 @@ export function streamCcSdkMessages(
     } finally {
       session.activeQuery = null
       session.pendingDispatch = false
+      emitCcQueryTerminalRunEvent(session, exitCode)
       completeCcRun(session, exitCode)
     }
   })()

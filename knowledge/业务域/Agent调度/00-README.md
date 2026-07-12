@@ -21,7 +21,7 @@
 | 07 | [07-ClaudeCodeSDK执行引擎.md](./07-ClaudeCodeSDK执行引擎.md) | Claude Agent SDK |
 | 08 | [08-CodexSDK执行引擎.md](./08-CodexSDK执行引擎.md) | Codex SDK |
 | 09 | [09-OpenCodeSDK执行引擎.md](./09-OpenCodeSDK执行引擎.md) | OpenCode SDK |
-| 10 | [10-SDK上下文保护与失败归因.md](./10-SDK上下文保护与失败归因.md) | pre-send 保护、context_blocked、失败文案 |
+| 10 | [10-SDK上下文保护与失败归因.md](./10-SDK上下文保护与失败归因.md) | RunFailureReason、errorNotified、pre-send 保护 |
 
 ## 推荐阅读路径
 
@@ -46,13 +46,16 @@
 | Codex | `electron/agent/codex/agent-codex-sdk.ts`、`electron/agent/codex/agent-codex-*.ts`、`electron/mcp/loaders/codex-mcp-loader.ts` |
 | OpenCode | `electron/agent/opencode/agent-opencode-sdk.ts`、`electron/agent/opencode/agent-opencode-*.ts`、`electron/mcp/loaders/opencode-mcp-loader.ts`、`electron/agent/opencode/opencode-failure-messages.ts` |
 | Session MCP | `electron/session/session-mcp-status.ts` |
-| 跨引擎 | `electron/agent/shared/agent-launcher.ts`、`electron/agent/shared/crash-log-archiver.ts` |
+| 跨引擎 Port/Lifecycle | `electron/agent/shared/run-lifecycle*.ts`、`agent-engine-port.ts`、`run-notify.ts`、`run-failure-formatter.ts`、`run-complete-template.ts` |
+| Daemon dispatch notify | `src/daemon/daemon-orchestrator-notify.ts`、`src/shared/orchestrator-failure-formatter.ts` |
+| 跨引擎 | `electron/agent/shared/agent-launcher.ts`、`electron/agent/shared/crash-log-archiver.ts`、`electron/agent/shared/agent-run-guard.ts` |
 | HTTP | `electron/agent/cursor-sdk/agent-sdk-http.ts`（统一网关）、`electron/agent/claude-code/agent-cc-http.ts`（cc）、`electron/agent/codex/agent-codex-http.ts`（codex）、`electron/agent/opencode/agent-opencode-http.ts`（opencode） |
 | 配置 | `electron/config/config-store.ts`（`newOpencodeResourceId`/`isOpencodeResourceId`） |
 
 ## 变更记录
 
-2026-07-11：关键源码 Daemon 编排锚点自 `daemon.ts` 扩散为薄组装 + `daemon-orchestrator` / `daemon-http-routes-orchestrator`（巨型单体拆分批1）。
+- 2026-07-12：关键源码补 Engine Port / RunLifecycle / dispatch 对称 notify（archive 20260711232258）。
+- 2026-07-11：关键源码 Daemon 编排锚点扩散（巨型单体拆分批1）。
 2026-07-05：新增 10 SDK 上下文保护（archive 20260705230806）。
 2026-07-02：关键源码增补 Daemon 编排（archive 20260702120154）。
 2026-07-02：关键源码补 sdk-run-* 事件流/续接模块（archive 20260701212827）。

@@ -5,16 +5,18 @@ import { reportSessionAgentPhase } from "../../daemon/daemon-client"
 import { pushUiLog } from "../../app/ui-logger"
 import { appendContextFooter, formatContextFooter } from "../cursor-sdk/context-usage"
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
-import { archiveAgentFailureLogs } from "../shared/crash-log-archiver"
 import type { OpencodeSessionAgent } from "./agent-opencode-types"
-import { maskOpencodeApiKey } from "./agent-opencode-utils"
 import {
   flushOpencodeLog,
   flushOpencodeStreamPost,
-  notifyOpencodeSessionChat,
   maybeRotateOpencodeSessionContext,
   broadcastOpencodeSessionStatus,
 } from "./agent-opencode-stream"
+import {
+  completeOpencodeViaLifecycle,
+  notifyOpencodeRunFailure,
+  notifyOpencodeWatchdogTimeout,
+} from "./engine-port-adapter"
 
 const FAILURE_FALLBACK = "⚠️ Agent 处理失败，建议精简输入后重新发送；若仍失败请稍后重试。"
 
@@ -63,7 +65,10 @@ export async function completeOpencodeRun(
     await flushOpencodeStreamPost(session, true)
   } else if (session.streamBuffer.trim()) {
     const footer = formatContextFooter(session.contextUsage, session.contextLimitTokens ?? null, session.contextUsagePeakTokens)
-    await notifyOpencodeSessionChat(sessionKey, appendContextFooter(session.streamBuffer, footer), true)
+    await completeOpencodeViaLifecycle(session, {
+      source: "success",
+      assistantText: appendContextFooter(session.streamBuffer, footer),
+    })
   }
 
   const isWatchdogTimeout = session.watchdogTimedOut === true
@@ -72,25 +77,12 @@ export async function completeOpencodeRun(
 
   if (isWatchdogTimeout) {
     if (!session.errorNotified) {
-      session.errorNotified = true
-      session.watchdogTimedOut = false
-      await notifyOpencodeSessionChat(sessionKey, appendContextFooter(session.lastStatus?.message ?? FAILURE_FALLBACK, footer), true)
-      archiveAgentFailureLogs({
-        sessionKey,
-        failureType: "sdk_timeout",
-        session,
-        detail: `apiKey=${maskOpencodeApiKey(session.apiKey)} watchdog=1`,
-      })
+      const userMsg = session.lastStatus?.message ?? FAILURE_FALLBACK
+      await notifyOpencodeWatchdogTimeout(session, appendContextFooter(userMsg, footer))
     }
   } else if (isError && !session.errorNotified) {
-    session.errorNotified = true
-    await notifyOpencodeSessionChat(sessionKey, appendContextFooter(session.lastStatus?.message ?? FAILURE_FALLBACK, footer), true)
-    archiveAgentFailureLogs({
-      sessionKey,
-      failureType: "sdk_run_error",
-      session,
-      detail: `apiKey=${maskOpencodeApiKey(session.apiKey)} status=${session.lastStatus?.status ?? "ERROR"}`,
-    })
+    const userMsg = session.lastStatus?.message ?? FAILURE_FALLBACK
+    await notifyOpencodeRunFailure(session, exitCode, appendContextFooter(userMsg, footer))
     setFailedCooldown(sessionKey, Date.now() + failCooldownMs)
   }
 

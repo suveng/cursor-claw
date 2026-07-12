@@ -1,7 +1,8 @@
 /**
- * OpenCode Run 失败用户可见文案与 apiKey 脱敏（仿 codex-failure-messages）。
- * 归因链：embedded_start_failed → external_health_failed → timeout → context_exhausted → session_abnormal → safe_message → fallback
+ * OpenCode Run 失败文案：脱敏 + 归因提取，用户可见句委托 shared formatRunFailureMessage。
  */
+import type { RunFailureReason } from "../shared/run-lifecycle-types"
+import { formatRunFailureMessage } from "../shared/run-failure-formatter"
 
 const CONTEXT_EXHAUSTED_RATIO = 0.95
 const CONTEXT_MESSAGE_PATTERNS = [/context/i, /token/i, /limit/i, /maximum/i, /too long/i, /exceed/i, /上下文/i, /超出/i] as const
@@ -47,11 +48,6 @@ export function sanitizeOpencodeSensitiveText(text: string): string {
   return out
 }
 
-function isUnsafeMessage(msg?: string): boolean {
-  const t = msg?.trim()
-  return !t || /[/\\]|\.ts:|at |stack|Error:|ENOENT|spawn|EACCES|EPERM/i.test(t)
-}
-
 function extractFailureContext(error: unknown): OpencodeFailureContext {
   if (error == null) return {}
   if (typeof error === "string") return { message: sanitizeOpencodeSensitiveText(error) }
@@ -85,42 +81,47 @@ function extractFailureContext(error: unknown): OpencodeFailureContext {
   return ctx
 }
 
-/** 映射 OpenCode 失败为简体中文 IM 文案 */
+function mapCtxToReason(ctx: OpencodeFailureContext): RunFailureReason {
+  if (ctx.isTimeoutFailure) return "timeout"
+  const st = ctx.status?.toUpperCase()
+  if (st === "CANCELLED") return "user_cancelled"
+  if (st === "EXPIRED") return "session_abnormal"
+  const msg = ctx.message?.trim() ?? ""
+  const isError = ctx.status === "ERROR" || !!msg || !!ctx.errorCode
+  if (isError && CONTEXT_MESSAGE_PATTERNS.some((p) => p.test(msg))) return "context_exhausted"
+  if (
+    isError &&
+    ctx.contextUsed != null &&
+    ctx.contextLimit != null &&
+    ctx.contextLimit > 0 &&
+    ctx.contextUsed / ctx.contextLimit >= CONTEXT_EXHAUSTED_RATIO
+  ) {
+    return "context_exhausted"
+  }
+  if (SESSION_ABNORMAL_PATTERNS.some((p) => p.test(msg))) return "session_abnormal"
+  return "run_error"
+}
+
+/** 映射 OpenCode 失败为简体中文文案（引擎专有 code 保留本地分支） */
 export function formatOpencodeFailureMessage(error: unknown): string {
   const ctx = extractFailureContext(error)
-
   if (ctx.code === "embedded_start_failed") {
     return "OpenCode 服务启动失败，请检查端口是否被占用或稍后重试。"
   }
   if (ctx.code === "external_health_failed") {
     return "无法连接 OpenCode 服务，请检查地址"
   }
-
-  if (ctx.isTimeoutFailure) {
-    const msg = ctx.message?.trim()
-    if (msg && !isUnsafeMessage(msg)) return `⚠️ Agent 处理失败：${msg}`
-    return "会话因等待超时已退出，请重新发送消息，我会继续为你处理。"
-  }
-
-  if (ctx.status?.toUpperCase() === "CANCELLED") return "Agent 任务已取消。"
-  if (ctx.status?.toUpperCase() === "EXPIRED") return "Agent 会话已过期，请重新发送消息。"
-
-  const msg = ctx.message?.trim() ?? ""
-  const isError = ctx.status === "ERROR" || !!msg || !!ctx.errorCode
-
-  if (isError && CONTEXT_MESSAGE_PATTERNS.some((p) => p.test(msg))) {
-    return "⚠️ 上下文窗口已接近或达到上限，请精简需求或开启新话题后重新发送。"
-  }
-  if (isError && ctx.contextUsed != null && ctx.contextLimit != null && ctx.contextLimit > 0
-    && ctx.contextUsed / ctx.contextLimit >= CONTEXT_EXHAUSTED_RATIO) {
-    return "⚠️ 上下文窗口已接近或达到上限，请精简需求或开启新话题后重新发送。"
-  }
-
-  if (SESSION_ABNORMAL_PATTERNS.some((p) => p.test(msg))) {
-    return "Agent 会话异常，请重新发送消息继续对话。"
-  }
-
-  if (msg && !isUnsafeMessage(msg)) return `⚠️ Agent 处理失败：${msg}`
-
-  return "⚠️ Agent 处理失败，建议精简输入后重新发送；若仍失败请稍后重试。"
+  return formatRunFailureMessage({
+    reason: mapCtxToReason(ctx),
+    detail: ctx.message,
+    engineLabel: "Agent",
+    sdk: {
+      status: ctx.status,
+      message: ctx.message,
+      errorCode: ctx.errorCode,
+      isTimeoutFailure: ctx.isTimeoutFailure,
+      contextUsed: ctx.contextUsed,
+      contextLimit: ctx.contextLimit,
+    },
+  })
 }

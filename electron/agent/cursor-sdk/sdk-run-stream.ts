@@ -3,6 +3,7 @@
  * 运行期间仅经 `for await (run.stream())` 驱动呈现与活跃时钟。
  */
 import type { Run, SDKMessage } from "@cursor/sdk"
+import type { RunLifecycle } from "../shared/run-lifecycle"
 import { resolveSdkToolPresentationTier } from "../../../src/shared/sdk-tool-presentation-tier.js"
 import {
   extractFileEditPresentationFields,
@@ -13,11 +14,12 @@ import {
 } from "../../../src/shared/tool-presentation"
 import { finalizeContextUsageAtRunEnd } from "./context-usage-run-end"
 import { pushUiLog } from "../../app/ui-logger"
+import { applySdkStreamRunEvent } from "./sdk-run-port-lifecycle"
+import { routeSdkStatusTerminal } from "./sdk-run-stream-status"
 import { guardSdkPromise } from "./sdk-async-guard"
 import {
-  finalizeSdkRunOnTimeout,
+  completeSdkFailureViaTemplate,
   isRunTimeoutFailure,
-  notifySdkFailure,
 } from "./sdk-run-finalize"
 import {
   appendAssistantStreamDelta,
@@ -83,7 +85,11 @@ function applyRunPhaseFromStatus(
 }
 
 /** 单条 SDK 事件分派（全分支刷新活跃时钟） */
-export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): void {
+export function handleSdkEvent(
+  session: SdkSessionAgent,
+  event: SDKMessage,
+  lifecycle?: RunLifecycle,
+): void {
   switch (event.type) {
     case "assistant":
       markSessionActivity(session, "assistant")
@@ -169,29 +175,7 @@ export function handleSdkEvent(session: SdkSessionAgent, event: SDKMessage): voi
       const isErr = event.status === "ERROR" || event.status === "EXPIRED"
       if (isErr || event.status === "CANCELLED") {
         session.lastStatus = { status: event.status, message: event.message }
-        // watchdog 已超时收尾或正在 finalizing 时跳过，避免与 onTimeout 路径重复 notify/归档
-        if (
-          !session.abortController.signal.aborted &&
-          session.run &&
-          !session.watchdogTimedOut &&
-          !session.runFinalizing
-        ) {
-          if (isRunTimeoutFailure(session, session.run, session.lastStatus)) {
-            guardSdkPromise(
-              finalizeSdkRunOnTimeout(session, session.run, "status"),
-              session.sessionKey,
-              "finalizeSdkRunOnTimeout:status",
-              "ERROR",
-            )
-          } else if (event.status === "CANCELLED") {
-            guardSdkPromise(
-              notifySdkFailure(session, undefined, session.run, "sdk_cancelled"),
-              session.sessionKey,
-              "notifySdkFailure:cancelled",
-              "ERROR",
-            )
-          }
-        }
+        routeSdkStatusTerminal(session, lifecycle, event.status, event.message)
       }
       const lvl = isErr ? "ERROR" as const : "INFO" as const
       pushUiLog("SDK", lvl, `[${session.sessionKey}] [status] ${event.status}${event.message ? ` - ${event.message}` : ""}`)
@@ -254,29 +238,33 @@ async function finalizeRunContextUsage(session: SdkSessionAgent, run: Run): Prom
 /**
  * Run 事件流消费 SSOT：`run.wait()` 仅允许出现在 finalizeRunContextUsage / completeSdkRun 收尾路径。
  */
-export async function streamRunEvents(session: SdkSessionAgent, run: Run): Promise<void> {
+export async function streamRunEvents(
+  session: SdkSessionAgent,
+  run: Run,
+  lifecycle?: RunLifecycle,
+): Promise<void> {
   try {
     for await (const event of run.stream()) {
       if (session.abortController.signal.aborted) break
       markSessionActivity(session, `stream:${event.type}`)
-      handleSdkEvent(session, event)
+      handleSdkEvent(session, event, lifecycle)
     }
     flushSdkLog(session)
     closeThinkingIfOpen(session)
-    // Run 收尾仅 final flush，避免 non-final+final 双 POST（08-verify-issue）
     await finalizeRunContextUsage(session, run)
-    // Rev2：ordering+含过程场景 assistant IM 唯一出站路径（mid-run release 已由 shouldEndOnlyAssistantDefer 禁止）
     if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
       await flushStreamPost(session, true)
     }
-    // watchdog 已超时收尾或正在 finalizing 时跳过 stream 尾部 finalize，避免二次 notify/归档
     if (
+      lifecycle &&
       !session.watchdogTimedOut &&
       !session.runFinalizing &&
       (run.status === "error" || run.status === "cancelled") &&
       isRunTimeoutFailure(session, run)
     ) {
-      await finalizeSdkRunOnTimeout(session, run, "stream")
+      await applySdkStreamRunEvent(session, lifecycle, { type: "watchdog_timeout", trigger: "stream" }, run)
+    } else if (lifecycle && run.status === "finished") {
+      lifecycle.onStreamEvent({ type: "run_succeeded", result: run.result })
     }
   } catch (e: unknown) {
     flushSdkLog(session)
@@ -286,7 +274,10 @@ export async function streamRunEvents(session: SdkSessionAgent, run: Run): Promi
       const cause = e instanceof Error && "cause" in e && e.cause ? JSON.stringify(e.cause) : ""
       pushUiLog("SDK", "ERROR", `[${session.sessionKey}] 流处理异常: ${msg}${stack ? ` stack=${stack}` : ""}${cause ? ` cause=${cause}` : ""}`)
       await finalizeRunContextUsage(session, run)
-      await notifySdkFailure(session, undefined, run, "sdk_stream_exception")
+      if (lifecycle) {
+        lifecycle.onStreamEvent({ type: "run_failed", reason: "run_error", detail: msg })
+      }
+      await completeSdkFailureViaTemplate(session, "sdk_run_error", msg, run)
     }
   }
 }

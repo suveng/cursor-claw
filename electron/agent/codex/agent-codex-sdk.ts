@@ -30,10 +30,10 @@ import {
   maskCodexApiKey,
 } from "./agent-codex-utils"
 import {
-  notifyCodexSessionChat,
   broadcastCodexSessionStatus,
   maybeRotateCodexSessionContext,
 } from "./agent-codex-stream"
+import { notifySessionChat } from "../shared/run-notify"
 import { completeCodexRun } from "./agent-codex-complete"
 import { streamCodexEvents } from "./agent-codex-events"
 import { armCodexWatchdog } from "./agent-codex-watchdog"
@@ -197,7 +197,7 @@ export async function launchCodexAgent(opts: CodexLaunchOptions): Promise<{ ok: 
     startCodexRun(session, prompt, guard.token, mcpInline)
 
     broadcastCodexSessionStatus([...CODEX_SESSIONS.values()])
-    await notifyCodexSessionChat(sessionKey, NOTIFY_PROCESSING)
+    await notifySessionChat(sessionKey, NOTIFY_PROCESSING)
     await reportSessionAgentPhase(sessionKey, "processing")
     return { ok: true }
   } finally {
@@ -242,7 +242,7 @@ export async function dispatchToCodexAgent(
     startCodexRun(session, prompt, guard.token, mcpInline)
 
     broadcastCodexSessionStatus([...CODEX_SESSIONS.values()])
-    await notifyCodexSessionChat(sessionKey, NOTIFY_PROCESSING)
+    await notifySessionChat(sessionKey, NOTIFY_PROCESSING)
     await reportSessionAgentPhase(sessionKey, "processing")
     return { ok: true }
   } catch (e: unknown) {

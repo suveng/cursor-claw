@@ -24,6 +24,15 @@ import {
   resolveLaunchModel,
   resolveLaunchWorkDir,
 } from "../shared/launch-request-resolve"
+import { getEnginePort } from "../shared/agent-engine-port"
+import { registerCursorEnginePort } from "./engine-port-adapter"
+import { registerCcEnginePort } from "../claude-code/engine-port-adapter"
+import { registerCodexEnginePort } from "../codex/engine-port-adapter"
+import { registerOpencodeEnginePort } from "../opencode/engine-port-adapter"
+
+registerCcEnginePort()
+registerCodexEnginePort()
+registerOpencodeEnginePort()
 
 let agentApiServer: http.Server | null = null
 let agentApiPort = 0
@@ -92,6 +101,8 @@ async function dispatchAgentFromHttp(
   messageIds?: string[],
 ): Promise<{ ok: boolean; error?: string }> {
   const route = resolveBoundAgentResourceType(sessionKey)
+  const port = getEnginePort(route)
+  if (port) return port.dispatch(sessionKey, taskText, messageIds)
   if (route === "cli") return { ok: false, error: LEGACY_CLI_BIND_ERROR }
   if (route === "codex-missing") return { ok: false, error: CODEX_PROFILE_MISSING_ERROR }
   if (route === "opencode-missing") return { ok: false, error: OPENCODE_PROFILE_MISSING_ERROR }
@@ -112,6 +123,19 @@ export async function launchSdkAgentFromHttp(body: Record<string, unknown>): Pro
   } = parsedResult.parsed
 
   const route = resolveBoundAgentResourceType(sessionKey, channelId)
+  const port = getEnginePort(route)
+  if (port) {
+    return port.launch({
+      sessionKey,
+      taskText: taskMessage,
+      chatType,
+      messageIds: parsedResult.parsed.messageIds,
+      workspaceDir: explicitWorkDir,
+      useMainWorkspace: useMain,
+      senderOpenId,
+      chatName,
+    })
+  }
   if (route === "cli") return { ok: false, error: LEGACY_CLI_BIND_ERROR }
   if (route === "codex-missing") return { ok: false, error: CODEX_PROFILE_MISSING_ERROR }
   if (route === "opencode-missing") return { ok: false, error: OPENCODE_PROFILE_MISSING_ERROR }
@@ -160,6 +184,7 @@ export function getAgentSdkApiPort(): number {
 /** 应用 init 启动 Agent API HTTP server */
 export function ensureAgentSdkHttpServer(): void {
   if (agentApiServer) return
+  registerCursorEnginePort()
   agentApiServer = http.createServer(async (req, res) => {
     if (req.method !== "POST") {
       jsonAgentApi(res, { ok: false, error: "method not allowed" }, 405)

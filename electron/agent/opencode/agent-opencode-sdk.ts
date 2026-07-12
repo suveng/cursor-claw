@@ -19,9 +19,10 @@ import {
   parseModelRef, maskOpencodeApiKey, setOpencodeWatchdogState,
 } from "./agent-opencode-utils"
 import {
-  notifyOpencodeSessionChat, broadcastOpencodeSessionStatus,
+  broadcastOpencodeSessionStatus,
   maybeRotateOpencodeSessionContext, initOpencodeStreamState,
 } from "./agent-opencode-stream"
+import { notifySessionChat } from "../shared/run-notify"
 import { completeOpencodeRun, type OpencodeRunEpoch } from "./agent-opencode-complete"
 import { streamOpencodeEvents } from "./agent-opencode-events"
 import { watchOpencodeRunGuard } from "./agent-opencode-watchdog"
@@ -200,7 +201,7 @@ export async function launchOpencodeAgent(opts: OpencodeLaunchOptions): Promise<
     await startOpencodeRun(session, prompt, guard.token, opts)
 
     broadcastOpencodeSessionStatus([...OPENCODE_SESSIONS.values()])
-    await notifyOpencodeSessionChat(opts.sessionKey, NOTIFY)
+    await notifySessionChat(opts.sessionKey, NOTIFY)
     await reportSessionAgentPhase(opts.sessionKey, "processing")
     return { ok: true }
   } catch (e: unknown) {
@@ -241,7 +242,7 @@ export async function dispatchToOpencodeAgent(sessionKey: string, taskText: stri
     }
     await startOpencodeRun(session, buildPrompt(session.meta, taskText, sessionKey, session.useMainWorkspace), guard.token, opts)
     broadcastOpencodeSessionStatus([...OPENCODE_SESSIONS.values()])
-    await notifyOpencodeSessionChat(sessionKey, NOTIFY)
+    await notifySessionChat(sessionKey, NOTIFY)
     await reportSessionAgentPhase(sessionKey, "processing")
     return { ok: true }
   } catch (e: unknown) {

@@ -12,7 +12,8 @@ import { flushFeishuPlainAssistantIfNeeded } from "../shared/feishu-plain-assist
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import type { CcSessionAgent } from "./agent-cc-types"
 import { presentationOrderingEligible, resolveSessionChannelType } from "./agent-cc-utils"
-import { finalizeCcRunOnWatchdogTimeout } from "./cc-watchdog-finalize"
+import { finalizeCcRunOnWatchdogTimeout } from "./engine-port-adapter"
+import { completeCcViaLifecycle, notifyCcRunFailure } from "./engine-port-adapter"
 import {
   notifySessionChat,
   postPresentationEvent,
@@ -198,7 +199,6 @@ export async function completeCcRun(
   const { deleteSession, getAllSessions, setFailedCooldown, resetPresentationState } = opts
   const sessionKey = session.sessionKey
   if (session.runFinalizing) return
-  session.runFinalizing = true
 
   flushCcLog(session)
   session.thinkingOpen = false
@@ -206,23 +206,29 @@ export async function completeCcRun(
   if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
     await flushStreamPost(session, true)
   } else if (session.streamBuffer.trim()) {
-    const footer = formatContextFooter(session.contextUsage, session.contextLimitTokens ?? null, session.contextUsagePeakTokens)
-    await notifySessionChat(sessionKey, appendContextFooter(session.streamBuffer, footer), true)
+    const footer = formatContextFooter(
+      session.contextUsage,
+      session.contextLimitTokens ?? null,
+      session.contextUsagePeakTokens,
+    )
+    await completeCcViaLifecycle(session, {
+      source: "success",
+      assistantText: appendContextFooter(session.streamBuffer, footer),
+    })
   }
 
   const isWatchdogTimeout = session.watchdogTimedOut === true
   if (isWatchdogTimeout) {
-    await finalizeCcRunOnWatchdogTimeout(session, notifySessionChat)
+    await finalizeCcRunOnWatchdogTimeout(session)
   } else {
     const isError = session.lastStatus?.status === "ERROR" || (exitCode !== null && exitCode !== 0)
     if (isError && !session.errorNotified) {
-      session.errorNotified = true
-      const msg = session.lastStatus?.message ?? `Agent Run 失败（退出码 ${exitCode ?? "unknown"}）`
-      const footer = formatContextFooter(session.contextUsage, session.contextLimitTokens ?? null, session.contextUsagePeakTokens)
-      await notifySessionChat(sessionKey, appendContextFooter(`⚠️ Claude Agent 执行失败: ${msg}`, footer), true)
+      await notifyCcRunFailure(session, exitCode)
       setFailedCooldown(sessionKey, Date.now() + failCooldownMs)
     }
   }
+
+  session.runFinalizing = true
 
   if (session.runGuardToken) {
     completeRunGuard(sessionKey, session.runGuardToken)

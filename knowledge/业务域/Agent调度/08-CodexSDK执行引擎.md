@@ -2,61 +2,58 @@
 
 ## 一、能力范围
 
-`@openai/codex-sdk`：`new Codex` + `startThread`/`resumeThread` + `runStreamed`、launch/dispatch、Presentation、`codex-agent-api`、MCP 内联、`codexSessionId` 续接。不负责 [06](./06-CursorSDK执行引擎.md)/[07](./07-ClaudeCodeSDK执行引擎.md) 引擎与 Daemon claim。
+`@openai/codex-sdk`：`new Codex` + `startThread`/`resumeThread` + `runStreamed`、launch/dispatch、Presentation、`codex-agent-api`、MCP 内联、`codexSessionId` 续接。经 `engine-port-adapter.ts` 实现 `AgentEnginePort`，终态经 `RunLifecycle`+`completeRunFromTemplate`。不负责其他引擎与 Daemon claim。
 
 ## 二、设计决策与取舍
 
-- **API**：`new Codex` → `startThread`/`resumeThread(codexSessionId)` → `runStreamed`（`agent-codex-sdk.ts`）。
-- **resume**：`thread.started` 写 `codexSessionId`（`agent-codex-events.ts`）。
-- **长驻**：`CODEX_RESIDENT_AGENT` 随 `SDK_RESIDENT_AGENT` 默认开（`codexResidentModeEnabled`）。
-- **MCP**：`codex-mcp-loader` 读 `~/.codex` 与 `{ws}/.codex/config.toml`，project>global，每次注入。
-- **CLI**：`checkCodexCliAvailable`；二进制 `@openai/codex-*` optional 包（`agent-codex-utils.ts`）。
-- **模块**：`agent-codex-{types,http,events,stream,utils,...}` 仿 `agent-cc-*`。
+- **Engine Port**：`registerCodexEnginePort`；`mapCodexThreadEventToRunEvent` 映射 `ThreadEvent`→`RunEvent`。
+- **终态出口**：`completeCodexViaLifecycle`/`notifyCodexRunFailure`/`notifyCodexWatchdogTimeout`→shared 模板；运行中 IM 直接 import `run-notify`（无本地 notify 副本）。
+- **失败文案**：`codex-failure-messages.ts` 脱敏+归因提取，用户句委托 `formatRunFailureMessage`。
+- **MCP**：`codex-mcp-loader` 读 `~/.codex` 与 `{ws}/.codex/config.toml`，project>global。
 
 ## 三、服务端规则
 
-1. `type==="codex"` + API Key；模型空 → `CODEX_DEFAULT_MODEL_ID`（`gpt-5.5`）。
-2. `pendingDispatch` 时 launch→dispatch；`acquireRunGuard` 单飞。
-3. ContextRotation 清 `codexSessionId`（`maybeRotateCodexSessionContext`）。
-4. Profile 已删 → `codex-missing`（`agent-sdk.ts`）。
-5. 任务/工作流：`session-dispatcher` POST `codex-agent-api`（不经 Daemon）。
+1. `type==="codex"` + API Key；模型空 → `CODEX_DEFAULT_MODEL_ID`。
+2. `pendingDispatch` 时 launch→dispatch；`enterGuardWithLifecycle` 单飞。
+3. ContextRotation 清 `codexSessionId`；Profile 已删 → `opencode-missing` 对称 `codex-missing`。
+4. 任务/工作流 POST `codex-agent-api`；IM 经统一网关 `agent-sdk-http`。
 
 ## 四、客户端流程
 
 ```mermaid
 sequenceDiagram
-  participant SD as session-dispatcher
-  participant CX as agent-codex-sdk
-  SD->>CX: launch/dispatch
-  CX-->>SD: presentation/stream
+  GW["agent-sdk-http"]->>Port["engine-port-adapter"]
+  Port->>CX["runStreamed"]
+  CX-->>EV["ThreadEvent→RunEvent"]
+  EV->>Tpl["completeRunFromTemplate"]
 ```
-
-IM：`agent-api` → `agent-sdk` 路由 codex → `launchCodexAgentFromHttp`。
 
 ## 五、接口
 
 | 入口 | 说明 |
 |------|------|
+| `AgentEnginePort` 六方法 | `engine-port-adapter.ts` |
 | `launchCodexAgent`/`dispatchToCodexAgent` | 首条/resume |
-| `POST /api/codex/agent/launch\|dispatch` | `codex-agent-api-port.json` |
-| `getCodexSessionList` | `agent-codex-session-registry.ts` |
+| `POST /api/codex/agent/launch\|dispatch` | 本地 HTTP |
+| `POST /api/agent/launch\|dispatch` | IM 统一网关 |
 
 ## 六、数据
 
-`CodexSessionAgent`（`agent-codex-types.ts`）；`AgentResource type:"codex"`；`codex-agent-api-port.json`。
+`CodexSessionAgent`（`agent-codex-types.ts`）；`errorNotified`/`watchdogTimedOut`/`runFinalizing` 门控见 [10](./10-SDK上下文保护与失败归因.md)。
 
 ## 七、非功能与可观测
 
-RunGuard+`armCodexWatchdog`；事件未知类型 WARN；`codex-failure-messages` 脱敏 apiKey。
+RunGuard+`armCodexWatchdog`；事件未知类型 WARN；apiKey 脱敏 `maskCodexApiKey`；失败归档经 `completeRunFromTemplate`。
 
 ## 八、推送
 
-无；出站对称 SDK/CC（stream-text/presentation-event）。
+无；出站对称 SDK/CC（stream-text/presentation-event）；终态 `notifySessionChat`。
 
 ## 九、已知限制与 TODO
 
-Dashboard MCP 对 codex 仅占位；须本机 Codex CLI。与 [09 OpenCode SDK](./09-OpenCodeSDK执行引擎.md) 并列第四引擎，共享 `launchAgent`/`agent-sdk` 路由落点。
+Dashboard MCP 占位；须本机 Codex CLI。运行态 IM 全矩阵待手工（accepted_debt R5）。
 
 ## 十、变更记录
 
-2026-06-30：Codex 三引擎接入（archive 20260630104714）。
+- 2026-07-12：Engine Port + RunLifecycle（archive 20260711232258）。
+- 2026-06-30：Codex 三引擎接入（archive 20260630104714）。

@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto"
+import { formatRunFailureMessage } from "./run-failure-formatter.js"
+import { notifySessionChat } from "./run-notify.js"
+import type { RunLifecycle } from "./run-lifecycle.js"
 
 type GuardState = {
   token: string
@@ -10,6 +13,15 @@ export interface RunGuardAcquireResult {
   token: string
   acquired: boolean
   holder?: string
+}
+
+/** enterGuardWithLifecycle 结果：allowed | busy | stale_aborted */
+export type GuardEnterResult = "allowed" | "busy" | "stale_aborted"
+
+export interface GuardLifecycleSession {
+  sessionKey: string
+  errorNotified?: boolean
+  staleAborted?: boolean
 }
 
 export interface WatchRunGuardInput {
@@ -34,6 +46,37 @@ export function acquireRunGuard(sessionKey: string): RunGuardAcquireResult {
   }
   guardBySession.set(sessionKey, { token, acquiredAt: Date.now(), completed: false })
   return { token, acquired: true }
+}
+
+/** busy 时经 shared formatter + notify 发出一次说明（S8，不静默丢弃） */
+async function notifyGuardBusy(session: GuardLifecycleSession): Promise<void> {
+  if (session.errorNotified) return
+  session.errorNotified = true
+  const text = formatRunFailureMessage({
+    reason: "session_abnormal",
+    detail: "agent_busy",
+    sessionKey: session.sessionKey,
+  })
+  await notifySessionChat(session.sessionKey, text, { stop_progress: true })
+}
+
+/**
+ * 与 RunLifecycle.enterGuard 衔接的 guard 包装；busy 时 IM 通知用户
+ */
+export function enterGuardWithLifecycle(
+  session: GuardLifecycleSession,
+  lifecycle?: Pick<RunLifecycle, "enterGuard">,
+): RunGuardAcquireResult & { result: GuardEnterResult } {
+  lifecycle?.enterGuard()
+  if (session.staleAborted) {
+    return { token: randomUUID(), acquired: false, result: "stale_aborted" }
+  }
+  const guard = acquireRunGuard(session.sessionKey)
+  if (!guard.acquired) {
+    void notifyGuardBusy(session)
+    return { ...guard, result: "busy" }
+  }
+  return { ...guard, result: "allowed" }
 }
 
 /**
@@ -84,4 +127,3 @@ export function getRunGuardHeldMs(sessionKey: string): number | null {
   if (!state) return null
   return Math.max(0, Date.now() - state.acquiredAt)
 }
-

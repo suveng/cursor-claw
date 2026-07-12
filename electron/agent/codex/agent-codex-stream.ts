@@ -6,7 +6,7 @@ import { readLockFile, httpPost } from "../../daemon/daemon-client"
 import {
   isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind,
 } from "../../../src/shared/feishu-presentation-gate"
-import { pushUiLog, broadcastLog, broadcastSessionStatus } from "../../app/ui-logger"
+import { pushUiLog, broadcastSessionStatus } from "../../app/ui-logger"
 import { appendContextFooter, formatContextFooter, resolveDisplayContextTokens, resetContextUsagePeak } from "../cursor-sdk/context-usage"
 import { resolveSessionChatName } from "../shared/agent-launcher"
 import {
@@ -51,20 +51,6 @@ export function appendCodexLog(session: CodexSessionAgent, kind: "thinking" | "t
   agg.buf += delta
   if (agg.buf.length >= LOG_FLUSH_LEN) flushCodexLog(session)
 }
-
-/** send-text 通知 */
-export async function notifyCodexSessionChat(sessionKey: string, text: string, stopProgress = false): Promise<void> {
-  const lock = readLockFile()
-  if (!lock?.port) return
-  try {
-    await httpPost(`http://127.0.0.1:${lock.port}/api/send-text`, {
-      text, session_key: sessionKey, ...(stopProgress && { stop_progress: true }),
-    }, 5000)
-  } catch (e: unknown) {
-    broadcastLog(`[Codex Notify] 发送失败 (${sessionKey}): ${e instanceof Error ? e.message : String(e)}`, "WARN")
-  }
-}
-
 /** presentation-event 出站 */
 export async function postCodexPresentationEvent(
   session: CodexSessionAgent,

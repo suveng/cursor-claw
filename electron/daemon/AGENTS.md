@@ -6,13 +6,14 @@
 - **Agent 阶段上报**：`daemon-client.reportSessionAgentPhase` → `POST /api/session-agent-phase`；与三态 notify 同挂点、失败仅 WARN、不阻断启动。
 - **落点**：`agent-sdk.ts` 在 `agent.send` 成功后、`streamRunEvents` 前发处理中；已运行 session early return 不得再发处理中。
 - **失败 notify**：用户可见文案须可理解；路径、stack、进程细节仅写 UI 日志，不经 `/api/send-text` 下发。
+- **dispatch 失败对称 IM**：Daemon orchestrator launch/dispatch 失败经 `src/daemon/daemon-orchestrator-notify.ts` `notifySessionUser` + `formatOrchestratorFailure`（SSOT：`src/shared/orchestrator-failure-formatter.ts`，与 electron `run-failure-formatter` 语义对齐）；`stop_progress: true`；日志字段 `dispatch_failed`。Electron 侧 dispatch 失败仍走 `sdk-run-finalize.notifyDispatchFailure` → `RunLifecycle`。
 
 ## 模块边界
 
 - **Daemon 桥接**：IM `POST /api/agent/launch|dispatch` 由 Daemon `forwardElectronAgentApi` 转发至 Electron `agent-sdk-http` 统一网关；与本地 `session-dispatcher.launchAgent` 同路径。
 - `daemon-manager.ts`：Daemon 子进程生命周期、IPC 注册枢纽、工作流/任务/通道汇聚；**不拆分**（历史行数超限属已知）。
 - `daemon-client.ts`：`httpPost` / `httpGet` / 锁文件 / 会话同步（`syncActiveSession`、`setSessionFallback` 等）；各引擎经此通知 Daemon，避免与 `session/session-dispatcher` 循环 import。
-- `sdk-daemon-notify.ts`：SDK 会话 IM notify 封装。
+- `sdk-daemon-notify.ts`：SDK 会话 IM notify 薄 re-export（→ `agent/shared/run-notify.ts`）。
 
 ## 编码规矩
 

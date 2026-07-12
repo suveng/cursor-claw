@@ -122,7 +122,18 @@ export async function tryHandleOrchestratorRoute(
       if (!result.ok) {
         deps.log("WARN", `dispatch_failed: session=${session_key} error=${result.error ?? "unknown"}`);
         const busyDelay = deps.parseBusyRetryDelayMs(result.error);
-        if (busyDelay > 0) deps.scheduleBusyRetry(session_key, busyDelay);
+        if (busyDelay > 0) {
+          deps.scheduleBusyRetry(session_key, busyDelay);
+        } else {
+          await deps.notifySessionUser(
+            session_key,
+            deps.formatOrchestratorFailure(result.error),
+            true,
+          );
+          const ids = Array.isArray(body.message_ids) ? body.message_ids : [];
+          const lastId = ids[ids.length - 1];
+          if (lastId) deps.ackMessages(lastId, session_key);
+        }
       }
       deps.json(res, result, result.ok ? 200 : 400);
     } catch (e: unknown) {

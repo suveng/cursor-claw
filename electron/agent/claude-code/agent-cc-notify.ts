@@ -2,7 +2,7 @@
  * Claude Code → Daemon 出站通知（从 agent-cc-stream 拆出，控制单文件行数）。
  */
 import { readLockFile, httpPost } from "../../daemon/daemon-client"
-import { pushUiLog, broadcastLog } from "../../app/ui-logger"
+import { pushUiLog } from "../../app/ui-logger"
 import type { CcSessionAgent } from "./agent-cc-types"
 
 /** stream-text API 请求体结构 */
@@ -15,18 +15,8 @@ export interface StreamTextPayload {
   final?: boolean
 }
 
-/** 向 Daemon 发送普通文本通知（send-text） */
-export async function notifySessionChat(sessionKey: string, text: string, stopProgress = false): Promise<void> {
-  const lock = readLockFile()
-  if (!lock?.port) return
-  try {
-    await httpPost(`http://127.0.0.1:${lock.port}/api/send-text`, {
-      text, session_key: sessionKey, ...(stopProgress && { stop_progress: true }),
-    }, 5000)
-  } catch (e: unknown) {
-    broadcastLog(`[CC Notify] 发送通知失败 (${sessionKey}): ${e instanceof Error ? e.message : String(e)}`, "WARN")
-  }
-}
+/** 向 Daemon 发送普通文本通知（send-text，委托 shared run-notify） */
+export { notifySessionChat } from "../shared/run-notify.js"
 
 /** 向 Daemon 推送 PresentationEvent（presentation-event） */
 export async function postPresentationEvent(

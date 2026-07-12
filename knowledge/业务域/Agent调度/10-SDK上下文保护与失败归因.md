@@ -2,54 +2,75 @@
 
 ## 一、能力范围
 
-Cursor SDK send 前上下文压力评估、高压轮转、`context_blocked` 快拒，Run 失败 IM 归因（pre-send 快照）。不负责通道 `othersWorkspaceMode` 默认（见 [02-多会话模型](./02-多会话模型.md)）。
+四引擎共享的 **Run 终态契约**：`RunFailureReason` 归因枚举、`errorNotified`/`watchdogTimedOut`/`runFinalizing` 闩、`formatRunFailureMessage` 文案、`completeRunFromTemplate` 收尾、`notifySessionChat` 唯一出站。Cursor SDK pre-send 上下文压力评估、高压轮转、`context_blocked` 快拒为本文件特有子能力。
 
 ## 二、设计决策与取舍
 
-- **快照**：`lastPreSendUsedTokens`/`lastPreSendUsageRatio` 每次 dispatch pre-send 覆盖；轮转清零 peak 后仍保留至下次 pre-send。
-- **ratio≥100%**：`maybeRotateContext` 跳过 90% 的「连续 2 次」与 3min 冷却；须 `Agent.create` 成功才算 `rotated`。
-- **快拒**：ratio≥100% 且 `!rotated` 时不调用 `agent.send`。
-- **文案**：pre-send≥95% 不依赖 error 态，避免 peak 清零后误报「精简输入」兜底。
+- **类型 SSOT**：`run-lifecycle-types.ts` — `RunPhase`、`RunEvent`、`RunFailureReason`、`AgentEnginePort`。
+- **终态 IM 唯一出站**：`run-notify.notifySessionChat`；SDK/CC re-export，Codex/OpenCode 直接 import。
+- **失败文案**：`formatRunFailureMessage` 引擎终态 SSOT；Daemon dispatch 文案 SSOT `src/shared/orchestrator-failure-formatter.ts`（electron re-export）。
+- **收尾模板**：`completeRunFromTemplate` — 幂等闩、f41 成功路径禁止双写 assistant、失败挂 `archiveAgentFailureLogs`。
+- **pre-send（SDK 专有）**：`lastPreSend*` 快照；ratio≥100% 且未轮转 → `context_blocked`。
 
 ## 三、服务端规则
 
-1. **评估链**：`launchSdkAgent`/`dispatchToSdkAgent`→`sendWithRetry`→`maybeRotateSessionForPressure`→`evaluatePreSendContextPressure`；日志 `[compression] pre-send usage {pct}%`。
-2. **轮转**（`context-rotation-lite.ts`）：ratio∈[90%,100%) 连续 2 次且冷却 3min；ratio≥100% 首轮即 `rotated`（bypass 冷却）。成功：`Agent.create` 换新、清零 peak、`close` 旧实例。
-3. **context_blocked**：ratio≥100% 且 `!rotated`→`finalReason:"context_blocked"`；`notifyPreSendContextFailure` 即时 IM（launch/dispatch 各 1 处）。
-4. **Run 失败归因**（`formatUserSdkFailureMessage`）：timeout→peak/error≥95%→**pre-send≥95%**→busy/retryable→兜底。上下文已满句含「上下文窗口已接近或达到上限」。
+**RunFailureReason**（对齐 `crash-log-archiver`）：
+
+| 枚举 | 典型场景 |
+|------|----------|
+| `dispatch_failed` | Daemon/Electron 调度失败 |
+| `run_error` | 引擎执行出错 |
+| `timeout` | 看门狗/平台长时 |
+| `user_cancelled` | 用户 stop（aborted 静默，不 notify） |
+| `context_exhausted` | 上下文已满/pre-send≥95% |
+| `stale_aborted` | 会话过期/中止 |
+| `session_abnormal` | busy/异常 |
+
+**errorNotified 契约**：`notifying` 入口检查；失败/超时/取消仅一次 IM；`abortController.aborted` 跳过 failure notify；`watchdogTimedOut` 与 complete 去重。
+
+**Daemon dispatch 对称**：`daemon-http-routes-orchestrator` 在 `!ok` 且非 `agent_busy` 时 `notifySessionUser`+`stop_progress: true`，与 launch 失败同类语义。
 
 ## 四、客户端流程
 
 ```mermaid
 flowchart TD
-  preSend["pre-send 评估+写 lastPreSend*"] --> rotate["maybeRotateContext"]
-  rotate --> ok{"ratio≥100% 且 rotated?"}
-  ok -->|否且ratio≥100%| block["context_blocked"]
-  ok -->|是或ratio小于100%| send["agent.send"]
-  block --> notify["notifyPreSendContextFailure"]
-  send --> fail["Run 失败 notifySdkFailure 含 pre-send"]
+  ev["引擎原生事件"] --> map["adapter→RunEvent"]
+  map --> lc["RunLifecycle"]
+  lc --> tpl["completeRunFromTemplate"]
+  tpl --> chk{"errorNotified?"}
+  chk -->|否| im["notifySessionChat"]
+  chk -->|是| skip["跳过重复 IM"]
 ```
+
+SDK pre-send 分支见 §二；`context_blocked` 走 `notifyPreSendContextFailure`（非终态模板）。
 
 ## 五、接口
 
-`evaluatePreSendContextPressure`、`maybeRotateContext`、`maybeRotateSessionForPressure`、`sendWithRetry`、`notifyPreSendContextFailure`、`notifySdkFailure`、`formatUserSdkFailureMessage`（`electron/agent/cursor-sdk/`）。
+| 符号 | 路径 |
+|------|------|
+| `formatRunFailureMessage` | `electron/agent/shared/run-failure-formatter.ts` |
+| `completeRunFromTemplate` | `electron/agent/shared/run-complete-template.ts` |
+| `notifySessionChat` | `electron/agent/shared/run-notify.ts` |
+| `createOrchestratorNotify` | `src/daemon/daemon-orchestrator-notify.ts` |
+| SDK pre-send | `electron/agent/cursor-sdk/context-rotation-lite.ts` 等 |
 
 ## 六、数据
 
-`SdkSessionAgent`：`lastPreSendUsedTokens?`、`lastPreSendUsageRatio?`（used/limit，可>1）。`SdkFailureContext` 同名字段。**session 级**，无跨 session 读写。
+各引擎 session 保留：`errorNotified`、`watchdogTimedOut`、`runFinalizing`、`abortController`、`failureArchiveDone`。SDK 另含 `lastPreSendUsedTokens`/`lastPreSendUsageRatio`。
 
 ## 七、非功能与可观测
 
-日志：`[compression] pre-send usage`、`pre-send context_blocked ratio=`、`[shared-workspace]`。**T6 诊断**：`warnIfSharedWorkspaceDir`（launch/dispatch 入口）统计 `sdkSessions` 同 `workspaceDir` 活跃数>1 时 WARN，每目录每进程 1 条；仅可观测，多群并发失败多为各 session 独立超限，非串扰。
+日志：`dispatch_failed`、`agent_failed`、`[compression] pre-send`；归档 `failureArchiveDone` 幂等；`run-notify` 仅依赖 `daemon-client` 防环引。
 
 ## 八、推送
 
-`context_blocked` 与 Run 失败均 `notifySessionChat(..., stop_progress: true)`，附 context footer。
+终态均 `notifySessionChat(..., stop_progress: true)`；运行中「Agent 处理中…」等非终态不传 `stop_progress`。
 
 ## 九、已知限制与 TODO
 
-ratio<100% 不 pre-send 阻断；limit 不可得时 ratio 缺失，快拒与 pre-send 归因降级。
+`RunLifecycle.resume()` S7 续接 `errorNotified` 重置待完善；运行态 IM 矩阵 R3/R5 accepted_debt 待手工点验。
 
 ## 十、变更记录
 
-- 2026-07-05：pre-send 保护、context_blocked、失败归因、workspaceDir WARN（archive 20260705230806）。
+- 2026-07-12：四引擎统一 RunFailureReason/errorNotified/notify 契约（archive 20260711232258）。
+- 2026-07-05：SDK pre-send 保护、context_blocked（archive 20260705230806）。

@@ -7,8 +7,10 @@ import {
   formatContextFooter,
   resolveDisplayContextTokens,
 } from "./context-usage"
-import { archiveAgentFailureLogs, type FailureArchiveType } from "../shared/crash-log-archiver"
-import { formatUserSdkFailureMessage } from "./sdk-failure-messages"
+import type { FailureArchiveType } from "../shared/crash-log-archiver"
+import { formatRunFailureMessage } from "../shared/run-failure-formatter"
+import { createRunLifecycle } from "../shared/run-lifecycle"
+import type { RunFailureReason } from "../shared/run-lifecycle-types"
 import {
   finalizeSdkRunOnTimeout as finalizeSdkRunOnTimeoutImpl,
   isRunTimeoutFailure as isRunTimeoutFailureImpl,
@@ -16,7 +18,6 @@ import {
 } from "./finalize-sdk-run"
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import { clearActiveSdkRun } from "./sdk-run-persistence"
-import { notifySessionChat } from "../../daemon/sdk-daemon-notify"
 import { resetStreamPostChain } from "./sdk-run-presentation"
 import { clearPersistThrottle } from "./sdk-run-persist"
 import {
@@ -28,90 +29,66 @@ import {
 import type { SdkSessionAgent } from "./sdk-session-types"
 import { pushUiLog } from "../../app/ui-logger"
 
-function formatSdkStreamFailure(
-  status?: string,
-  message?: string,
-  ctx?: {
-    lastTool?: { name: string; status: string }
-    durationMs?: number
-    errorCode?: string
-    runResult?: string
-    contextUsed?: number
-    contextLimit?: number | null
-    preSendUsedTokens?: number
-    preSendUsageRatio?: number
-    isTimeoutFailure?: boolean
-  },
-): string {
-  return formatUserSdkFailureMessage({
-    status,
-    message,
-    errorCode: ctx?.errorCode,
-    runResult: ctx?.runResult,
-    lastTool: ctx?.lastTool,
-    durationMs: ctx?.durationMs,
-    contextUsed: ctx?.contextUsed,
-    contextLimit: ctx?.contextLimit,
-    preSendUsedTokens: ctx?.preSendUsedTokens,
-    preSendUsageRatio: ctx?.preSendUsageRatio,
-    isTimeoutFailure: ctx?.isTimeoutFailure ?? false,
-  })
+/** FailureArchiveType → RunFailureReason */
+function mapArchiveToReason(
+  failureType: FailureArchiveType,
+  isTimeout: boolean,
+): RunFailureReason {
+  if (isTimeout) return "timeout"
+  switch (failureType) {
+    case "dispatch_failed":
+      return "dispatch_failed"
+    case "sdk_cancelled":
+      return "user_cancelled"
+    case "sdk_timeout":
+      return "timeout"
+    default:
+      return "run_error"
+  }
 }
 
-/** 失败 IM 通知（含崩溃归档） */
-export async function notifySdkFailure(
+/** 组装 SDK 失败 IM 正文（含 context footer） */
+export function buildSdkFailureText(
   session: SdkSessionAgent,
+  run: Run | null | undefined,
   override?: string,
-  run?: Run | null,
-  failureType?: FailureArchiveType,
-): Promise<void> {
-  if (session.errorNotified || session.abortController.signal.aborted) return
-  session.errorNotified = true
-  const resolvedType: FailureArchiveType =
-    failureType ??
-    (session.lastStatus?.status === "CANCELLED" ? "sdk_cancelled" : "sdk_run_error")
-  archiveAgentFailureLogs({
-    sessionKey: session.sessionKey,
-    failureType: resolvedType,
-    session,
-    agentId: session.agentId,
-    runStatus: run?.status ?? session.run?.status,
-  })
+  isTimeout = false,
+): string {
+  if (override) return override
   const last = session.lastStatus
   const contextUsed = resolveDisplayContextTokens(
     session.contextUsage,
     session.contextUsagePeakTokens,
   )
-  let text = override ?? formatSdkStreamFailure(last?.status, last?.message, {
-    lastTool: session.lastTool,
-    durationMs: resolveRunDurationMs(session, run),
-    errorCode: extractErrorCode(run) ?? extractErrorCode(last),
-    runResult: run?.result ?? session.run?.result,
-    contextUsed,
-    contextLimit: session.contextLimitTokens ?? null,
-    preSendUsedTokens: session.lastPreSendUsedTokens,
-    preSendUsageRatio: session.lastPreSendUsageRatio,
-    isTimeoutFailure: run ? isRunTimeoutFailure(session, run, last) : false,
+  return formatRunFailureMessage({
+    reason: isTimeout ? "timeout" : "run_error",
+    sessionKey: session.sessionKey,
+    sdk: {
+      status: last?.status,
+      message: last?.message,
+      errorCode: extractErrorCode(run) ?? extractErrorCode(last),
+      runResult: run?.result ?? session.run?.result,
+      contextUsed,
+      contextLimit: session.contextLimitTokens ?? null,
+      preSendUsedTokens: session.lastPreSendUsedTokens,
+      preSendUsageRatio: session.lastPreSendUsageRatio,
+      isTimeoutFailure: isTimeout,
+    },
   })
-  const footer = formatContextFooter(
-    session.contextUsage,
-    session.contextLimitTokens ?? null,
-    session.contextUsagePeakTokens,
-    session.contextUsageFromRunTotal,
-  )
-  text = appendContextFooter(text, footer)
-  await notifySessionChat(session.sessionKey, text, true)
 }
 
-/** pre-send 上下文已满阻断：即时 IM，复用 T4 文案器 */
+/** pre-send 上下文已满阻断：经 RunLifecycle + shared 模板 */
 export async function notifyPreSendContextFailure(session: SdkSessionAgent): Promise<void> {
   if (session.errorNotified || session.abortController.signal.aborted) return
-  session.errorNotified = true
-  let text = formatUserSdkFailureMessage({
-    preSendUsedTokens: session.lastPreSendUsedTokens,
-    preSendUsageRatio: session.lastPreSendUsageRatio,
-    contextLimit: session.contextLimitTokens ?? null,
-    isTimeoutFailure: false,
+  let failureText = formatRunFailureMessage({
+    reason: "context_exhausted",
+    sessionKey: session.sessionKey,
+    sdk: {
+      preSendUsedTokens: session.lastPreSendUsedTokens,
+      preSendUsageRatio: session.lastPreSendUsageRatio,
+      contextLimit: session.contextLimitTokens ?? null,
+      isTimeoutFailure: false,
+    },
   })
   const footer = formatContextFooter(
     session.contextUsage,
@@ -119,26 +96,68 @@ export async function notifyPreSendContextFailure(session: SdkSessionAgent): Pro
     session.contextUsagePeakTokens,
     session.contextUsageFromRunTotal,
   )
-  text = appendContextFooter(text, footer)
-  await notifySessionChat(session.sessionKey, text, true)
+  failureText = appendContextFooter(failureText, footer)
+  const lifecycle = createRunLifecycle(session)
+  lifecycle.onStreamEvent({ type: "run_failed", reason: "context_exhausted" })
+  await lifecycle.enterNotifying({
+    source: "failure",
+    failure: { reason: "context_exhausted" },
+    failureText,
+  })
 }
 
+/** dispatch 失败：试点委托 completeRunFromTemplate + RunLifecycle */
 export async function notifyDispatchFailure(sessionKey: string, reason: string): Promise<void> {
   pushUiLog("SDK", "ERROR", `[${sessionKey}] dispatch_failed: ${reason}`)
-  archiveAgentFailureLogs({
-    sessionKey,
-    failureType: "dispatch_failed",
-    detail: reason,
+  const lifecycle = createRunLifecycle({ sessionKey })
+  lifecycle.enterGuard()
+  await lifecycle.enterNotifying({
+    source: "failure",
+    failure: { reason: "dispatch_failed", detail: reason },
   })
-  await notifySessionChat(sessionKey, "⚠️ 消息投递失败，请稍后重试。", true)
 }
 
-/** finalizer 上下文：绑定 sdkSessions 等依赖 */
+/**
+ * SDK 失败收尾：经 RunLifecycle.enterNotifying 委托 completeRunFromTemplate
+ * （SDK 富文案经 failureText 传入，归档由模板统一处理）
+ */
+export async function completeSdkFailureViaTemplate(
+  session: SdkSessionAgent,
+  failureType: FailureArchiveType,
+  detail?: string,
+  run?: Run | null,
+): Promise<void> {
+  if (session.errorNotified) return
+  const isTimeout = failureType === "sdk_timeout"
+  const resolvedRun = run ?? session.run
+  const isTimeoutResolved =
+    isTimeout || (resolvedRun ? isRunTimeoutFailure(session, resolvedRun) : false)
+  let failureText = buildSdkFailureText(session, resolvedRun, detail, isTimeoutResolved)
+  const footer = formatContextFooter(
+    session.contextUsage,
+    session.contextLimitTokens ?? null,
+    session.contextUsagePeakTokens,
+    session.contextUsageFromRunTotal,
+  )
+  failureText = appendContextFooter(failureText, footer)
+  const lifecycle = createRunLifecycle(session)
+  lifecycle.onStreamEvent({ type: isTimeout ? "watchdog_timeout" : "run_failed" })
+  await lifecycle.enterNotifying({
+    source: isTimeout ? "watchdog" : "failure",
+    failure: {
+      reason: mapArchiveToReason(failureType, isTimeout),
+      detail,
+    },
+    failureText,
+  })
+}
+
+/** finalizer 上下文：绑定 sdkSessions 等依赖（超时 notify 经 RunLifecycle） */
 const finalizerCtx: FinalizerContext = {
   sdkSessions,
   resetStreamPostChain: (session) => resetStreamPostChain(session as SdkSessionAgent),
-  notifySdkFailure: (session, override, run) =>
-    notifySdkFailure(session as SdkSessionAgent, override, run),
+  notifySdkTimeoutFailure: (session, run) =>
+    completeSdkFailureViaTemplate(session as SdkSessionAgent, "sdk_timeout", undefined, run),
   broadcastSdkSessionStatus,
 }
 

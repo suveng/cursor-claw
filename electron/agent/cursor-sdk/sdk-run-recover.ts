@@ -32,7 +32,7 @@ function parseRecordChatType(raw: string): ChatType {
 export async function notifyResumeFailure(sessionKey: string, reason: string): Promise<void> {
   const text = `⚠️ 未能自动续接上次任务（${reason}），${RESUME_FAIL_USER_HINT}。`
   pushUiLog("SDK", "WARN", `[recover] notifyResumeFailure sessionKey=${sessionKey} reason=${reason}`)
-  await notifySessionChat(sessionKey, text, true)
+  await notifySessionChat(sessionKey, text, { stop_progress: true })
 }
 
 /** 主进程启动后批量续接活跃 Run（T6 在 initDaemonManager 挂接） */

@@ -1,0 +1,364 @@
+{
+  "change_id": "20260711232258",
+  "id": "20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象",
+  "name": "四引擎 Engine Port 与 RunLifecycle 抽象",
+  "flow": "standard",
+  "stage": "archived",
+  "archived_at": "2026-07-12T10:50:49+0800",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-11T23:22:58+0800",
+  "updated_at": "2026-07-12T10:50:49+0800",
+  "reviews": [
+    {
+      "id": "phase1-full-review",
+      "type": "full-review",
+      "date": "2026-07-11",
+      "scope": "T1-T8",
+      "verdict": "passed",
+      "blocking_issues": 0,
+      "warnings": 4,
+      "reviewer": "kb-reviewer",
+      "file": "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/04-review.md",
+      "summary": "一期骨架与 S5/S8/S4 静态验收通过；completeSdkRun 试点未接线、formatter 双份、无冒烟为 warning；T9-T17 deferred 非 blocker"
+    },
+    {
+      "id": "full-review-t1-t16",
+      "type": "full-review",
+      "date": "2026-07-12",
+      "scope": "T1-T16",
+      "verdict": "passed",
+      "blocking_issues": 0,
+      "warnings_summary": {
+        "open": 0,
+        "fixed": 3,
+        "accepted_debt": 2,
+        "false_positive": 0
+      },
+      "reviewer": "kb-reviewer",
+      "file": "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/04-review.md",
+      "summary": "全量 T1-T16 静态+build 通过；R1/R2/R4 fixed；R3/R5 accepted_debt（运行态 IM 待手工）；可 /kb-archive"
+    },
+    {
+      "id": "R1",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/agent/cursor-sdk/sdk-run-finalize.ts",
+      "summary": "completeSdkFailureViaTemplate 零引用；completeSdkRun 未委托 completeRunFromTemplate",
+      "task_id": "T9",
+      "resolution": "T9 接线 completeSdkRunViaPort + completeSdkFailureViaTemplate，终态经 RunLifecycle.enterNotifying → completeRunFromTemplate"
+    },
+    {
+      "id": "R2",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "src/shared/orchestrator-failure-formatter.ts",
+      "summary": "formatOrchestratorFailure 与 run-failure-formatter 双份实现",
+      "task_id": "T-FIX",
+      "resolution": "T-FIX 唯一 SSOT 在 src/shared/orchestrator-failure-formatter.ts；electron/daemon 仅 re-export"
+    },
+    {
+      "id": "R3",
+      "severity": "warning",
+      "status": "accepted_debt",
+      "summary": "T11：Cursor+Claude S1～S6 静态+build 通过（06 §3.4/§4.5）；运行态 IM 待维护者手工（06 §4.5），不阻断 archive",
+      "task_id": "T11",
+      "resolution": "无真机飞书环境；静态矩阵已 pass；archive 时用户确认或 archived_with_debt"
+    },
+    {
+      "id": "R4",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "electron/agent/cursor-sdk/agent-sdk.ts",
+      "summary": "isSdkSessionProcessing busy 早退仍无 IM",
+      "task_id": "T9",
+      "resolution": "T9 notifySdkProcessingBusy 于 launch/dispatch processing 早退路径调用"
+    },
+    {
+      "id": "R5",
+      "severity": "warning",
+      "status": "accepted_debt",
+      "summary": "T14：四引擎 S1～S8 静态+build 通过（06 §3.5/§4.7）；运行态 IM 待维护者手工（06 §4.6），不阻断 archive",
+      "task_id": "T14",
+      "resolution": "全矩阵静态验收 pass；运行态 IM 按 06 §4.6 手工；archive 时用户确认或 archived_with_debt"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "技术债",
+    "priority": "P1"
+  },
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation-test",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "RunLifecycle 类型与失败归因枚举",
+      "status": "done",
+      "phase": 1,
+      "depends_on": [],
+      "files": ["electron/agent/shared/run-lifecycle-types.ts"]
+    },
+    {
+      "id": "T2",
+      "title": "共享终态 notify（run-notify）",
+      "status": "done",
+      "phase": 1,
+      "depends_on": [],
+      "files": [
+        "electron/agent/shared/run-notify.ts",
+        "electron/daemon/sdk-daemon-notify.ts",
+        "electron/agent/claude-code/agent-cc-notify.ts"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "共享失败文案格式化（run-failure-formatter）",
+      "status": "done",
+      "phase": 1,
+      "depends_on": ["T1"],
+      "files": ["electron/agent/shared/run-failure-formatter.ts"]
+    },
+    {
+      "id": "T4",
+      "title": "共享收尾模板（run-complete-template）",
+      "status": "done",
+      "phase": 1,
+      "depends_on": ["T2", "T3"],
+      "files": [
+        "electron/agent/shared/run-complete-template.ts",
+        "electron/agent/shared/run-complete-template-types.ts"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "RunLifecycle 状态机骨架",
+      "status": "done",
+      "phase": 1,
+      "depends_on": ["T1", "T4"],
+      "files": ["electron/agent/shared/run-lifecycle.ts"]
+    },
+    {
+      "id": "T6",
+      "title": "AgentEnginePort 契约与网关注册表",
+      "status": "done",
+      "phase": 1,
+      "depends_on": ["T1"],
+      "files": [
+        "electron/agent/shared/agent-engine-port.ts",
+        "electron/agent/cursor-sdk/agent-sdk-http.ts"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "Daemon dispatch 失败对称 IM notify",
+      "status": "done",
+      "phase": 1,
+      "depends_on": ["T3"],
+      "files": [
+        "src/daemon/daemon-orchestrator-notify.ts",
+        "src/daemon/daemon-orchestrator.ts",
+        "src/daemon/daemon-http-routes-orchestrator.ts",
+        "src/daemon/daemon-http-routes-types.ts",
+        "src/daemon/daemon.ts"
+      ]
+    },
+    {
+      "id": "T8",
+      "title": "guard busy IM 与 SDK finalize 试点接入",
+      "status": "done",
+      "phase": 1,
+      "depends_on": ["T2", "T3", "T4", "T5"],
+      "files": [
+        "electron/agent/shared/agent-run-guard.ts",
+        "electron/agent/cursor-sdk/sdk-run-finalize.ts",
+        "electron/agent/cursor-sdk/agent-sdk.ts",
+        "electron/agent/shared/AGENTS.md",
+        "electron/daemon/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T-FIX",
+      "title": "formatOrchestratorFailure 合并至 SSOT（R2）",
+      "status": "done",
+      "phase": 1,
+      "depends_on": ["T3", "T7"],
+      "files": [
+        "src/shared/orchestrator-failure-formatter.ts",
+        "electron/agent/shared/run-failure-formatter.ts",
+        "src/daemon/daemon-orchestrator-notify.ts",
+        "electron/agent/shared/AGENTS.md",
+        "src/shared/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T9",
+      "title": "Cursor SDK Engine Port adapter",
+      "status": "done",
+      "phase": 2,
+      "depends_on": ["T8"],
+      "files": [
+        "electron/agent/cursor-sdk/engine-port-adapter.ts",
+        "electron/agent/cursor-sdk/sdk-run-port-lifecycle.ts",
+        "electron/agent/cursor-sdk/sdk-run-stream-status.ts",
+        "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+        "electron/agent/cursor-sdk/sdk-run-stream.ts",
+        "electron/agent/cursor-sdk/sdk-run-finalize.ts",
+        "electron/agent/cursor-sdk/agent-sdk-http.ts",
+        "electron/agent/cursor-sdk/agent-sdk.ts",
+        "electron/agent/shared/run-lifecycle-types.ts",
+        "electron/agent/shared/run-complete-template.ts",
+        "electron/agent/shared/run-lifecycle.ts"
+      ]
+    },
+    {
+      "id": "T10",
+      "title": "Claude Code Engine Port adapter",
+      "status": "done",
+      "phase": 2,
+      "depends_on": ["T8"],
+      "files": [
+        "electron/agent/claude-code/engine-port-adapter.ts",
+        "electron/agent/claude-code/agent-cc-stream.ts",
+        "electron/agent/claude-code/cc-watchdog-finalize.ts",
+        "electron/agent/claude-code/agent-cc-events.ts",
+        "electron/agent/cursor-sdk/agent-sdk-http.ts"
+      ]
+    },
+    {
+      "id": "T11",
+      "title": "Cursor + Claude 矩阵冒烟（手工）",
+      "status": "done",
+      "phase": 2,
+      "depends_on": ["T9", "T10"],
+      "note": "静态+build 回归 pass；运行态 IM 待手工（06 §4.5），不阻断 archive"
+    },
+    {
+      "id": "T12",
+      "title": "Codex Engine Port adapter",
+      "status": "done",
+      "phase": 3,
+      "depends_on": ["T11"],
+      "files": [
+        "electron/agent/codex/engine-port-adapter.ts",
+        "electron/agent/codex/agent-codex-complete.ts",
+        "electron/agent/codex/agent-codex-stream.ts",
+        "electron/agent/cursor-sdk/agent-sdk-http.ts",
+        "electron/agent/codex/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T13",
+      "title": "OpenCode Engine Port adapter",
+      "status": "done",
+      "phase": 3,
+      "depends_on": ["T11"],
+      "files": [
+        "electron/agent/opencode/engine-port-adapter.ts",
+        "electron/agent/opencode/agent-opencode-complete.ts",
+        "electron/agent/opencode/agent-opencode-stream.ts",
+        "electron/agent/cursor-sdk/agent-sdk-http.ts",
+        "electron/agent/opencode/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T14",
+      "title": "四引擎全矩阵回归（手工）",
+      "status": "done",
+      "phase": 3,
+      "depends_on": ["T12", "T13"],
+      "note": "静态+build 回归 pass；运行态 IM 待手工（06 §4.6），不阻断 archive"
+    },
+    {
+      "id": "T15",
+      "title": "删除平行 notify/failure/complete 遗留路径",
+      "status": "done",
+      "phase": 4,
+      "depends_on": ["T14"],
+      "files": [
+        "electron/agent/cursor-sdk/sdk-run-finalize.ts",
+        "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+        "electron/agent/cursor-sdk/finalize-sdk-run.ts",
+        "electron/agent/cursor-sdk/sdk-run-recover.ts",
+        "electron/agent/claude-code/engine-port-adapter.ts",
+        "electron/agent/claude-code/agent-cc-stream.ts",
+        "electron/agent/codex/agent-codex-sdk.ts",
+        "electron/agent/codex/agent-codex-stream.ts",
+        "electron/agent/codex/codex-failure-messages.ts",
+        "electron/agent/opencode/agent-opencode-sdk.ts",
+        "electron/agent/opencode/agent-opencode-stream.ts",
+        "electron/agent/opencode/opencode-failure-messages.ts"
+      ]
+    },
+    {
+      "id": "T16",
+      "title": "shared 与各引擎 AGENTS.md Port 挂接说明",
+      "status": "done",
+      "phase": 4,
+      "depends_on": ["T15"],
+      "files": [
+        "electron/agent/shared/AGENTS.md",
+        "electron/agent/cursor-sdk/AGENTS.md",
+        "electron/agent/claude-code/AGENTS.md",
+        "electron/agent/codex/AGENTS.md",
+        "electron/agent/opencode/AGENTS.md",
+        "electron/daemon/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T17",
+      "title": "知识库 archive 更新",
+      "status": "done",
+      "phase": 4,
+      "stage": "archive",
+      "depends_on": ["T16"],
+      "files": [
+        "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+        "knowledge/业务域/Agent调度/07-ClaudeCodeSDK执行引擎.md",
+        "knowledge/业务域/Agent调度/08-CodexSDK执行引擎.md",
+        "knowledge/业务域/Agent调度/09-OpenCodeSDK执行引擎.md",
+        "knowledge/业务域/Agent调度/10-SDK上下文保护与失败归因.md",
+        "knowledge/业务域/Agent调度/01-概览.md",
+        "knowledge/业务域/消息桥接/02-飞书通道.md",
+        "knowledge/业务域/Agent调度/00-README.md",
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/05-summary.md"
+      ]
+    }
+  ]
+}

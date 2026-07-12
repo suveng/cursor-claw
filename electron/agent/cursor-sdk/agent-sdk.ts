@@ -10,9 +10,11 @@ import { ZERO_CONTEXT_USAGE, evaluatePreSendContextPressure, resolveContextLimit
 import { buildPrompt } from "../shared/agent-launcher"
 import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loaders/plugin-sdk-bootstrap"
 import { ensureSdkThirdPartyPluginPatch } from "./ensure-sdk-plugin-patch"
-import { acquireRunGuard, completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
+import { acquireRunGuard, completeRunGuard, releaseRunGuard, enterGuardWithLifecycle } from "../shared/agent-run-guard"
+import { createRunLifecycle } from "../shared/run-lifecycle"
 import { ensureAgentSdkHttpServer } from "./agent-sdk-http"
 import { notifyDispatchFailure, notifyPreSendContextFailure } from "./sdk-run-finalize"
+import { notifySdkProcessingBusy } from "./engine-port-adapter"
 import { sendWithRetry } from "./sdk-run-dispatch"
 import { startSdkRun, stopSdkSession, stopAllSdkSessions } from "./sdk-run-lifecycle"
 import {
@@ -99,6 +101,7 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     if (isSdkSessionProcessing(existing)) {
       markSessionActivity(existing, "launch_reentry")
       pushUiLog("SDK", "WARN", `[${sessionKey}] launchSdkAgent 早退：session 仍 processing`)
+      await notifySdkProcessingBusy(existing)
       return { ok: true }
     }
     if (taskMessage?.trim()) {
@@ -191,7 +194,8 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
     // B2 阶段二：create+limit 完成后、send 前通知用户
     await notifySessionChat(sessionKey, "正在准备模型…")
     evaluatePreSendContextPressure(session, pushUiLog)
-    const guard = acquireRunGuard(sessionKey)
+    const lifecycle = createRunLifecycle(session)
+    const guard = enterGuardWithLifecycle(session, lifecycle)
     if (!guard.acquired) {
       pendingLaunches.delete(sessionKey)
       try { session.agent.close() } catch { /* best-effort */ }
@@ -250,11 +254,17 @@ export async function dispatchToSdkAgent(
   const text = buildPrompt(undefined, taskText, sessionKey).trim()
   if (!text) return { ok: false, error: "empty task" }
 
-  if (isSdkSessionProcessing(session)) return { ok: false, error: "agent busy" }
+  if (isSdkSessionProcessing(session)) {
+    await notifySdkProcessingBusy(session)
+    return { ok: false, error: "agent busy" }
+  }
 
   session.inboundMessageIds = messageIds?.length ? messageIds : undefined
-  const guard = acquireRunGuard(sessionKey)
-  if (!guard.acquired) return { ok: false, error: "agent busy|retry_after=1500" }
+  const lifecycle = createRunLifecycle(session)
+  const guard = enterGuardWithLifecycle(session, lifecycle)
+  if (!guard.acquired) {
+    return { ok: false, error: "agent busy|retry_after=1500" }
+  }
   session.runGuardToken = guard.token
   session.pendingDispatch = true
   try {

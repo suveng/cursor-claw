@@ -62,19 +62,6 @@ export function appendOpencodeLog(session: OpencodeSessionAgent, kind: "thinking
   agg.buf += delta
   if (agg.buf.length >= LOG_FLUSH_LEN) flushOpencodeLog(session)
 }
-
-export async function notifyOpencodeSessionChat(sessionKey: string, text: string, stopProgress = false): Promise<void> {
-  const lock = readLockFile()
-  if (!lock?.port) return
-  try {
-    await httpPost(`http://127.0.0.1:${lock.port}/api/send-text`, {
-      text, session_key: sessionKey, ...(stopProgress && { stop_progress: true }),
-    }, 5000)
-  } catch (e: unknown) {
-    pushUiLog("OpenCode", "WARN", `[${sessionKey}] notify 失败: ${e instanceof Error ? e.message : String(e)}`)
-  }
-}
-
 export async function postOpencodePresentationEvent(
   session: OpencodeSessionAgent,
   event: Omit<import("./agent-sdk").PresentationEvent, "session_key">,

@@ -7,6 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { QueueMessage } from "../bridge/file-queue.js";
 import { resolveLaunchChatName } from "./chat-name-resolve.js";
+import { createOrchestratorNotify } from "./daemon-orchestrator-notify.js";
 
 export type AgentPhase = "starting" | "processing" | "idle";
 
@@ -60,9 +61,16 @@ export interface OrchestratorApi {
   setSessionAgentPhase: (sessionKey: string, phase: AgentPhase | "idle") => void;
   parseBusyRetryDelayMs: (error?: string) => number;
   scheduleBusyRetry: (sessionKey: string, delayMs: number) => void;
+  notifySessionUser: (sessionKey: string, text: string, stopProgress?: boolean) => Promise<void>;
+  formatOrchestratorFailure: (error?: string) => string;
 }
 
 export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
+  const { notifySessionUser, formatOrchestratorFailure } = createOrchestratorNotify({
+    httpJson: deps.httpJson,
+    localDaemonUrl: deps.localDaemonUrl,
+    log: deps.log,
+  });
   const sessionAgentPhaseMap = new Map<string, AgentPhase>();
   let dispatchLoopBusy = false;
   let dispatchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -135,26 +143,6 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     const { rt, chatId } = resolved;
     if (!rt.cfg.mainUserEnabled || !rt.cfg.mainUserChatId?.trim()) return false;
     return chatId === rt.cfg.mainUserChatId.trim();
-  }
-
-  function formatOrchestratorFailure(error?: string): string {
-    if (!error?.trim()) return "Agent 启动失败，请稍后重试。";
-    const e = error.trim();
-    if (e.includes("冷却中") || e.includes("未启用其他人") || e.includes("未配置 API Key") || e.includes("SDK 资源")) return e;
-    if (e.includes("Agent API 未就绪")) return e;
-    return "Agent 启动失败，请稍后重试。";
-  }
-
-  async function notifySessionUser(sessionKey: string, text: string, stopProgress = false): Promise<void> {
-    try {
-      await deps.httpJson(deps.localDaemonUrl("/api/send-text"), {
-        text,
-        session_key: sessionKey,
-        ...(stopProgress && { stop_progress: true }),
-      }, 10_000);
-    } catch (e: unknown) {
-      deps.log("WARN", `notifySessionUser 失败 session=${sessionKey}: ${e instanceof Error ? e.message : e}`);
-    }
   }
 
   function claimForOrchestratorDispatch(sessionKey: string):
@@ -270,5 +258,7 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     setSessionAgentPhase,
     parseBusyRetryDelayMs,
     scheduleBusyRetry,
+    notifySessionUser,
+    formatOrchestratorFailure,
   };
 }

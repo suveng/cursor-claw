@@ -1,7 +1,8 @@
 /**
- * Codex Run 失败用户可见文案分类器（纯函数，供 agent-codex-sdk notify 路径调用）。
- * 优先级：超时 → 上下文已满 → 会话异常 → 可安全展示 message → 带建议兜底。
+ * Codex Run 失败文案：脱敏 + 归因提取，用户可见句委托 shared formatRunFailureMessage。
  */
+import type { RunFailureReason } from "../shared/run-lifecycle-types"
+import { formatRunFailureMessage } from "../shared/run-failure-formatter"
 
 /** 从 unknown error 解析后的归因输入 */
 interface CodexFailureContext {
@@ -54,12 +55,6 @@ const API_KEY_INLINE_PATTERNS = [
   /'apiKey'\s*:\s*'[^']+'/gi,
   /apiKey\s*[:=]\s*[^\s,}]+/gi,
 ] as const
-
-/** 与 sdk-failure-messages isUnsafeSdkMessage 同等安全规则 */
-function isUnsafeCodexMessage(msg?: string): boolean {
-  const t = msg?.trim()
-  return !t || /[/\\]|\.ts:|at |stack|Error:|ENOENT|spawn|EACCES|EPERM/i.test(t)
-}
 
 /** 脱敏单条 apiKey：保留首尾少量字符，中间替换为 *** */
 export function maskCodexApiKey(key: string): string {
@@ -164,60 +159,45 @@ function isContextExhaustedByUsage(
   return contextUsed / contextLimit >= CONTEXT_EXHAUSTED_RATIO
 }
 
-/** 超时类文案（与 sdk-failure-messages 语义对齐） */
-function formatTimeoutFailureMessage(ctx: CodexFailureContext): string {
-  const msg = ctx.message?.trim()
-  if (msg && !isUnsafeCodexMessage(msg)) {
-    return `⚠️ Agent 处理失败：${msg}`
-  }
-  return "会话因等待超时已退出，请重新发送消息，我会继续为你处理。"
-}
-
-/**
- * 映射 Codex 失败为简体中文 IM 文案；禁止 stack/路径/apiKey/内部 error 对象。
- * 归因链：timeout → context_exhausted → session_abnormal → safe_message → fallback_actionable
- */
-export function formatCodexFailureMessage(error: unknown): string {
-  const ctx = extractFailureContext(error)
+/** 将提取后的上下文映射为 RunFailureReason */
+function mapCtxToReason(ctx: CodexFailureContext): RunFailureReason {
+  if (ctx.isTimeoutFailure) return "timeout"
   const st = ctx.status?.toUpperCase()
-
-  // 1. timeout
-  if (ctx.isTimeoutFailure) {
-    return formatTimeoutFailureMessage(ctx)
-  }
-
-  if (st === "CANCELLED") return "Agent 任务已取消。"
-
-  // EXPIRED 归入 session_abnormal 固定句
-  if (st === "EXPIRED") return "Agent 会话已过期，请重新发送消息。"
-
+  if (st === "CANCELLED") return "user_cancelled"
+  if (st === "EXPIRED") return "session_abnormal"
   const isError =
     st === "ERROR" ||
     st === "FAILED" ||
     (ctx.errorCode != null && ctx.errorCode.trim() !== "") ||
     (ctx.message != null && ctx.message.trim() !== "")
-
-  // 2. context_exhausted
   if (
     matchesContextExhaustion(ctx.message, ctx.errorCode) ||
     isContextExhaustedByUsage(ctx.contextUsed, ctx.contextLimit, isError)
   ) {
-    return "⚠️ 上下文窗口已接近或达到上限，请精简需求或开启新话题后重新发送。"
+    return "context_exhausted"
   }
-
-  const msg = ctx.message?.trim() ?? ""
-  const code = ctx.errorCode?.trim() ?? ""
-
-  // 3. session_abnormal
-  if (SESSION_ABNORMAL_PATTERNS.some((p) => p.test(msg) || p.test(code))) {
-    return "Agent 会话异常，请重新发送消息继续对话。"
+  if (SESSION_ABNORMAL_PATTERNS.some((p) => p.test(ctx.message ?? "") || p.test(ctx.errorCode ?? ""))) {
+    return "session_abnormal"
   }
+  return "run_error"
+}
 
-  // 4. safe_message
-  if (msg && !isUnsafeCodexMessage(msg)) {
-    return `⚠️ Agent 处理失败：${msg}`
-  }
-
-  // 5. fallback_actionable
-  return "⚠️ Agent 处理失败，建议精简输入后重新发送；若仍失败请稍后重试。"
+/**
+ * 映射 Codex 失败为简体中文文案；禁止 stack/路径/apiKey 明文（委托 shared formatter）。
+ */
+export function formatCodexFailureMessage(error: unknown): string {
+  const ctx = extractFailureContext(error)
+  return formatRunFailureMessage({
+    reason: mapCtxToReason(ctx),
+    detail: ctx.message,
+    engineLabel: "Agent",
+    sdk: {
+      status: ctx.status,
+      message: ctx.message,
+      errorCode: ctx.errorCode,
+      isTimeoutFailure: ctx.isTimeoutFailure,
+      contextUsed: ctx.contextUsed,
+      contextLimit: ctx.contextLimit,
+    },
+  })
 }
