@@ -22,7 +22,8 @@
 
 | 模块 | 路径 |
 |------|------|
-| 飞书核心 | `src/bridge/lark-core.ts` |
+| 飞书门面 | `src/bridge/lark-core.ts`（`LarkSender` + re-export；域外唯一入口） |
+| 飞书子模块 | `lark-types` / `lark-utils` / `lark-sender-{stream,outbound,merge,progress,help,parse,connection}.ts` |
 | 通道类型 | `src/shared/channel-types.ts` |
 | 微信客户端 | `src/bridge/wechat/` |
 | 微信管理 | `src/bridge/wechat-manager.ts` |
@@ -45,6 +46,7 @@
 
 ## 变更记录
 
+2026-07-12：飞书锚点补 `lark-sender-*` 门面/子模块；勾销 lark-core 行数债（archive 20260712170649）。
 2026-07-12：勾销批2 注记；queue/channel/logging 锚点迁至 `daemon-queue*`/`daemon-channel*`/`daemon-logging`（archive 20260712170438）。
 2026-07-12：file-queue 子模块族锚点与阅读路径（archive 20260712145152）。
 2026-07-11：Daemon 路由/队列锚点补充批1 子模块（HTTP、orchestrator、presentation-*）。

@@ -21,7 +21,28 @@
 - `SettingsMcpEngineBlock.tsx`：按 `engineType` switch 渲染各引擎 MCP 块（SDK CRUD / CC·Codex·OpenCode 只读 `SettingsMcpDiskReadonly`）；Codex 文案标明「设置页不提供 TOML 编辑」。
 - `SettingsMcpDaemonGuide.tsx`：MCP Tab 顶部可复制 `cursor-claw`→`/mcp` 片段；脚注指向 IM `/mcp` 或 `POST /api/mcp`（不含 `/mcp-admin`）。
 - `SettingsMcpSdkSection.tsx`：SDK MCP CRUD 实现细节；由 `SettingsMcpEngineBlock` 在 `engineType === "sdk"` 时调用；`SettingsMcpPanel.tsx` 仅为过渡 re-export，Settings 页应经 Shell 直挂 `SettingsMcpEngineBlock`。
-- `Settings.tsx`：`rules`/`skills`/`mcp`/`tasks` tab 共用 `loadChannelContext()`；Rules/Skills 传 `allBoundTypes`（全量）+ `boundTypes`（SDK 子集）；`channelContextLoaded` 防首次空态闪烁。
+- `Settings.tsx`（路径在 `pages/`）：Tab 壳与共享 load（`getConfig` / `loadChannelContext`）；`rules`/`skills`/`mcp`/`tasks` 共用 channel context；Rules/Skills 传 `allBoundTypes` + `boundTypes`；`channelContextLoaded` 防首次空态闪烁；壳 ≤300。
+
+## 设置页内联 Tab（`pages/Settings*Tab.tsx`）
+
+- 路径在 `src/renderer/pages/`，非本目录；由 `Settings.tsx` 按 `tab` 挂载，props 传入 state / setter / save 回调。
+- `SettingsGeneralTab.tsx` / `SettingsProxyTab.tsx` / `SettingsTasksTab.tsx` / `SettingsSetupTab.tsx` / `SettingsAboutTab.tsx`：各 Tab 字段与保存语义落在对应文件；新增字段优先扩现有 Tab，勿把 JSX 再塞回壳。
+- 通道 / Agent / Rules / Skills / MCP / Workflows Tab 仍挂本目录既有面板（`ChannelPanel`、`AgentPanel`、Shell 系、`WorkflowPanel`）。
+
+## 通道面板与编辑弹窗
+
+- `ChannelPanel.tsx`：通道列表壳（打开/关闭编辑）；≤300；勿把表单再内联回列表。
+- `ChannelEditModal.tsx`：编辑弹窗主表单；具名导出 `ChannelEditModal`。
+- `ChannelEditWechat.tsx` / `ChannelEditAccess.tsx`：微信扫码/凭据块、访问控制与高级项；由 Modal 组合。
+- `channel-panel-helpers.ts`：`emptyChannel` / `newLocalChannelId` / `isDefaultChannelName` 等纯辅助；禁止塞 React 组件。
+
+## Dashboard 主页拆分（`pages/Dashboard*.tsx`）
+
+- 路径在 `src/renderer/pages/`；`Dashboard.tsx` 为组装壳（订阅 / IPC），签名 `Dashboard({ onSettings, active })` 不变，壳 ≤300。
+- `DashboardOnboard.tsx`：引导三步 UI。
+- `DashboardStatusCards.tsx`：状态卡与文案常量。
+- `DashboardDetailPanels.tsx`：详情侧栏/展开面板。
+- `DashboardLogPanel.tsx`：`LogLine`、日志正则与配色；勿改日志解析格式除非行为等价搬迁。
 
 ## 工作流 UI 拆分
 

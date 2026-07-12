@@ -9,9 +9,22 @@
 ## 模块边界
 
 - `config-store.ts`：`AppConfig` SSOT；`getConfig` / `saveConfig` / 通道与 Agent 资源池。
-- `updater.ts`：应用内更新检查；`initAppUpdater` 由 `main.ts` 调用。
+- `updater.ts`：应用内更新**对外入口**（`initAppUpdater` / `registerUpdaterIpc` / `fetchLatestRelease`）；实现按职责拆到 `updater-*.ts`。
+
+### updater 子文件
+
+| 文件 | 职责 |
+|------|------|
+| `updater.ts` | 启动检查、IPC 组装、re-export 类型 |
+| `updater-types.ts` | `LatestRelease` / `UpdaterCheckResult` / `UpdaterApplyResult` 等 |
+| `updater-modal.ts` | 应用内模态队列、`promptInstallDownloaded` |
+| `updater-release.ts` | GitHub release / changelog / `resolveReleaseNotes` |
+| `updater-apply.ts` | brew/win 应用、`wireAutoUpdater`、缓存清理 |
+
+域外仍 `import … from "./config/updater"`（如 `main.ts`），**禁止** barrel `index.ts`。
 
 ## 编码规矩
 
 - 共享类型从 `../../src/shared/channel-types` import；**禁止**在本目录重复定义 IPC 契约类型。
+- 单文件 ≤300 行；更新渠道默认值与 IPC channel 名勿随意改动。
 - SDK error 可观测性与保活文案规矩见 [agent/cursor-sdk/AGENTS.md](../agent/cursor-sdk/AGENTS.md)。

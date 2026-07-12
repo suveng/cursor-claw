@@ -1,0 +1,486 @@
+{
+  "change_id": "20260712170649",
+  "id": "20260712170649-超限模块拆分续",
+  "name": "超限模块拆分续",
+  "title": "超限模块拆分续",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T17:06:49+0800",
+  "updated_at": "2026-07-12T18:24:59+08:00",
+  "depends_on": [
+    "20260712170438-Daemon批二拆分"
+  ],
+  "depends_on_note": "Daemon 批二已 archived；现盘 daemon 已合规。本变更按现盘超限续拆，不改 daemon 枢纽；并行时白名单排除 workflow-engine / wechat-manager",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-core.ts",
+      "role": "hub",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-types.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-utils.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-sender-stream.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-sender-outbound.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-sender-merge.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-sender-progress.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-sender-help.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-sender-parse.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-sender-connection.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/Settings.tsx",
+      "role": "hub",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/SettingsGeneralTab.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/SettingsProxyTab.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/SettingsTasksTab.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/SettingsSetupTab.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/SettingsAboutTab.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/ChannelPanel.tsx",
+      "role": "hub",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/ChannelEditModal.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/channel-panel-helpers.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/Dashboard.tsx",
+      "role": "hub",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/DashboardOnboard.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/DashboardStatusCards.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/DashboardLogPanel.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler.ts",
+      "role": "hub",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler-shared.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler-model.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler-task.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler-mcp.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler-workflow.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/config/updater.ts",
+      "role": "hub",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/config/updater-types.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/config/updater-modal.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/config/updater-release.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/config/updater-apply.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/config/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/ChannelEditWechat.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/ChannelEditAccess.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/DashboardDetailPanels.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/02-飞书通道.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/03-渲染端界面.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/04-配置与更新.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "抽出 lark-types 与 lark-utils",
+      "status": "done",
+      "files": [
+        "src/bridge/lark-types.ts",
+        "src/bridge/lark-utils.ts",
+        "src/bridge/lark-core.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "抽出流式 CardKit 与出站文本/媒体",
+      "status": "done",
+      "files": [
+        "src/bridge/lark-sender-stream.ts",
+        "src/bridge/lark-sender-outbound.ts",
+        "src/bridge/lark-core.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "抽出合并卡与工具/思考/帮助卡",
+      "status": "done",
+      "files": [
+        "src/bridge/lark-sender-merge.ts",
+        "src/bridge/lark-sender-progress.ts",
+        "src/bridge/lark-core.ts",
+        "src/bridge/lark-sender-help.ts"
+      ],
+      "depends_on": [
+        "T2"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "抽出解析/连接并瘦身 lark-core 门面 + bridge AGENTS",
+      "status": "done",
+      "files": [
+        "src/bridge/lark-sender-parse.ts",
+        "src/bridge/lark-sender-connection.ts",
+        "src/bridge/lark-core.ts",
+        "src/bridge/AGENTS.md"
+      ],
+      "depends_on": [
+        "T3"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "Settings 内联 Tab 垂直切分",
+      "status": "done",
+      "files": [
+        "src/renderer/pages/Settings.tsx",
+        "src/renderer/pages/SettingsGeneralTab.tsx",
+        "src/renderer/pages/SettingsProxyTab.tsx",
+        "src/renderer/pages/SettingsTasksTab.tsx",
+        "src/renderer/pages/SettingsSetupTab.tsx",
+        "src/renderer/pages/SettingsAboutTab.tsx"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T6",
+      "title": "ChannelPanel 编辑弹窗拆分",
+      "status": "done",
+      "files": [
+        "src/renderer/components/ChannelPanel.tsx",
+        "src/renderer/components/ChannelEditModal.tsx",
+        "src/renderer/components/channel-panel-helpers.ts",
+        "src/renderer/components/ChannelEditWechat.tsx",
+        "src/renderer/components/ChannelEditAccess.tsx"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T7",
+      "title": "Dashboard 主页拆分",
+      "status": "done",
+      "files": [
+        "src/renderer/pages/Dashboard.tsx",
+        "src/renderer/pages/DashboardOnboard.tsx",
+        "src/renderer/pages/DashboardStatusCards.tsx",
+        "src/renderer/pages/DashboardLogPanel.tsx",
+        "src/renderer/pages/DashboardDetailPanels.tsx"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T8",
+      "title": "command-handler 按指令族拆分（本轮必做）",
+      "status": "done",
+      "files": [
+        "electron/scheduling/command-handler.ts",
+        "electron/scheduling/command-handler-shared.ts",
+        "electron/scheduling/command-handler-model.ts",
+        "electron/scheduling/command-handler-task.ts",
+        "electron/scheduling/command-handler-mcp.ts",
+        "electron/scheduling/command-handler-workflow.ts",
+        "electron/scheduling/AGENTS.md"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T9",
+      "title": "updater 按职责拆分（本轮必做）",
+      "status": "done",
+      "files": [
+        "electron/config/updater.ts",
+        "electron/config/updater-types.ts",
+        "electron/config/updater-modal.ts",
+        "electron/config/updater-release.ts",
+        "electron/config/updater-apply.ts",
+        "electron/config/AGENTS.md"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T10",
+      "title": "全量行数门禁、renderer AGENTS 与行为回归",
+      "status": "done",
+      "files": [
+        "src/renderer/components/AGENTS.md"
+      ],
+      "depends_on": [
+        "T4",
+        "T5",
+        "T6",
+        "T7",
+        "T8",
+        "T9"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "external": {
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / integrations.notifications 配置",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "技术债",
+    "priority": "P1"
+  },
+  "archived_at": "2026-07-12T18:24:59+08:00"
+}
