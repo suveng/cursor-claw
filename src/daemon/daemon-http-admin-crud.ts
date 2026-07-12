@@ -19,7 +19,13 @@ export interface AdminCrudDeps {
   readBody: (req: http.IncomingMessage) => Promise<string>;
   json: (res: http.ServerResponse, data: unknown, status?: number) => void;
   clearFileQueue: () => number;
+  /** electron 回滚模式仍写 .fcmd */
   pushCommandToQueue: (command: string, messageId: string, source: string, chatId?: string, chatType?: string) => boolean;
+  getSlashExecMode?: () => string;
+  forwardElectronCommandApi: (
+    subpath: string,
+    body: object,
+  ) => Promise<{ ok: boolean; error?: string; message?: string }>;
 }
 
 export function createAdminCrudRoutes(deps: AdminCrudDeps) {
@@ -141,10 +147,23 @@ export function createAdminCrudRoutes(deps: AdminCrudDeps) {
       deps.json(res, { ok: true, cleared });
       return true;
     }
-    if (supportedActions.includes(action)) {
+    // stop/restart/reset：同步 POST Electron command API，不经 5s poll（T6）
+    if (action === "stop" || action === "restart" || action === "reset") {
       const msgId = `api-${Date.now()}`;
-      deps.pushCommandToQueue(`/${action}`, msgId, `mcp-api`);
-      deps.json(res, { ok: true, message: `/${action} command queued` });
+      const mode = deps.getSlashExecMode?.() ?? "dual";
+      if (mode === "electron") {
+        deps.pushCommandToQueue(`/${action}`, msgId, "mcp-api");
+        deps.json(res, { ok: true, message: `/${action} 已入队，等待 Electron 执行` });
+        return true;
+      }
+      const fwd = await deps.forwardElectronCommandApi("/api/command/execute", {
+        command: `/${action}`,
+        messageId: msgId,
+      });
+      deps.json(res, {
+        ok: fwd.ok,
+        message: fwd.message ?? fwd.error ?? `/${action} 执行完成`,
+      });
       return true;
     }
     deps.json(res, { ok: false, error: `unknown action, supported: ${supportedActions.join(", ")}` }, 400);

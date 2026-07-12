@@ -17,7 +17,27 @@ import { CLAUDE_CODE_MODEL_LIST } from "../agent/claude-code/agent-cc-types"
 
 export interface FileCommand { id: string; command: string; messageId: string; chatId?: string; chatType?: string }
 
+/** HTTP 同步执行时捕获结果，跳过 POST /cmd/result（由 Daemon replyToMessage） */
+let httpCommandResultSink: ((ok: boolean, message: string) => void) | undefined
+
+/** 在 sink 作用域内执行指令，供 POST /api/command/execute 捕获子 handler 回报文案 */
+export async function runWithHttpCommandResultSink<T>(
+  sink: (ok: boolean, message: string) => void,
+  fn: () => Promise<T>,
+): Promise<T> {
+  httpCommandResultSink = sink
+  try {
+    return await fn()
+  } finally {
+    httpCommandResultSink = undefined
+  }
+}
+
 export async function reportCommandResult(port: number, messageId: string, ok: boolean, message: string, chatId?: string): Promise<void> {
+  if (httpCommandResultSink) {
+    httpCommandResultSink(ok, message)
+    return
+  }
   try {
     await httpPost(`http://127.0.0.1:${port}/cmd/result`, { messageId, ok, message, chatId })
   } catch (e: unknown) {

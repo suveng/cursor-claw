@@ -95,10 +95,10 @@ export function registerAdminTools(mcpServer: McpServer): void {
 
   mcpServer.tool(
     "manage_mcp",
-    "管理 Cursor MCP 服务器配置。支持列出、添加、删除 MCP 服务器。",
+    "管理 Cursor MCP 服务器配置。支持列出、添加、删除、启用/禁用、查看详情。",
     {
-      action: z.enum(["list", "add", "delete"]).describe("操作：list=列出所有, add=添加/更新, delete=删除"),
-      name: z.string().optional().describe("MCP 服务器名称（add/delete 时必填）"),
+      action: z.enum(["list", "add", "delete", "enable", "disable", "info"]).describe("操作：list=列出, add=添加/更新, delete=删除, enable=启用, disable=禁用, info=查看详情"),
+      name: z.string().optional().describe("MCP 服务器名称（add/delete/enable/disable/info 时必填）"),
       config: z.string().optional().describe("MCP 服务器配置 JSON（add 时必填），如 {\"command\":\"npx\",\"args\":[\"-y\",\"@some/server\"]}"),
       scope: z.enum(["global", "project"]).optional().describe("配置范围：global=全局, project=项目级。默认 global"),
     },
@@ -108,8 +108,33 @@ export function registerAdminTools(mcpServer: McpServer): void {
           const data = await daemonGet("/api/mcp");
           const servers = data.servers ?? {};
           if (Object.keys(servers).length === 0) return txt("当前没有配置任何 MCP 服务器。");
-          const lines = Object.entries(servers).map(([k, v]: [string, any]) => `- **${k}** [${v.scope}]: ${JSON.stringify(v.config)}`);
+          const lines = Object.entries(servers).map(([k, v]: [string, any]) => {
+            const flag = v.enabled === false ? "🔴" : "🟢";
+            return `- ${flag} **${k}** [${v.scope}]: ${JSON.stringify(v.config)}`;
+          });
           return txt(lines.join("\n"));
+        }
+        if (action === "info") {
+          if (!name) return txt("错误：name 参数必填");
+          const res = await daemonPost("/api/mcp", { action: "info", name });
+          if (!res.ok) return txt(`❌ ${res.error ?? res.message ?? "查询失败"}`);
+          const s = res.server ?? {};
+          const lines = [
+            `📦 ${s.name}`,
+            `  类型: ${s.type ?? "未知"}`,
+            `  来源: ${s.scope ?? s.source ?? "未知"}`,
+            `  开关: ${s.enabled === false ? "🔴 已禁用" : "🟢 已启用"}`,
+            `  健康: ${s.health ?? "未知"}${s.healthError ? `（${s.healthError}）` : ""}`,
+          ];
+          if (s.type === "url" && s.url) lines.push(`  URL: ${s.url}`);
+          else if (s.command) lines.push(`  命令: ${s.command} ${(s.args ?? []).join(" ")}`.trim());
+          if (Array.isArray(s.envKeys) && s.envKeys.length > 0) lines.push(`  环境变量: ${s.envKeys.join(", ")}`);
+          return txt(lines.join("\n"));
+        }
+        if (action === "enable" || action === "disable") {
+          if (!name) return txt("错误：name 参数必填");
+          const res = await daemonPost("/api/mcp", { action, name });
+          return txt(res.ok ? `✅ ${res.message}` : `❌ ${res.error ?? res.message ?? "操作失败"}`);
         }
         if (!name) return txt("错误：name 参数必填");
         const res = await daemonPost("/api/mcp", { action, name, config, scope: scope ?? "global" });

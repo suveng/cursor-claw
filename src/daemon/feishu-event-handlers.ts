@@ -19,13 +19,14 @@ export interface FeishuHandlerRuntime {
 /** 由 daemon 注入的依赖（避免循环 import） */
 export interface FeishuEventHandlerDeps {
   log: (level: string, ...args: unknown[]) => void;
-  pushCommandToQueue: (
+  /** 与 IM 斜杠同路径：executeSlashCommand + SLASH_EXEC_MODE（T6 菜单去 fcmd） */
+  handleSlashCommand: (
     command: string,
     messageId: string,
-    source: string,
     chatId?: string,
     chatType?: string,
-  ) => boolean;
+    source?: string,
+  ) => Promise<void>;
   makeChatKey: (channelId: string, rawChatId: string) => string;
 }
 
@@ -41,7 +42,7 @@ function resolveMenuChatId(
   return sender.chatId?.trim() ?? "";
 }
 
-/** 处理 application.bot.menu_v6：映射斜杠 → fcmd 或文本回复 */
+/** 处理 application.bot.menu_v6：映射斜杠 → executeSlashCommand 或文本回复 */
 export async function onFeishuMenuV6(
   rt: FeishuHandlerRuntime,
   sender: LarkSender,
@@ -68,15 +69,16 @@ export async function onFeishuMenuV6(
   }
 
   const chatKey = deps.makeChatKey(rt.cfg.id, result.chatId);
-  const enqueued = deps.pushCommandToQueue(
-    result.command,
-    result.messageId,
-    `daemon-${process.pid}`,
-    chatKey,
-    result.chatType,
-  );
-  if (!enqueued) {
-    deps.log("WARN", `[${rt.cfg.name}] 菜单指令入队失败: ${result.command}`);
+  try {
+    await deps.handleSlashCommand(
+      result.command,
+      result.messageId,
+      chatKey,
+      result.chatType,
+      "menu",
+    );
+  } catch (e: unknown) {
+    deps.log("WARN", `[${rt.cfg.name}] 菜单指令执行失败: ${result.command} err=${e instanceof Error ? e.message : String(e)}`);
   }
 }
 

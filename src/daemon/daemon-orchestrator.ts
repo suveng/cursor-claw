@@ -57,6 +57,11 @@ export interface OrchestratorApi {
   scheduleAgentDispatch: (sessionKey?: string) => void;
   runAgentDispatchLoop: () => Promise<void>;
   forwardElectronAgentApi: (subpath: string, body: object) => Promise<{ ok: boolean; error?: string }>;
+  /** 斜杠指令同步转发 Electron command API（T4；对称 forwardElectronAgentApi） */
+  forwardElectronCommandApi: (
+    subpath: string,
+    body: object,
+  ) => Promise<{ ok: boolean; error?: string; message?: string }>;
   claimForOrchestratorDispatch: (
     sessionKey: string,
   ) => { ok: true; text: string; message_ids: string[] } | { ok: false };
@@ -120,6 +125,34 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
       return { ok: !!res.ok, error: res.error };
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  /** POST /api/command/execute 等斜杠同步路径；未就绪返回可理解中文 */
+  async function forwardElectronCommandApi(
+    subpath: string,
+    body: object,
+  ): Promise<{ ok: boolean; error?: string; message?: string }> {
+    const port = readElectronAgentApiPort();
+    if (!port) {
+      const msg = "❌ 应用未运行，请先启动 Cursor Claw";
+      return { ok: false, error: msg, message: msg };
+    }
+    try {
+      const res = await deps.httpJson<{ ok?: boolean; error?: string; message?: string }>(
+        `http://127.0.0.1:${port}${subpath}`,
+        body,
+        60_000,
+      );
+      return {
+        ok: !!res.ok,
+        error: res.error,
+        message: res.message ?? res.error,
+      };
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      const msg = `❌ 应用未运行或未就绪: ${err}`;
+      return { ok: false, error: err, message: msg };
     }
   }
 
@@ -253,6 +286,7 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     scheduleAgentDispatch,
     runAgentDispatchLoop,
     forwardElectronAgentApi,
+    forwardElectronCommandApi,
     claimForOrchestratorDispatch,
     getSessionAgentPhase,
     setSessionAgentPhase,

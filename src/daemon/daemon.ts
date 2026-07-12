@@ -59,6 +59,7 @@ import { z } from "zod";
 import { registerAdminTools } from "./server-admin.js";
 import { registerWorkflowAgentTools, registerWorkflowAdminTools } from "../workflow/server-workflow.js";
 import { createOrchestrator, type AgentPhase, type OrchestratorApi } from "./daemon-orchestrator.js";
+import { executeSlashCommand, type SlashExecutorDeps } from "./daemon-slash-executor.js";
 import { createPresentationHandlers, type PresentationHandlerApi, type PresentationHandlerDeps } from "./daemon-presentation-handlers.js";
 import type { SessionProgressState } from "./daemon-presentation-ordering.js";
 import { createAdminCrudRoutes } from "./daemon-http-admin-crud.js";
@@ -91,6 +92,47 @@ function parseChannelConfigs(): DaemonChannelConfig[] {
 const CHANNEL_CONFIGS = parseChannelConfigs();
 
 const savedProxyKeys = stripProxyEnv();
+
+/** 斜杠执行模式：daemon 仅 Daemon SSOT；dual 双写 .fcmd；electron 回滚仅入队 */
+type SlashExecMode = "daemon" | "dual" | "electron";
+
+/** 迁移期默认 dual；非法值回退 dual */
+function getSlashExecMode(): SlashExecMode {
+  const raw = (process.env.SLASH_EXEC_MODE ?? "dual").trim().toLowerCase();
+  if (raw === "daemon" || raw === "dual" || raw === "electron") return raw;
+  return "dual";
+}
+
+/** dual 期 Daemon 已执行 messageId（60s TTL），供 Electron poll skip-check 查询 */
+const slashExecutedMessageIds = new Map<string, number>();
+const SLASH_EXECUTED_TTL_MS = 60_000;
+
+/** 清理过期的 slash 执行记录 */
+function pruneSlashExecutedMessageIds(now = Date.now()): void {
+  for (const [id, ts] of slashExecutedMessageIds) {
+    if (now - ts > SLASH_EXECUTED_TTL_MS) slashExecutedMessageIds.delete(id);
+  }
+}
+
+/** 记录 Daemon 主路径已执行的 messageId（dual dedup） */
+function markSlashMessageIdExecuted(messageId: string): void {
+  if (!messageId) return;
+  const now = Date.now();
+  slashExecutedMessageIds.set(messageId, now);
+  pruneSlashExecutedMessageIds(now);
+}
+
+/** 查询 messageId 是否已在 Daemon 主路径执行（dual poll 跳过） */
+function isSlashMessageIdExecuted(messageId: string): boolean {
+  if (!messageId) return false;
+  const ts = slashExecutedMessageIds.get(messageId);
+  if (!ts) return false;
+  if (Date.now() - ts > SLASH_EXECUTED_TTL_MS) {
+    slashExecutedMessageIds.delete(messageId);
+    return false;
+  }
+  return true;
+}
 
 // ── 活跃 MCP 连接追踪 ──
 let activeMcpConnections = 0;
@@ -1088,7 +1130,7 @@ async function startFeishuChannel(rt: ChannelRuntime): Promise<void> {
   const sender = rt.sender;
   const feishuEventDeps = {
     log,
-    pushCommandToQueue,
+    handleSlashCommand: handleCommand,
     makeChatKey,
   };
   sender.startConnection(appId, appSecret, ENCRYPT_KEY, (ev) => {
@@ -1280,6 +1322,7 @@ function cleanExpiredCommands(): void {
   const queueDir = getQueueDir();
   if (!queueDir) return;
   const now = Date.now();
+  pruneSlashExecutedMessageIds(now);
   try {
     const files = fs.readdirSync(queueDir).filter((f) => f.endsWith(".fcmd"));
     for (const f of files) {
@@ -1298,9 +1341,15 @@ function cleanExpiredCommands(): void {
   } catch { /* ignore */ }
 }
 
-async function handleCommand(text: string, messageId: string, chatId?: string, chatType?: string): Promise<void> {
+async function handleCommand(
+  text: string,
+  messageId: string,
+  chatId?: string,
+  chatType?: string,
+  source?: string,
+): Promise<void> {
   const trimmed = text.trim();
-  // /merge 斜杠在 Daemon 内闭环，禁止写入 .fcmd
+  // T8：/merge 在 Daemon 内闭环，禁止写入 .fcmd 与通用执行器
   if (await tryHandleMergeSlashCommand(trimmed, messageId, chatId, {
     log,
     handleMergeBatchAction,
@@ -1308,7 +1357,30 @@ async function handleCommand(text: string, messageId: string, chatId?: string, c
   })) {
     return;
   }
-  pushCommandToQueue(trimmed, messageId, `daemon-${process.pid}`, chatId, chatType);
+
+  const mode = getSlashExecMode();
+  const cmdSource = source ?? `daemon-${process.pid}`;
+
+  // electron 回滚：仅写 .fcmd，走 5s poll
+  if (mode === "electron") {
+    pushCommandToQueue(trimmed, messageId, cmdSource, chatId, chatType);
+    return;
+  }
+
+  if (!slashExecutorDeps) {
+    log("ERROR", "slashExecutorDeps 未初始化，回退入队");
+    pushCommandToQueue(trimmed, messageId, cmdSource, chatId, chatType);
+    return;
+  }
+
+  // daemon / dual 主路径：Daemon SSOT 即时执行并 reply
+  await executeSlashCommand(slashExecutorDeps, trimmed, messageId, chatId, chatType);
+  markSlashMessageIdExecuted(messageId);
+
+  // dual 双写：保留 .fcmd 供 Electron poll；poll 经 skip-check 跳过已执行 messageId
+  if (mode === "dual") {
+    pushCommandToQueue(trimmed, messageId, cmdSource, chatId, chatType);
+  }
 }
 
 // ── HTTP 工具（批1 仍驻 daemon，供子模块 deps 注入）────────
@@ -1400,6 +1472,7 @@ function removeLockFile(): void {
 // ── 批1 子模块句柄与 deps 契约（T1）────────────────────────
 let orchestratorApi: OrchestratorApi;
 let presentationApi: PresentationHandlerApi;
+let slashExecutorDeps: SlashExecutorDeps | null = null;
 let scheduleAgentDispatchRef: (sessionKey?: string) => void = () => {};
 let handleAdminApiRef: (pathname: string, method: string, req: http.IncomingMessage, res: http.ServerResponse) => Promise<boolean> = async () => false;
 
@@ -1519,6 +1592,33 @@ function wireDaemonSubmodules(_ctx: DaemonBootstrapContext): void {
   });
   scheduleAgentDispatchRef = orchestratorApi.scheduleAgentDispatch;
 
+  /** T5：斜杠执行器 deps（handleCommand 主路径 SSOT） */
+  slashExecutorDeps = {
+    log,
+    replyToMessage,
+    forwardElectronCommandApi: (subpath, body) => orchestratorApi.forwardElectronCommandApi(subpath, body),
+    getSlashExecMode,
+    workspaceDir: WORKSPACE_DIR,
+    pkgVersion: PKG_VERSION,
+    getUptime: () => process.uptime(),
+    getFileQueueLength,
+    getFileQueueMessages: () =>
+      getFileQueueMessages().map((m) => ({ index: m.index, preview: m.preview })),
+    clearFileQueue,
+    readTasks: readTasksFile,
+    isElectronApiReachable: () => {
+      if (!APP_DATA_DIR) return false;
+      try {
+        const portFile = path.join(APP_DATA_DIR, "agent-api-port.json");
+        if (!fs.existsSync(portFile)) return false;
+        const data = JSON.parse(fs.readFileSync(portFile, "utf-8")) as { port?: number };
+        return (data.port ?? 0) > 0;
+      } catch {
+        return false;
+      }
+    },
+  };
+
   presentationApi = createPresentationHandlers({
     log,
     sessionChatTypeMap,
@@ -1560,6 +1660,8 @@ function wireDaemonSubmodules(_ctx: DaemonBootstrapContext): void {
     json,
     clearFileQueue,
     pushCommandToQueue,
+    getSlashExecMode,
+    forwardElectronCommandApi: (subpath, body) => orchestratorApi.forwardElectronCommandApi(subpath, body),
   });
 
   handleAdminApiRef = createAdminApiHandler({
@@ -1606,6 +1708,24 @@ function wireDaemonSubmodules(_ctx: DaemonBootstrapContext): void {
     adminCrudRoutes,
     adminEntityRoutes,
   });
+
+  /** dual 期 Electron poll 去重：GET /commands/skip-check、/commands/executed-ids */
+  const baseHandleAdminApi = handleAdminApiRef;
+  handleAdminApiRef = async (pathname, method, req, res) => {
+    if (method === "GET" && pathname === "/commands/skip-check") {
+      const reqUrl = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
+      const mid = reqUrl.searchParams.get("messageId") ?? "";
+      pruneSlashExecutedMessageIds();
+      json(res, { executed: Boolean(mid && isSlashMessageIdExecuted(mid)) });
+      return true;
+    }
+    if (method === "GET" && pathname === "/commands/executed-ids") {
+      pruneSlashExecutedMessageIds();
+      json(res, { messageIds: [...slashExecutedMessageIds.keys()] });
+      return true;
+    }
+    return baseHandleAdminApi(pathname, method, req, res);
+  };
 }
 
 export async function daemonMain(): Promise<void> {
@@ -1616,6 +1736,7 @@ export async function daemonMain(): Promise<void> {
 
   log("INFO", `Daemon v${PKG_VERSION} 启动`);
   log("INFO", `workspace: ${WORKSPACE_DIR}`);
+  log("INFO", `SLASH_EXEC_MODE=${getSlashExecMode()}`);
   log("INFO", `通道(${CHANNEL_CONFIGS.length}): ${CHANNEL_CONFIGS.map((c) => `${c.name}[${c.type}]`).join(" + ")}`);
   log("INFO", `日志文件: ${LOG_FILE_PATH}`);
 

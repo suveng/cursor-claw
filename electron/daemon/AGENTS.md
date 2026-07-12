@@ -11,7 +11,8 @@
 ## 模块边界
 
 - **Daemon 桥接**：IM `POST /api/agent/launch|dispatch` 由 Daemon `forwardElectronAgentApi` 转发至 Electron `agent-sdk-http` 统一网关；与本地 `session-dispatcher.launchAgent` 同路径。
-- `daemon-manager.ts`：Daemon 子进程生命周期、IPC 注册枢纽、工作流/任务/通道汇聚；**不拆分**（历史行数超限属已知）。
+- `daemon-manager.ts`：Daemon 子进程生命周期、IPC 注册枢纽、工作流/任务/通道汇聚；poll 斜杠执行委托 `scheduling/command-executor`；**不拆分**（历史行数超限属已知）。
+- poll `messageId` 去重：`setCommandPollSkipChecker` 注入；`dual` 时 `startStatusPolling` 每 tick `syncDaemonSlashExecutedIds`（`GET /commands/executed-ids`）后 poll；`daemon`/`electron` 清除 checker。
 - `daemon-client.ts`：`httpPost` / `httpGet` / 锁文件 / 会话同步（`syncActiveSession`、`setSessionFallback` 等）；各引擎经此通知 Daemon，避免与 `session/session-dispatcher` 循环 import。
 - `sdk-daemon-notify.ts`：SDK 会话 IM notify 薄 re-export（→ `agent/shared/run-notify.ts`）。
 

@@ -1,0 +1,269 @@
+{
+  "change_id": "20260712113307",
+  "id": "20260712113307-控制层HTTP化与斜杠去Electron依赖",
+  "name": "控制层HTTP化与斜杠去Electron依赖",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T11:33:07+0800",
+  "updated_at": "2026-07-12T12:25:58+0800",
+  "archived_at": "2026-07-12T12:25:58+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation-test",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-executor.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-sdk-http.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-command-http.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-admin-content.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-mcp-admin.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/server-admin.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-slash-executor.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-slash-mcp.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-orchestrator.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/feishu-event-handlers.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-admin-crud.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "role": "config",
+      "status": "done"
+    },
+    {
+      "path": "electron/daemon/AGENTS.md",
+      "role": "config",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/AGENTS.md",
+      "role": "config",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "role": "config",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/01-概览.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/02-HTTP与MCP服务.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/04-远程指令.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/02-飞书通道.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/04-配置与更新.md",
+      "role": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Electron command-executor 抽出与 poll 路径改造",
+      "status": "done",
+      "files": [
+        "electron/scheduling/command-executor.ts",
+        "electron/daemon/daemon-manager.ts"
+      ],
+      "depends_on": [],
+      "verification": "静态：switch 完整；command-executor 245 行"
+    },
+    {
+      "id": "T2",
+      "title": "Electron POST /api/command/execute",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/agent-sdk-http.ts",
+        "electron/agent/cursor-sdk/agent-command-http.ts",
+        "electron/scheduling/command-handler.ts"
+      ],
+      "depends_on": ["T1"],
+      "verification": "待执行 S10；静态契约 ✅"
+    },
+    {
+      "id": "T3",
+      "title": "/api/mcp 扩展与 manage_mcp HTTP 对齐",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-http-admin-content.ts",
+        "src/daemon/daemon-http-mcp-admin.ts",
+        "src/daemon/server-admin.ts"
+      ],
+      "depends_on": [],
+      "verification": "待执行 S4/S5；R2 健康列降级已知"
+    },
+    {
+      "id": "T4",
+      "title": "daemon-slash-executor 与 Electron 同步转发",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-slash-executor.ts",
+        "src/daemon/daemon-slash-mcp.ts",
+        "src/daemon/daemon-orchestrator.ts"
+      ],
+      "depends_on": ["T2", "T3"],
+      "verification": "待执行 S1–S3/S6；R1 日志缺 source"
+    },
+    {
+      "id": "T5",
+      "title": "handleCommand 接线与 SLASH_EXEC_MODE 双写",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon.ts",
+        "electron/daemon/daemon-manager.ts"
+      ],
+      "depends_on": ["T4"],
+      "verification": "待执行 S7/S11；R3 dual 竞态"
+    },
+    {
+      "id": "T6",
+      "title": "飞书菜单与 Agent 管理去 fcmd",
+      "status": "done",
+      "files": [
+        "src/daemon/feishu-event-handlers.ts",
+        "src/daemon/daemon-http-admin-crud.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": ["T5"],
+      "verification": "待执行 S8/S9"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "warning",
+      "status": "open",
+      "file": "src/daemon/daemon-slash-executor.ts",
+      "summary": "slash_exec 结构化日志缺少 source=im|menu 字段",
+      "task_id": "T-FIX-01",
+      "resolution": null
+    },
+    {
+      "id": "R2",
+      "severity": "warning",
+      "status": "open",
+      "file": "electron/agent/cursor-sdk/agent-sdk-http.ts",
+      "summary": "POST /api/mcp/status-map 未在 Electron agent-api 注册，MCP 健康探测降级",
+      "task_id": "T-FIX-02",
+      "resolution": null
+    },
+    {
+      "id": "R3",
+      "severity": "info",
+      "status": "open",
+      "file": "electron/daemon/daemon-manager.ts",
+      "summary": "dual 模式 poll 去重依赖 5s executed-ids 批量同步，短窗口可能双回复",
+      "task_id": "T-FIX-03",
+      "resolution": null
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  }
+}

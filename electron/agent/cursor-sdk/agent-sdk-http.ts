@@ -211,6 +211,12 @@ export function ensureAgentSdkHttpServer(): void {
         jsonAgentApi(res, result, result.ok ? 200 : 400)
         return
       }
+      if (pathname === "/api/command/execute") {
+        const { handleCommandExecuteHttp } = await import("./agent-command-http")
+        const cmdResult = await handleCommandExecuteHttp(body)
+        jsonAgentApi(res, cmdResult.body, cmdResult.httpStatus)
+        return
+      }
       if (pathname === "/api/sdk-warmup") {
         const { warmupSdkAfterBind } = await import("./sdk-warmup")
         const source = typeof body.source === "string" ? body.source.trim() : "unknown"

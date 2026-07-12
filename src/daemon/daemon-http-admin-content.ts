@@ -13,6 +13,14 @@ import {
   readJsonSafe,
   writeJsonSafe,
 } from "./daemon-http-admin-io.js";
+import {
+  buildMcpServerInfo,
+  fetchElectronMcpStatusMap,
+  findMcpEntry,
+  isMcpEnabled,
+  mergeMcpServersForList,
+  toggleMcpServerEnabled,
+} from "./daemon-http-mcp-admin.js";
 
 export interface AdminContentDeps {
   workspaceDir: string;
@@ -24,18 +32,7 @@ export interface AdminContentDeps {
 export function createAdminContentRoutes(deps: AdminContentDeps): Record<string, AdminRouteHandler> {
   async function handleMcpAdmin(method: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<boolean> {
     if (method === "GET") {
-      const globalCfg = readJsonSafe(GLOBAL_MCP_PATH);
-      const projectCfg = readJsonSafe(getProjectMcpPath(deps.workspaceDir));
-      const servers: Record<string, { config: unknown; scope: string }> = {};
-      const globalServers = globalCfg?.mcpServers as Record<string, unknown> | undefined;
-      const projectServers = projectCfg?.mcpServers as Record<string, unknown> | undefined;
-      if (globalServers) {
-        for (const [k, v] of Object.entries(globalServers)) servers[k] = { config: v, scope: "global" };
-      }
-      if (projectServers) {
-        for (const [k, v] of Object.entries(projectServers)) servers[k] = { config: v, scope: "project" };
-      }
-      deps.json(res, { ok: true, servers });
+      deps.json(res, { ok: true, servers: mergeMcpServersForList(deps.workspaceDir) });
       return true;
     }
     if (method === "POST") {
@@ -68,6 +65,35 @@ export function createAdminContentRoutes(deps: AdminContentDeps): Record<string,
           }
         }
         deps.json(res, { ok: false, error: "not found" }, 404);
+        return true;
+      }
+      if (action === "enable" || action === "disable") {
+        if (!name) { deps.json(res, { ok: false, error: "name required" }, 400); return true; }
+        const result = toggleMcpServerEnabled(name, action === "enable", deps.workspaceDir);
+        if (!result.ok) {
+          const status = result.error?.includes("找不到") ? 404 : 400;
+          deps.json(res, { ok: false, error: result.error, message: result.error }, status);
+          return true;
+        }
+        deps.json(res, { ok: true, message: result.message });
+        return true;
+      }
+      if (action === "info") {
+        if (!name) { deps.json(res, { ok: false, error: "name required" }, 400); return true; }
+        const entry = findMcpEntry(name, deps.workspaceDir);
+        if (!entry) {
+          deps.json(res, { ok: false, error: `找不到 MCP 服务器: ${name}`, message: `找不到 MCP 服务器: ${name}` }, 404);
+          return true;
+        }
+        const enabled = isMcpEnabled(entry.config);
+        let healthStatus: string | undefined;
+        let healthError: string | undefined;
+        if (enabled) {
+          const health = await fetchElectronMcpStatusMap(deps.workspaceDir);
+          if (health.ok) healthStatus = health.statusMap?.[name];
+          else healthError = health.error;
+        }
+        deps.json(res, { ok: true, server: buildMcpServerInfo(entry, healthStatus, healthError) });
         return true;
       }
       deps.json(res, { ok: false, error: "unknown action" }, 400);

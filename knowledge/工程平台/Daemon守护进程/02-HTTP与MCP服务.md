@@ -9,12 +9,13 @@ Daemon HTTP Server（`startHttpServer`）、StreamableHTTP MCP（`/mcp`、`/mcp-
 - **StreamableHTTP 每请求新建 McpServer**（daemon.ts `/mcp`）。
 - **Agent MCP 工具转调本地 HTTP**：`send_text` 等 POST `/api/send-text`。
 - **IM SDK-only**：无 blocking poll 保活；任务 Agent 仍可用 MCP send。
-- **调度转发**：Daemon 读 `agent-api-port.json` → `forwardElectronAgentApi`。
+- **调度转发**：Daemon 读 `agent-api-port.json` → `forwardElectronAgentApi`（launch/dispatch）。
+- **斜杠同步转发**：Daemon `forwardElectronCommandApi` → Electron `POST /api/command/execute`（复用 `command-executor.executeFileCommand`）。
 - **Presentation 单入口**：SDK POST `/api/presentation-event` → CardKit 渲染。
 
 ## 三、服务端规则
 
-- 群聊须 @ 入队；斜杠写 `.fcmd`（**例外**：`/merge` 由 `daemon-merge-command.ts` Daemon 内闭环，不写 `.fcmd`）。
+- 群聊须 @ 入队；斜杠主路径由 `executeSlashCommand` 即时 reply（**例外**：`/merge` Daemon 内闭环；`SLASH_EXEC_MODE=dual|electron` 仍可写 `.fcmd`）。
 - 合并卡控制 SSOT：`handleMergeBatchAction`（按钮 `feishu-card-action.ts`、斜杠、HTTP `POST /api/merge-batch/action` 三入口）。
 - ack 删队列；DONE 在 ack 路径（T7 无 poll）。
 - MergeBatch：`merge-batch/action`；collecting 静默窗口内禁止 orchestrator claim。
@@ -41,7 +42,7 @@ flowchart LR
 
 ### MCP Admin（`/mcp-admin`）
 
-manage_agent / manage_mcp / manage_rules / manage_skills / manage_tasks / manage_workspace（T10 计划废弃统一 HTTP）。
+manage_* 工具（T10 废弃中；`manage_mcp` 已改调 `/api/mcp`）。
 
 ### HTTP 路由（节选）
 
@@ -57,7 +58,10 @@ manage_agent / manage_mcp / manage_rules / manage_skills / manage_tasks / manage
 | POST | /api/session-agent-phase | Agent 阶段 |
 | POST | /api/stream-text | 流式出站 |
 | POST | /api/send-text | 文本出站 |
+| GET/POST | /api/mcp | list；POST add/delete/enable/disable/info |
 | GET | /api/queue-events | SSE |
+| GET/POST | /commands* | dual/electron 遗留 fcmd（含 executed-ids） |
+| POST | /api/command/execute | Electron agent-api；Daemon 经 forward 调用 |
 
 ## 六、数据
 
@@ -75,15 +79,11 @@ SSE；stdout `__WECHAT_QR__` 等供 Electron 解析。
 
 ## 九、已知限制与 TODO
 
-- poll-message 404 后旧 CLI 规则须更新为 Daemon dispatch。
-- manage_* 依赖 lock.port；T10 迁移至 Daemon-only 管理 API。
-- HTTP 404 统一 `{ error: "not found" }`。
-- HTTP `/api/agent/dispatch` 旁路与 IM launch 失败策略未对齐（失败即 ack / busy 无 release）。
+- poll-message 404；`/mcp-admin` 与 manage_mcp HTTP 化进行中。
+- HTTP 404 统一 `{ error: "not found" }`；dispatch 旁路债见 [01-概览](./01-概览.md) §九。
 
 ## 十、变更记录
 
-2026-07-12：`/merge` 斜杠 Daemon 内闭环与合并卡三入口 SSOT 说明（archive 20260712113253）。
-2026-07-12：注明 HTTP dispatch 旁路与 launch 重入队策略差异（archive 20260711232817）。
-2026-06-27：Presentation/merge/agent API；poll 404（archive 20260627162620）。
-2026-06-27：poll wait=false 说明（IM 路径已移除 poll）。
-2026-06-27：kb-sync 初始建立。
+2026-07-12：斜杠 SSOT、`/api/mcp` 扩展、command API（archive 20260712113307）。
+2026-07-12：`/merge` 三入口（archive 20260712113253）。
+2026-06-27：Presentation/merge API；poll 404（archive 20260627162620）。

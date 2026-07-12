@@ -38,15 +38,15 @@ import {
   saveMcpServer,
   McpServerEntry,
 } from "../mcp/mcp-manager"
-import { FileCommand, reportCommandResult, handleFeishuModelCommand, handleFeishuMcpCommand, handleFeishuTaskCommand, handleFeishuWorkflowCommand, parseListModelsStdout, type TaskRunFn } from "../scheduling/command-handler"
-import { buildHelpText } from "../scheduling/feishu-help-text"
+import { FileCommand, reportCommandResult } from "../scheduling/command-handler"
+import { executeFileCommand } from "../scheduling/command-executor"
 import { readLockFile, getLockFilePath, httpGet, httpPost, syncActiveSession, getCurrentActiveSession, enqueueToMainSession, setSessionFallback } from "./daemon-client"
 import {
   isSessionAgentRunning, stopSessionAgent, stopAllSessionAgents,
   launchSessionAgent, launchIndependentAgent,
   launchWorkflowAgent, notifyWorkflowChat,
-  getSessionAgentList, handleChatCommand, clearMessageQueue, getQueueMessages,
-  pullMergedMessagesFromQueue, isMainUser, extractChatId, chatNameCache,
+  getSessionAgentList, clearMessageQueue, getQueueMessages,
+  pullMergedMessagesFromQueue, extractChatId, chatNameCache,
   fetchChatNames, fetchUserNames, initSessionDispatcher,
 } from "../session/session-dispatcher"
 
@@ -840,6 +840,7 @@ function stopDaemonPowerSaveBlock(): void {
 function startStatusPolling(): void {
   stopStatusPolling()
   startDaemonPowerSaveBlock()
+  wireSlashPollSkipChecker()
   statusInterval = setInterval(async () => {
     try {
       const status = await getDaemonStatus()
@@ -863,6 +864,7 @@ function startStatusPolling(): void {
       }
 
       if (status.running) {
+        await syncDaemonSlashExecutedIds()
         await checkAndExecutePendingCommands()
       }
     } catch (e: unknown) {
@@ -879,23 +881,44 @@ function stopStatusPolling(): void {
   stopDaemonPowerSaveBlock()
 }
 
-function resolveCommandSessionKey(chatId?: string, chatType?: string): string | undefined {
-  if (!chatId) return undefined
-  if (chatType === "p2p" && isMainUser(chatId, chatType)) {
-    const channel = getChannel(parseChatKey(chatId).channelId)
-    const wsDir = effectiveWorkspaceDir(channel)
-    if (wsDir) return `${chatId}::${wsDir}`
-  }
-  return chatId
+/** dual 模式：Daemon 已执行的 messageId，poll 跳过（由 T5 经 setCommandPollSkipChecker 注入） */
+let commandPollSkipChecker: ((messageId: string) => boolean) | undefined
+
+/** T5：Electron 侧缓存 Daemon 已执行 messageId（sync checker 读本地 Set） */
+let cachedDaemonSlashExecutedIds = new Set<string>()
+
+function resolveSlashExecMode(): "daemon" | "dual" | "electron" {
+  const raw = (process.env.SLASH_EXEC_MODE ?? "dual").trim().toLowerCase()
+  if (raw === "daemon" || raw === "dual" || raw === "electron") return raw
+  return "dual"
 }
 
-function resolveResetWorkspaceDir(sessionKey?: string, chatId?: string, chatType?: string): string | undefined {
-  if (!sessionKey) return undefined
-  if (chatType === "p2p" && isMainUser(chatId, chatType)) {
-    const channel = getChannel(parseChatKey(chatId!).channelId)
-    return effectiveWorkspaceDir(channel)
+/** 从 Daemon HTTP 同步已执行 messageId 列表（dual poll 去重用） */
+async function syncDaemonSlashExecutedIds(): Promise<void> {
+  if (resolveSlashExecMode() !== "dual") {
+    cachedDaemonSlashExecutedIds.clear()
+    return
   }
-  return path.join(app.getPath("userData"), "workspaces", sessionKey.replace(/[^a-zA-Z0-9_-]/g, "_"))
+  const lock = readLockFile()
+  if (!lock?.port) return
+  try {
+    const res = await httpGet(`http://127.0.0.1:${lock.port}/commands/executed-ids`) as { messageIds?: string[] }
+    cachedDaemonSlashExecutedIds = new Set(res.messageIds ?? [])
+  } catch { /* Daemon 未就绪时跳过 */ }
+}
+
+/** dual 模式注入 poll skip；daemon/electron 模式清除 */
+function wireSlashPollSkipChecker(): void {
+  if (resolveSlashExecMode() !== "dual") {
+    setCommandPollSkipChecker(undefined)
+    return
+  }
+  setCommandPollSkipChecker((messageId) => cachedDaemonSlashExecutedIds.has(messageId))
+}
+
+/** 注入 poll 路径 messageId 去重检查（T5 dual 模式使用） */
+export function setCommandPollSkipChecker(fn: ((messageId: string) => boolean) | undefined): void {
+  commandPollSkipChecker = fn
 }
 
 async function checkAndExecutePendingCommands(): Promise<void> {
@@ -919,153 +942,44 @@ async function checkAndExecutePendingCommands(): Promise<void> {
       claimed = { command: claimRes.command!, messageId: claimRes.messageId!, chatId: claimRes.chatId, chatType: claimRes.chatType }
     } catch { continue }
 
-    const rawCmd = claimed.command.trim()
-    const cmdTokens = rawCmd.split(/\s+/).filter((t) => t.length > 0)
-    const head = (cmdTokens[0] ?? "").toLowerCase()
-    const reply = (ok: boolean, msg: string) => reportCommandResult(lock.port, claimed!.messageId, ok, msg, claimed!.chatId)
+    if (commandPollSkipChecker?.(claimed.messageId)) {
+      broadcastLog(`[指令] 跳过已执行 messageId=${claimed.messageId}`, "INFO")
+      continue
+    }
 
+    const rawCmd = claimed.command.trim()
     broadcastLog(`[指令] 执行 ${rawCmd} (msgId=${claimed.messageId})`)
     try {
-      switch (head) {
-        case "/stop": {
-          const sessionKey = resolveCommandSessionKey(claimed.chatId, claimed.chatType) ?? claimed.chatId
-          if (sessionKey && isSessionAgentRunning(sessionKey)) {
-            stopSessionAgent(sessionKey)
-            await reply(true, "✅ 当前会话 Agent 已停止")
-          } else {
-            await reply(false, "❌ 当前会话无运行中的 Agent")
-          }
-          break
-        }
-
-        case "/status": {
-          const status = await getDaemonStatus()
-          const schedTasks = readTasksFromFile()
-          const schedTotal = schedTasks.length
-          const schedEnabled = schedTasks.filter((t) => t.enabled).length
-          const lines = [
-            `🛡️ Daemon: ${status.running ? "✅ 运行中" : "❌ 未运行"}`,
-            status.version ? `🔄 版本: ${status.version}` : "",
-            status.uptime !== undefined ? `⌛️ 运行时间: ${Math.floor(status.uptime / 60)}分钟` : "",
-            `🤖 Agent: ${isAgentRunning() ? `✅ 运行中${getAgentDisplayPid() ? ` (PID: ${getAgentDisplayPid()})` : ""}` : "❌ 未运行"}`,
-            `📭 队列消息: ${status.queueLength ?? 0} 条`,
-            `⏰ 定时任务: 开启 ${schedEnabled} / 共 ${schedTotal} 条`,
-          ].filter(Boolean)
-          await reply(true, lines.join("\n"))
-          break
-        }
-
-        case "/list": {
-          const msgs = await getQueueMessages()
-          if (msgs.length === 0) {
-            await reply(true, "📭 消息队列为空")
-          } else {
-            const lines = msgs.map((m) => `  [${m.index}] ${m.preview}`)
-            await reply(true, `📬 队列中有 ${msgs.length} 条消息：\n${lines.join("\n")}`)
-          }
-          break
-        }
-
-        case "/task": {
-          await handleFeishuTaskCommand(
-            lock.port, claimed.messageId, rawCmd,
-            (task, content) => launchIndependentAgent(task.id, task.name, content, "task", undefined, task.channelId, task.model, task.modelParams),
-            claimed.chatId,
-            async (content, preferredChatId) => enqueueToMainSession(lock.port, content, preferredChatId ?? claimed.chatId),
-          )
-          break
-        }
-
-        case "/model": {
-          await handleFeishuModelCommand(lock.port, claimed.messageId, rawCmd, claimed.chatId)
-          break
-        }
-
-        case "/mcp": {
-          await handleFeishuMcpCommand(lock.port, claimed.messageId, rawCmd, claimed.chatId)
-          break
-        }
-
-        case "/workflow":
-        case "/wf": {
-          await handleFeishuWorkflowCommand(lock.port, claimed.messageId, rawCmd, claimed.chatId)
-          break
-        }
-
-        case "/restart": {
-          stopAgent()
-          const cleared = await clearMessageQueue()
-          await reply(true, `✅ Agent 已停止，已清空 ${cleared} 条队列消息，正在重启 Daemon...`)
+      await executeFileCommand(claimed, {
+        port: lock.port,
+        messageId: claimed.messageId,
+        chatId: claimed.chatId,
+        chatType: claimed.chatType,
+        reply: (ok, msg) => reportCommandResult(lock.port, claimed.messageId, ok, msg, claimed.chatId),
+        getDaemonStatus,
+        stopAgent,
+        restartDaemon: async () => {
           await stopDaemon()
           await new Promise((r) => setTimeout(r, 1500))
           const result = await startDaemon()
           if (!result.ok) broadcastLog(`[指令] Daemon 重启失败: ${result.error}`, "ERROR")
-          break
-        }
-
-        case "/clean": {
-          const cleared = await clearMessageQueue()
-          broadcastLog(`[指令 /clean] 已清空队列 ${cleared} 条`, "INFO")
-          await reply(true, `✅ 已清空消息队列，共移除 ${cleared} 条`)
-          break
-        }
-
-        case "/reset": {
-          const sessionKey = resolveCommandSessionKey(claimed.chatId, claimed.chatType)
-          if (sessionKey && isSessionAgentRunning(sessionKey)) {
-            stopSessionAgent(sessionKey)
-          }
-          const wsDir = resolveResetWorkspaceDir(sessionKey, claimed.chatId, claimed.chatType)
-          const cmdChannelId = claimed.chatId ? parseChatKey(claimed.chatId).channelId : undefined
-          if (wsDir && cmdChannelId) setMainChatIdForScope(mainChatScopeKey(cmdChannelId, wsDir), "")
-          broadcastLog(`[指令 /reset] 已重置会话 ${sessionKey ?? claimed.chatId ?? "unknown"}`, "INFO")
-          await reply(true, "✅ 当前会话已重置, 请重新发消息开启新会话")
-          break
-        }
-
-        case "/workspace": {
-          const wsArgs = cmdTokens.slice(1)
-          if (wsArgs.length === 0 || wsArgs[0] === "info") {
-            const cfg = getConfig()
-            await reply(true, `📂 当前工作目录: ${cfg.workspaceDir || "(未配置)"}`)
-          } else if (wsArgs[0] === "set" && wsArgs.length >= 2) {
-            const newDir = wsArgs.slice(1).join(" ").trim()
-            const cfg = getConfig()
-            if (newDir === cfg.workspaceDir) {
-              await reply(true, `📂 工作目录未变化: ${newDir}`)
-            } else {
-              await reply(true, `📂 正在切换工作目录到: ${newDir}\n⏳ 切换中...`)
-              const wsResult = await applyWorkspaceSwitch(newDir, false)
-              if (wsResult.ok) {
-                broadcastLog(`[指令 /workspace] 已切换到 ${newDir}`, "INFO")
-                await reply(true, `✅ 工作目录已切换到: ${newDir} 会话上下文已切换`)
-              } else {
-                broadcastLog(`[指令 /workspace] 切换失败: ${wsResult.error}`, "ERROR")
-                await reply(false, `❌ 切换失败: ${wsResult.error}`)
-              }
-            }
-          } else {
-            await reply(false, "用法：/workspace 查看当前 | /workspace set <路径>")
-          }
-          break
-        }
-
-        case "/chat": {
-          await handleChatCommand(cmdTokens, lock.port, claimed!.messageId, claimed!.chatId)
-          break
-        }
-
-        case "/help": {
-          await reply(true, buildHelpText())
-          break
-        }
-
-        default:
-          await reply(false, `😅 未知指令: ${head}`)
-      }
+        },
+        applyWorkspaceSwitch,
+        taskRunFn: (task, content) => launchIndependentAgent(
+          task.id, task.name, content, "task", undefined, task.channelId, task.model, task.modelParams,
+        ),
+        enqueueToMainSession: (content, preferredChatId) =>
+          enqueueToMainSession(lock.port, content, preferredChatId ?? claimed.chatId),
+      })
     } catch (e: unknown) {
       broadcastLog(`[指令] ${rawCmd} 执行异常: ${e instanceof Error ? e.message : e}`, "ERROR")
-      try { await reply(false, `❌ 执行异常: ${e instanceof Error ? e.message : e}`) } catch { /* ignore */ }
+      try {
+        await reportCommandResult(
+          lock.port, claimed.messageId, false,
+          `❌ 执行异常: ${e instanceof Error ? e.message : e}`,
+          claimed.chatId,
+        )
+      } catch { /* ignore */ }
     }
   }
 }
