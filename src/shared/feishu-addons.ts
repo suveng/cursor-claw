@@ -16,6 +16,8 @@ export const FEISHU_MENU_SCOPES: { scope: string; desc: string }[] = [
 export const FEISHU_MENU_EVENTS: { event: string; desc: string }[] = [
   { event: "application.bot.menu_v6", desc: "自定义菜单点击（推送事件类菜单）" },
   { event: "im.chat.access_event.bot_p2p_chat_entered_v1", desc: "用户进入机器人私聊" },
+  // 合并卡按钮（merge_send_now / merge_edit / merge_split）点击回调
+  { event: "card.action.trigger", desc: "合并卡按钮点击回调" },
 ];
 
 /** 扫码增量开权时传入 registerApp 的 addons（仅 tenant 身份叠加） */

@@ -14,7 +14,8 @@ Daemon HTTP Server（`startHttpServer`）、StreamableHTTP MCP（`/mcp`、`/mcp-
 
 ## 三、服务端规则
 
-- 群聊须 @ 入队；斜杠写 `.fcmd`。
+- 群聊须 @ 入队；斜杠写 `.fcmd`（**例外**：`/merge` 由 `daemon-merge-command.ts` Daemon 内闭环，不写 `.fcmd`）。
+- 合并卡控制 SSOT：`handleMergeBatchAction`（按钮 `feishu-card-action.ts`、斜杠、HTTP `POST /api/merge-batch/action` 三入口）。
 - ack 删队列；DONE 在 ack 路径（T7 无 poll）。
 - MergeBatch：`merge-batch/action`；collecting 静默窗口内禁止 orchestrator claim。
 - **IM launch 编排**失败走 `releaseClaimedMessages`+有限重试（见 [01-概览](./01-概览.md) §九）；**`POST /api/agent/dispatch` HTTP 旁路**失败仍 notify+ack、busy 仅 timer 不 release（与 launch 未对齐）。
@@ -81,6 +82,7 @@ SSE；stdout `__WECHAT_QR__` 等供 Electron 解析。
 
 ## 十、变更记录
 
+2026-07-12：`/merge` 斜杠 Daemon 内闭环与合并卡三入口 SSOT 说明（archive 20260712113253）。
 2026-07-12：注明 HTTP dispatch 旁路与 launch 重入队策略差异（archive 20260711232817）。
 2026-06-27：Presentation/merge/agent API；poll 404（archive 20260627162620）。
 2026-06-27：poll wait=false 说明（IM 路径已移除 poll）。

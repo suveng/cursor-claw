@@ -11,6 +11,8 @@ import {
 } from "./daemon-scheduled-tasks.js";
 import { stripProxyEnv, localTimestamp, createLarkClient, LarkSender, LarkMessageEvent, cleanupMediaCache, type MergeBatchCardView, type MergeBatchCardState, type PresentationCardState, type FeishuMenuEvent, type FeishuP2pEnteredEvent } from "../bridge/lark-core.js";
 import { onFeishuMenuV6, onFeishuP2pEntered } from "./feishu-event-handlers.js";
+import { onFeishuCardAction } from "./feishu-card-action.js";
+import { tryHandleMergeSlashCommand } from "./daemon-merge-command.js";
 import { formatToolMilestoneText, mergeShellToolDetail, normalizePresentationToolName, shouldSuppressToolStartedPresentation } from "../shared/tool-presentation.js";
 import { WeChatManager } from "../bridge/wechat-manager.js";
 import {
@@ -1164,6 +1166,16 @@ async function startFeishuChannel(rt: ChannelRuntime): Promise<void> {
         log("ERROR", `[${rt.cfg.name}] p2p_entered 处理失败: ${e instanceof Error ? e.message : e}`);
       });
     },
+    // 合并卡按钮（card.action.trigger）→ handleMergeBatchAction SSOT；return toast 供 SDK 回传
+    onCardAction: (ev) =>
+      onFeishuCardAction(rt, sender, ev, {
+        log,
+        makeChatKey,
+        handleMergeBatchAction,
+        replyToMessage,
+      }).catch((e: unknown) => {
+        log("ERROR", `[${rt.cfg.name}] 合并卡按钮回调失败: ${e instanceof Error ? e.message : e}`);
+      }),
   });
   // WSClient.start 为异步建立；这里乐观置位，错误会在日志中体现
   rt.feishuConnected = true;
@@ -1186,6 +1198,7 @@ const COMMANDS: Record<string, string> = {
   "/reset": "重置会话上下文（下次拉起为新会话），不删除本地文件",
   "/restart": "停止 Agent + 清空队列 + 重启 Daemon",
   "/help": "显示可用指令列表",
+  "/merge": "合并控制（/merge send | split | edit <正文>）",
 };
 
 function isCommand(text: string): boolean {
@@ -1287,6 +1300,14 @@ function cleanExpiredCommands(): void {
 
 async function handleCommand(text: string, messageId: string, chatId?: string, chatType?: string): Promise<void> {
   const trimmed = text.trim();
+  // /merge 斜杠在 Daemon 内闭环，禁止写入 .fcmd
+  if (await tryHandleMergeSlashCommand(trimmed, messageId, chatId, {
+    log,
+    handleMergeBatchAction,
+    replyToMessage,
+  })) {
+    return;
+  }
   pushCommandToQueue(trimmed, messageId, `daemon-${process.pid}`, chatId, chatType);
 }
 

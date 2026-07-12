@@ -30,11 +30,18 @@
 | `daemon-session-routing.ts` | `fallbackSessionMap` — 临时会话回退栈 SSOT（与 `activeSessionMap` 并列） |
 | `daemon-http-admin-crud.ts` | admin CRUD 入口（tasks + workspace/agent entity） |
 | `daemon-http-admin-content.ts` | mcp / rules / skills admin 子路由 |
+| `daemon-http-mcp-admin.ts` | MCP 配置合并、开关、健康探测转发（供 admin-content） |
 | `daemon-http-admin-io.ts` | admin 文件 IO 辅助、`AdminRouteHandler` 类型 |
 | `daemon-http-server.ts` | `startHttpServer` — 监听壳 |
 | `daemon-http-mcp.ts` | MCP Server 工厂（agent + admin） |
 | `daemon-http-non-api-routes.ts` | `/health`、`/enqueue`、队列/通道 bind 等非 `/api` |
-| `feishu-event-handlers.ts` / `server-admin.ts` / `daemon-scheduled-tasks.ts` / `chat-name-resolve.ts` | 已有边界锚点 |
+| `daemon-merge-action-feedback.ts` | 合并动作 IM 反馈文案 SSOT（纯函数，禁止 import daemon/bridge） |
+| `feishu-card-action.ts` | `onFeishuCardAction` — 合并卡 `card.action.trigger` 路由（Deps 注入，≤300 行） |
+| `daemon-merge-command.ts` | `tryHandleMergeSlashCommand` — `/merge` 斜杠 Daemon 内闭环（不写 `.fcmd`） |
+| `daemon-http-mcp-admin.ts` | MCP 配置读写、开关与健康探测（admin 与斜杠共用） |
+| `daemon-slash-executor.ts` | `executeSlashCommand` — IM 斜杠 SSOT（T5 接线） |
+| `daemon-slash-mcp.ts` | `/mcp` 斜杠子命令（复用 `daemon-http-mcp-admin`） |
+| `feishu-event-handlers.ts` / `feishu-card-action.ts` / `server-admin.ts` / `daemon-scheduled-tasks.ts` / `chat-name-resolve.ts` | 飞书事件与合并卡按钮回调；其余为已有边界锚点 |
 
 ## 依赖注入规矩（批1）
 
@@ -47,7 +54,13 @@
 - bridge 域：`../bridge/file-queue.js`、`../bridge/wechat-manager.js`、`../bridge/lark-core.js`
 - workflow 域：`../workflow/server-workflow.js`
 - shared 跨域类型：`../shared/channel-types.js`、`../shared/feishu-presentation-gate.js`、`../shared/tool-presentation.js`、`../shared/constants.js`
-- 域内同目录：`./daemon-orchestrator.js`、`./daemon-orchestrator-retry.js`、`./daemon-orchestrator-notify.js`、`./daemon-presentation-*.js`、`./daemon-http-*.js`、`./daemon-session-routing.js`、`./daemon-presentation-milestone.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`、`./feishu-event-handlers.js`
+- 域内同目录：`./daemon-orchestrator.js`、`./daemon-slash-executor.js`、`./daemon-slash-mcp.js`、`./daemon-presentation-*.js`、`./daemon-http-*.js`、`./daemon-session-routing.js`、`./daemon-presentation-milestone.js`、`./daemon-merge-action-feedback.js`、`./daemon-merge-command.js`、`./feishu-card-action.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`、`./feishu-event-handlers.js`
+
+## MCP admin HTTP（`/api/mcp`）
+
+- **开关**：`enable`/`disable` 经 `daemon-http-mcp-admin.ts` 写 `mcp.json` `disabled`，与 Electron `toggleMcpServer` 一致。
+- **健康**：`info` 经 `fetchElectronMcpStatusMap` 转发主进程 `POST /api/mcp/status-map`；失败响应须含中文 `healthError`，禁止静默成功。
+- **manage_mcp**：`server-admin.ts` action 与 POST `/api/mcp` 一一对应。
 
 ## Orchestrator launch 名称透传
 
@@ -60,6 +73,11 @@
 - **落点**：`pushMessage` 在 `pushToFileQueue` **之前** await `resolveLaunchChatName`；有名则 `content` 末尾 append `\ngroup_name: <名称>`，无名/失败不拼、不阻断入队。
 - **语义**：群聊=群名，私聊=对方显示名；解析复用 `chat-name-resolve.ts`，禁止另起拉名体系。
 - **`pushMessage` 为 async**：同步回调处须 `.catch`；已在 async 路径（飞书 enqueue、`/enqueue`）则 `await`。
+
+## 合并控制双入口观测
+
+- 飞书合并卡按钮与 `/merge` 斜杠共用 `merge_action` 结构化日志（`grep merge_action`）；字段含 `action`、`session_key`、`ok`、`source`（`button`|`slash`）、可选 `error`。
+- 500ms 同 session 同 action 进程内防抖（`feishu-card-action.ts`），仅友好提示，不改 `MergeBatch` phase 与队列 ack。
 
 ## 禁止
 
@@ -75,6 +93,15 @@
 - **完成路径须 stop**：带 `message_id` 的最终回复经 `ackOnReply`（已含 stop）；异常 notify 经 `/api/send-text` 传 `stop_progress: true`；`/api/stream-text` 的 `final: true`（可选 `message_id` 触发 ack）；`/api/send-image|send-file` 成功且带 `message_id` 时经 `ackOnReply`。三态进度文案（「正在启动」「Agent 处理中…」）走 send-text **不带** `message_id`/`stop_progress`，**不** stop。
 - **poll Get 去重**：`sessionGetReactedIds` 按 inbound `messageId` 记录已打 Get；入队确认与 orchestrator claim 均写入，`idsNeedingPollGetReaction` 按 id 过滤，不依赖 `sessionProgressMap` 生命周期。
 - **勿在 sendText 内 cancelTyping**：最终回复与流式分段用 `{ skipTyping: true }`；进行中指示仅由进度状态机 stop。
+
+## 斜杠执行器（daemon-slash-executor）
+
+- **SSOT**：`executeSlashCommand` 进程内即时执行并 `replyToMessage`；T5 由 `handleCommand` 接线。
+- **本地指令**：`/help`、`/status`、`/list`、`/clean` 不调 Electron；`/mcp` 走 `daemon-slash-mcp.ts`（复用 T3）。
+- **Electron 依赖**：`forwardElectronCommandApi` → `POST /api/command/execute`；未就绪返回「应用未运行」类中文。
+- **T8 划界**：执行器忽略 `/merge` 与 `merge_*` 前缀（double-guard）。
+- **日志**：结构化字段 `slash_exec`（command、message_id、mode、ok、source）。
+- **子模块禁止互引环**：`daemon-slash-mcp` 不 import `daemon-slash-executor`。
 
 ## Orchestrator 调度
 

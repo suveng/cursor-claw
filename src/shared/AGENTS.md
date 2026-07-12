@@ -19,6 +19,7 @@
 
 - **两套权限 SSOT 禁止合并**：创建侧 `REQUIRED_FEISHU_SCOPES`（`src/renderer/constants.ts`）与扫码增量 `FEISHU_MENU_SCOPES`（本文件）各自维护；增量开权只改本文件。
 - **ADDONS 派生**：`FEISHU_MENU_ADDONS.scopes.tenant` / `events.items.tenant` **须**由对应数组 `.map` 生成，禁止手写第二份 scope/event 列表。
+- **增量事件**：新增飞书 WS 事件只改 `FEISHU_MENU_EVENTS` 数组条目，勿在 `FEISHU_MENU_ADDONS` 手写 tenant 列表。
 - **设置页展示**：增量表直接 `FEISHU_MENU_SCOPES.map` / `FEISHU_MENU_EVENTS.map`，改 SSOT 即可见，勿为单条权限改 UI。
 
 ## import 约定

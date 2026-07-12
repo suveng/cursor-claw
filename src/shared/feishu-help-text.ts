@@ -18,6 +18,7 @@ const ALL_COMMAND_LINES = [
   "🔹 /mcp MCP服务器管理",
   "🔹 /workspace 切换工作目录",
   "🔹 /chat 会话管理（new 可选 -dir <路径>，省略则用主会话目录，无效目录不创建）",
+  "🔹 /merge 合并控制（send | split | edit <正文>）",
 ] as const
 
 /** 自定义菜单位置引导 */

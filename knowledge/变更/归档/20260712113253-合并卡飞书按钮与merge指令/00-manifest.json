@@ -1,0 +1,252 @@
+{
+  "change_id": "20260712113253",
+  "id": "20260712113253-合并卡飞书按钮与merge指令",
+  "name": "合并卡飞书按钮与merge指令",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T11:32:53+0800",
+  "updated_at": "2026-07-12T12:18:00+0800",
+  "archived_at": "2026-07-12T12:18:00+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation-test",
+      "status": "done"
+    },
+    {
+      "path": "src/shared/feishu-addons.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/lark-core.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/AGENTS.md",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/shared/AGENTS.md",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-merge-action-feedback.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/feishu-card-action.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-merge-command.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/shared/feishu-help-text.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/01-概览.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/02-HTTP与MCP服务.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/01-概览.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/02-飞书通道.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/04-远程指令.md",
+      "role": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "飞书 card.action.trigger 订阅与 lark-core 回调类型",
+      "status": "done",
+      "files": [
+        "src/shared/feishu-addons.ts",
+        "src/bridge/lark-core.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "合并动作用户可见反馈文案 SSOT",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-merge-action-feedback.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T3",
+      "title": "飞书卡片动作回调路由",
+      "status": "done",
+      "files": [
+        "src/daemon/feishu-card-action.ts"
+      ],
+      "depends_on": [
+        "T1",
+        "T2"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "daemon 注入飞书卡片回调",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": [
+        "T3"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "/merge 斜杠 Daemon 内闭环",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-merge-command.ts",
+        "src/daemon/daemon.ts",
+        "src/shared/feishu-help-text.ts"
+      ],
+      "depends_on": [
+        "T2",
+        "T4"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "双入口防抖、结构化日志与工程验收补齐",
+      "status": "done",
+      "files": [
+        "src/daemon/feishu-card-action.ts",
+        "src/daemon/daemon-merge-command.ts",
+        "src/daemon/daemon.ts",
+        "src/daemon/AGENTS.md"
+      ],
+      "depends_on": [
+        "T4",
+        "T5"
+      ]
+    },
+    {
+      "id": "T-FIX-01",
+      "title": "卡片 callback toast 透传 WS 响应链",
+      "status": "done",
+      "files": [
+        "src/bridge/lark-core.ts",
+        "src/daemon/daemon.ts",
+        "src/daemon/feishu-card-action.ts",
+        "src/bridge/AGENTS.md"
+      ],
+      "depends_on": []
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "warning",
+      "status": "verified",
+      "file": "src/bridge/lark-core.ts",
+      "summary": "卡片 callback toast 未透传 WS EventDispatcher 响应链；onFeishuCardAction 构造的 toast 被 void fire-and-forget 丢弃，仅 IM 反馈可用",
+      "task_id": "T-FIX-01",
+      "resolution": "lark-core card.action.trigger async return await onCardAction；FeishuCardActionToastResponse 类型；daemon 透传 Promise；feishu-card-action buildToast 返回",
+      "fixed_files": [
+        "src/bridge/lark-core.ts",
+        "src/daemon/daemon.ts",
+        "src/daemon/feishu-card-action.ts",
+        "src/bridge/AGENTS.md"
+      ]
+    },
+    {
+      "id": "D1",
+      "severity": "debt",
+      "status": "accepted_debt",
+      "file": "src/bridge/lark-core.ts",
+      "summary": "lark-core.ts 1190 行超 300 行硬限（变更前既有债务）；bridge/AGENTS.md 已标注，整体拆分另开任务",
+      "task_id": null,
+      "resolution": "预存行数债务，本变更增量克制，不阻断 archive"
+    },
+    {
+      "id": "re-review-R1",
+      "type": "targeted-review",
+      "date": "2026-07-12",
+      "scope": "T-FIX-01（R1 toast 透传闭环复评）",
+      "verdict": "passed",
+      "blocking_issues": 0,
+      "warnings": 0,
+      "file": "knowledge/变更/进行中/20260712113253-合并卡飞书按钮与merge指令/04-review.md",
+      "summary": "R1 已闭环：lark-core return await onCardAction；daemon 透传 Promise；feishu-card-action 返回 FeishuCardActionToastResponse；无新阻断项，可进 kb-test"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "sync_skipped": true,
+    "sync_skipped_reason": "integrations 未配置，跳过步骤 10 外部 sync"
+  }
+}

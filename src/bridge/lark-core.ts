@@ -1070,6 +1070,31 @@ export class LarkSender {
           this.log("ERROR", `p2p_entered 事件处理异常: ${e instanceof Error ? e.message : e}`);
         }
       },
+      // 卡片按钮点击（合并卡 merge_* 等）；handler 须 return toast 载荷供 SDK 回传飞书
+      "card.action.trigger": async (data: unknown) => {
+        if (!callbacks?.onCardAction) return;
+        try {
+          const raw = data as Record<string, unknown>;
+          const operator = raw.operator as { operator_id?: { open_id?: string } } | undefined;
+          const openId = String(operator?.operator_id?.open_id ?? "");
+          const openChatId = String(raw.open_chat_id ?? raw.chat_id ?? "");
+          const actionObj = raw.action as { value?: Record<string, unknown> } | undefined;
+          const rawValue = actionObj?.value;
+          const action = String(rawValue?.action ?? "");
+          if (!action || !openId || !openChatId) {
+            this.log("WARN", `card.action.trigger 缺少 action/openId/openChatId: ${JSON.stringify(raw).slice(0, 200)}`);
+            return;
+          }
+          return await callbacks.onCardAction({
+            action,
+            openId,
+            openChatId,
+            rawValue,
+          });
+        } catch (e: unknown) {
+          this.log("ERROR", `card.action.trigger 回调异常: ${e instanceof Error ? e.message : e}`);
+        }
+      },
       "im.message.receive_v1": (data) => {
         try {
           const msg = (data as any)?.message;
@@ -1140,8 +1165,26 @@ export interface FeishuP2pEnteredEvent {
   chatId: string;
 }
 
+/** 卡片按钮点击事件（card.action.trigger） */
+export interface FeishuCardActionEvent {
+  /** 按钮 value.action，如 merge_send_now */
+  action: string;
+  openId: string;
+  openChatId: string;
+  /** 按钮原始 value 对象，供上层扩展字段 */
+  rawValue?: Record<string, unknown>;
+}
+
+/** 飞书 card.action.trigger 回调响应（toast 等，由 EventDispatcher handler 透传回 SDK） */
+export interface FeishuCardActionToastResponse {
+  toast: { type: string; content: string };
+}
+
 /** startConnection 可选事件回调 */
 export interface FeishuConnectionCallbacks {
   onMenuV6?: (event: FeishuMenuEvent) => void | Promise<void>;
   onP2pEntered?: (event: FeishuP2pEnteredEvent) => void | Promise<void>;
+  onCardAction?: (
+    event: FeishuCardActionEvent,
+  ) => FeishuCardActionToastResponse | void | Promise<FeishuCardActionToastResponse | void>;
 }

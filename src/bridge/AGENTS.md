@@ -36,6 +36,9 @@
 - **出站能力**：文本/图片/文件发送、post+md 默认 Markdown 渲染（含 @ 时降级 text）、流式 CardKit（`createStreamingCardEntity`、`updateStreamingCardText`、`closeStreamingCardMode`）、合并批次卡（`renderMergeBatchCard`）、工具/思考进度卡（`renderToolProgressCard`、`renderThinkingCard`）。
 - **presentation 依赖**：shell 工具展示字段经 `../shared/tool-presentation.js` 解析，不在本文件重复实现截断/格式化逻辑。
 - **降级路径**：CardKit 创建或 PATCH 失败时由 daemon 回退 `sendStreamMessage` 或分段文本；lark-core 函数应抛出或可判失败，不吞错。
+- **WS 事件注册**：`startConnection` 内 `EventDispatcher.register` 须为已订阅事件提供 handler（避免 SDK no handler WARN）；可选业务回调经 `FeishuConnectionCallbacks` 注入，未提供时 early return，不破坏既有 menu_v6/p2p_entered 行为。
+- **卡片回调透传**：`card.action.trigger` handler 须 `return await onCardAction(...)`，将 `{ toast: { type, content } }` 回传 SDK；禁止 `void Promise.resolve` 丢弃返回值（menu_v6/p2p_entered 仍 fire-and-forget）。
+- **行数债务**：`lark-core.ts` 已超 300 行硬限；本文件增量须克制，整体拆分另开任务，禁止顺手扩 scope。
 
 ## 微信客户端（wechat-manager.ts + wechat/）
 
