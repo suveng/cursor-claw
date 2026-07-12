@@ -88,8 +88,7 @@ export default function DashboardStatusCards({
   onToggleChannels, onToggleSessions, onToggleQueue, onClearQueue,
 }: Props) {
   return (
-      {/* Status cards */}
-      <div className="grid grid-cols-4 gap-3 px-6 py-4">
+    <div className="grid grid-cols-4 gap-3 px-6 py-4">
         <StatusCard
           icon={status.running ? Wifi : WifiOff}
           label="Daemon"
@@ -207,8 +206,7 @@ export default function DashboardStatusCards({
             ) : undefined}
           />
         </div>
-      </div>
-
+    </div>
   )
 }
 
