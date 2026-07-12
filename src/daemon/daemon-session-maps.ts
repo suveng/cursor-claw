@@ -3,7 +3,11 @@
  * 经 createSessionMaps 注入 channel.resolve；禁止 import presentation/orchestrator。
  */
 import { parseChatKey } from "../shared/channel-types.js";
-import { scheduleSessionRoutingPersist } from "./daemon-session-routing-persist.js";
+import {
+  clearActiveTouched,
+  markActiveTouched,
+  scheduleSessionRoutingPersist,
+} from "./daemon-session-routing-persist.js";
 import { fallbackSessionMap } from "./daemon-session-routing.js";
 import type { QueueMessage } from "../bridge/file-queue.js";
 import type { SessionProgressState } from "./daemon-presentation-ordering.js";
@@ -50,9 +54,21 @@ export function createSessionMaps(deps: SessionMapsDeps) {
     deps.log("INFO", `打 DONE 表情: ${ids.length} 条, session=${sessionKey}`);
   }
 
-  function setActiveSession(chatId: string, sessionKey: string): void {
+  /**
+   * 绑定 active 映射并维护反向索引。
+   * @param opts.touch 默认 true（运行期触达续期）；冷启动 load 须传 false，禁止 mark/schedule
+   */
+  function setActiveSession(
+    chatId: string,
+    sessionKey: string,
+    opts?: { touch?: boolean },
+  ): void {
     activeSessionMap.set(chatId, sessionKey);
     sessionToChatMap.set(sessionKey, chatId);
+    // 冷启动重建反向索引：与触达 mark 解耦（R1）
+    if (opts?.touch === false) return;
+    // 仅本键续期；须在 schedule 之前 mark，避免写盘保真读到旧戳
+    markActiveTouched(chatId);
     scheduleSessionRoutingPersist(activeSessionMap, fallbackSessionMap);
     deps.log("INFO", `会话路由更新: ${chatId} → ${sessionKey}`);
   }
@@ -61,6 +77,8 @@ export function createSessionMaps(deps: SessionMapsDeps) {
     const sessionKey = activeSessionMap.get(chatId);
     activeSessionMap.delete(chatId);
     if (sessionKey) sessionToChatMap.delete(sessionKey);
+    // 清除旁路 touch，避免孤儿键；须在 schedule 之前
+    clearActiveTouched(chatId);
     scheduleSessionRoutingPersist(activeSessionMap, fallbackSessionMap);
     deps.log("INFO", `会话路由清除: ${chatId}`);
   }

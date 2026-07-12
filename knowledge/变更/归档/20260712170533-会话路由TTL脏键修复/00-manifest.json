@@ -1,0 +1,186 @@
+{
+  "change_id": "20260712170533",
+  "id": "20260712170533-会话路由TTL脏键修复",
+  "name": "会话路由TTL脏键修复",
+  "title": "会话路由TTL脏键修复",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T17:05:33+0800",
+  "updated_at": "2026-07-12T17:57:25+08:00",
+  "depends_on": [
+    "20260712113356-Agent标识跨重启持久化"
+  ],
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-session-routing-persist.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-session-maps.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-session-routing.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "role": "agents_rule",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-session-routing-ttl-dirty-key-contract.mts",
+      "role": "contract_test",
+      "kind": "test",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-session-routing-ttl-dirty-key-contract.sh",
+      "role": "contract_test",
+      "kind": "test",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/02-多会话模型.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "persist 模块 buildSnapshot 保真与 mark/clear",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-session-routing-persist.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "maps 层 set/clearActiveSession 接线 mark/clear",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-session-maps.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "routing 层 set/clearSessionFallback 接线 mark/clear",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-session-routing.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "auto_test 脏键触达与运行期 prune 契约",
+      "status": "done",
+      "files": [
+        "knowledge/变更/归档/20260712170533-会话路由TTL脏键修复/auto_test/run-session-routing-ttl-dirty-key-contract.mts",
+        "knowledge/变更/归档/20260712170533-会话路由TTL脏键修复/auto_test/run-session-routing-ttl-dirty-key-contract.sh"
+      ],
+      "depends_on": [
+        "T1",
+        "T2",
+        "T3"
+      ]
+    },
+    {
+      "id": "T-FIX-01",
+      "title": "冷启动 onActiveSet 与 mark 解耦（R1）",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-session-maps.ts",
+        "src/daemon/daemon.ts",
+        "src/daemon/AGENTS.md",
+        "knowledge/变更/归档/20260712170533-会话路由TTL脏键修复/auto_test/run-session-routing-ttl-dirty-key-contract.mts",
+        "knowledge/变更/归档/20260712170533-会话路由TTL脏键修复/03-tasks.md"
+      ],
+      "depends_on": [
+        "T2"
+      ],
+      "note": "R1：setActiveSession opts.touch=false；load 禁止裸传；契约覆盖 onActiveSet 不抬升戳"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "critical",
+      "status": "fixed",
+      "file": "src/daemon/daemon-session-maps.ts",
+      "summary": "冷启动 loadSessionRoutingInto 经 onActiveSet=setActiveSession 无条件 markActiveTouched，重启后全量抬升存活 active 的 lastTouchedAt 并 debounce 写盘，违背 01 R1；须将反向索引重建与触达 mark 解耦，并补契约覆盖该路径",
+      "task_id": "T-FIX-01",
+      "fix_note": "setActiveSession 增加 opts.touch；daemon load 传 touch:false；契约覆盖 onActiveSet 不抬升 + 静态禁裸传",
+      "resolution": "复评2026-07-12：现盘 opts.touch=false 早退；load 包装回调非裸传；契约 ALL PASS（含 onActiveSet 不误 mark）；闭环确认"
+    }
+  ],
+  "revisions": [],
+  "external": {
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / integrations.notifications 配置",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "技术债",
+    "priority": "P0"
+  },
+  "archived_at": "2026-07-12T17:57:25+08:00"
+}

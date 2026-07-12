@@ -63,8 +63,10 @@
 ## session-routing 持久化（`daemon-session-routing-persist.ts`）
 
 - **纯函数导出**：禁止 Service 类；`lastTouchedAt` 由模块内 touch 旁路表维护，与传入 `Map` 键对齐。
+- **触达接线**：运行期 `set*` / `clear*` 须在 `scheduleSessionRoutingPersist` **之前**对本键调用 `mark*Touched` / `clear*Touched`；禁止在 `buildSnapshot` 写盘路径全量刷新 touch。
+- **冷启动解耦**：`loadSessionRoutingInto` 的 `onActiveSet` **禁止**直接传裸 `setActiveSession`；须 `setActiveSession(chatId, sessionKey, { touch: false })`（或薄回调只写 `sessionToChatMap`），禁止 load 路径 mark/schedule。
 - **容错**：读盘/写盘失败不抛未捕获异常；写盘失败 `stderr` WARN（`[session-routing]` 前缀）。
-- **接线**：`daemonMain` 在 `wireDaemonSubmodules` 前 `loadSessionRoutingInto`（失败 `session_routing_load_failed` WARN，空映射继续）；`setActiveSession` / `clearActiveSession` / fallback helper 末尾 `scheduleSessionRoutingPersist`；`startSessionRoutingPruneTimer` 6h `.unref()`，有剔除时 debounce 写盘；本文件不 import `daemon.ts`。
+- **接线**：`daemonMain` 在 `wireDaemonSubmodules` 前 `loadSessionRoutingInto`（失败 `session_routing_load_failed` WARN，空映射继续）；运行期 `setActiveSession` / `clearActiveSession` / fallback helper 末尾 `scheduleSessionRoutingPersist`；`startSessionRoutingPruneTimer` 6h `.unref()`，有剔除时 debounce 写盘；本文件不 import `daemon.ts`。
 
 ## 依赖注入规矩
 

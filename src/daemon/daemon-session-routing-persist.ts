@@ -20,12 +20,37 @@ interface SessionRoutingSnapshot {
   fallbackSessions: Record<string, FallbackDiskEntry>;
 }
 
-/** 与内存 Map 对齐的 lastTouchedAt 旁路表（Map 本身不存时间戳） */
+/**
+ * 与内存 Map 对齐的 lastTouchedAt 旁路表（Map 本身不存时间戳）。
+ * 约定：仅映射触达/变更时 mark；写盘禁止全量刷新 touch（否则 TTL 退化为「任意会话最后写盘时间」）。
+ * 历史磁盘同戳脏数据不在 load 纠偏（无法无害回溯真实空闲起点；误压旧可能冷启动误删活跃映射）；
+ * 修复后 forward 行为正确，既有膨胀戳最长多虚增一段空闲窗口属一次性残差。
+ */
 const activeTouchAt = new Map<string, number>();
 const fallbackTouchAt = new Map<string, number>();
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingActive: Map<string, string> | null = null;
 let pendingFallback: Map<string, string> | null = null;
+
+/** 映射触达/变更时刷新该键最后触达时间（写盘前由 mutation 调用） */
+export function markActiveTouched(chatId: string): void {
+  activeTouchAt.set(chatId, Date.now());
+}
+
+/** 清除 active 旁路 touch，避免 clear 后孤儿键 */
+export function clearActiveTouched(chatId: string): void {
+  activeTouchAt.delete(chatId);
+}
+
+/** fallback 映射触达/变更时刷新该键最后触达时间 */
+export function markFallbackTouched(sessionKey: string): void {
+  fallbackTouchAt.set(sessionKey, Date.now());
+}
+
+/** 清除 fallback 旁路 touch，避免 clear 后孤儿键 */
+export function clearFallbackTouched(sessionKey: string): void {
+  fallbackTouchAt.delete(sessionKey);
+}
 
 function resolveRoutingPath(): string | null {
   const appDataDir = process.env.APP_DATA_DIR;
@@ -134,6 +159,10 @@ export function pruneExpiredEntries(
   return pruned;
 }
 
+/**
+ * 组装写盘快照：保真各键旁路 lastTouchedAt；缺失时才补 now（防御未 mark 的新键）。
+ * 禁止遍历在册键无条件 set(touch, now)。
+ */
 function buildSnapshot(
   active: Map<string, string>,
   fallback: Map<string, string>,
@@ -142,12 +171,20 @@ function buildSnapshot(
   const activeSessions: Record<string, ActiveDiskEntry> = {};
   const fallbackSessions: Record<string, FallbackDiskEntry> = {};
   for (const [chatId, sessionKey] of active) {
-    activeTouchAt.set(chatId, now);
-    activeSessions[chatId] = { sessionKey, lastTouchedAt: now };
+    let touched = activeTouchAt.get(chatId);
+    if (touched === undefined) {
+      touched = now;
+      activeTouchAt.set(chatId, touched);
+    }
+    activeSessions[chatId] = { sessionKey, lastTouchedAt: touched };
   }
   for (const [sessionKey, fallbackSessionKey] of fallback) {
-    fallbackTouchAt.set(sessionKey, now);
-    fallbackSessions[sessionKey] = { fallbackSessionKey, lastTouchedAt: now };
+    let touched = fallbackTouchAt.get(sessionKey);
+    if (touched === undefined) {
+      touched = now;
+      fallbackTouchAt.set(sessionKey, touched);
+    }
+    fallbackSessions[sessionKey] = { fallbackSessionKey, lastTouchedAt: touched };
   }
   return { version: SCHEMA_VERSION, activeSessions, fallbackSessions };
 }

@@ -161,7 +161,12 @@ export async function daemonMain(): Promise<void> {
   process.on("unhandledRejection", (reason, promise) =>
     log("ERROR", `未处理的 Promise 拒绝: ${formatUnknownError(reason, { includeRegistrationHint: true })}${promise ? ` | promise=${Object.prototype.toString.call(promise)}` : ""}`));
   initQueue(); startMediaCacheCleanup(log);
-  const routingLoad = loadSessionRoutingInto(activeSessionMap, fallbackSessionMap, setActiveSession);
+  // 冷启动仅重建反向索引：touch:false 禁止 mark/schedule，避免全员续命（R1）
+  const routingLoad = loadSessionRoutingInto(
+    activeSessionMap,
+    fallbackSessionMap,
+    (chatId, sessionKey) => setActiveSession(chatId, sessionKey, { touch: false }),
+  );
   if (!routingLoad.ok) log("WARN", `session_routing_load_failed: ${routingLoad.error}`);
   else if (routingLoad.pruned > 0) {
     log("INFO", `session_routing_pruned: ${routingLoad.pruned}`);
