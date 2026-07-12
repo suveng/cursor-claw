@@ -3,6 +3,11 @@
  */
 import type * as http from "node:http";
 import type { HttpRoutesDeps } from "./daemon-http-routes-types.js";
+import {
+  clearSessionFallback,
+  getSessionFallback,
+  setSessionFallback,
+} from "./daemon-session-routing.js";
 
 /** session-last-reply / active-session / session-fallback 等 */
 export async function tryHandleSessionRoute(
@@ -46,7 +51,7 @@ export async function tryHandleSessionRoute(
   if (method === "DELETE" && pathname === "/api/active-session") {
     const qs = new URL(req.url ?? "", "http://localhost").searchParams;
     const chatId = qs.get("chatId");
-    if (chatId) deps.activeSessionMap.delete(chatId);
+    if (chatId) deps.clearActiveSession(chatId);
     deps.json(res, { ok: true });
     return true;
   }
@@ -63,7 +68,7 @@ export async function tryHandleSessionRoute(
         deps.json(res, { ok: false, error: "sessionKey and fallbackSessionKey required" }, 400);
         return true;
       }
-      deps.fallbackSessionMap.set(sessionKey, fallbackSessionKey);
+      setSessionFallback(sessionKey, fallbackSessionKey);
       deps.json(res, { ok: true });
     } catch (e: unknown) {
       deps.json(res, { ok: false, error: e instanceof Error ? e.message : String(e) }, 400);
@@ -77,7 +82,7 @@ export async function tryHandleSessionRoute(
       deps.json(res, { ok: false, error: "sessionKey is required" }, 400);
       return true;
     }
-    const fallback = deps.fallbackSessionMap.get(sessionKey) ?? null;
+    const fallback = getSessionFallback(sessionKey) ?? null;
     deps.json(res, { fallbackSessionKey: fallback });
     return true;
   }
@@ -88,7 +93,7 @@ export async function tryHandleSessionRoute(
       deps.json(res, { ok: false, error: "sessionKey is required" }, 400);
       return true;
     }
-    deps.fallbackSessionMap.delete(sessionKey);
+    clearSessionFallback(sessionKey);
     deps.json(res, { ok: true });
     return true;
   }

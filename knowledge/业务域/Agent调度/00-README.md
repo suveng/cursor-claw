@@ -39,6 +39,7 @@
 | Daemon 编排 | `src/daemon/daemon-orchestrator.ts`（`runAgentDispatchLoop`、`forwardElectronAgentApi`、`dispatchSessionToAgent`） |
 | Daemon agent HTTP | `src/daemon/daemon-http-routes-orchestrator.ts`（`/api/agent/launch|dispatch` 路由簇） |
 | 回退栈 | `src/daemon/daemon-session-routing.ts` |
+| 会话路由持久化 | `src/daemon/daemon-session-routing-persist.ts`（`session-routing.json`） |
 | Daemon | `electron/daemon/daemon-manager.ts`、`electron/daemon/daemon-client.ts` |
 | 远程/Cron | `electron/scheduling/command-handler.ts`、`electron/scheduling/cron-scheduler.ts` |
 | Cursor | `electron/agent/cursor-sdk/agent-sdk.ts`、`electron/agent/cursor-sdk/sdk-run-*.ts`、`electron/agent/cursor-sdk/sdk-warmup.ts`、`electron/agent/cursor-sdk/context-usage-model-limit.ts`、`electron/mcp/loaders/mcp-sdk-loader.ts` |
@@ -55,6 +56,7 @@
 
 ## 变更记录
 
+- 2026-07-12：关键源码补 `daemon-session-routing-persist.ts`（archive 20260712113356）。
 - 2026-07-12：关键源码补四引擎 recover（`agent-run-recover-orchestrator`、`*-run-recover`、`*-active-runs.json`）（archive 20260712113332）。
 - 2026-07-12：关键源码补 Engine Port / RunLifecycle / dispatch 对称 notify（archive 20260711232258）。
 - 2026-07-11：关键源码 Daemon 编排锚点扩散（巨型单体拆分批1）。

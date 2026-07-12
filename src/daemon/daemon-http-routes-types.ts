@@ -42,6 +42,7 @@ export interface HttpRoutesDeps {
   ackMessages: (messageId: string, sessionKey?: string) => string[];
   getEarliestMessageTime: (sessionKey: string) => number | null;
   setActiveSession: (chatId: string, sessionKey: string) => void;
+  clearActiveSession: (chatId: string) => void;
   activeSessionMap: Map<string, string>;
   fallbackSessionMap: Map<string, string>;
   sseClients: Set<http.ServerResponse>;

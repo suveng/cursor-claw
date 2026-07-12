@@ -68,7 +68,8 @@ manage_*（T10 废弃中；`manage_mcp`→`/api/mcp`）。
 ## 六、数据
 
 - 队列：`.qmsg/.claimed`（APP_DATA_DIR）。
-- 内存：`mergeBatchBySession`、`sessionAgentPhaseMap`、`sessionProgressMap`。
+- **会话路由**：`session-routing.json`（v1；`activeSessions`/`fallbackSessions` + `lastTouchedAt`；TTL 30d；`daemon-session-routing-persist.ts`；debounce 500ms 原子写）。
+- 内存：`mergeBatchBySession`、`sessionAgentPhaseMap`、`sessionProgressMap`（**不**落盘；重启清空）。
 
 ## 七、非功能与可观测
 
@@ -88,6 +89,7 @@ SSE；stdout `__WECHAT_QR__` 等供 Electron 解析。
 
 ## 十、变更记录
 
+2026-07-12：`session-routing.json` 持久化 active/fallback 映射（archive 20260712113356）。
 2026-07-12：`POST /api/workflow-signal`（resume；loopback 信任域同 `/api/mcp`）（archive 20260712113344）。
 2026-07-12：T-FIX R1–R3；斜杠 SSOT、command/status-map API（archive 20260712113307）。
 2026-07-12：`/merge` 三入口（archive 20260712113253）。

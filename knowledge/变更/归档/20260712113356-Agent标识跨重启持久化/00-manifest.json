@@ -1,0 +1,197 @@
+{
+  "change_id": "20260712113356",
+  "id": "20260712113356-Agent标识跨重启持久化",
+  "name": "Agent标识跨重启持久化",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T11:33:56+0800",
+  "updated_at": "2026-07-12T14:55:00+0800",
+  "archived_at": "2026-07-12T14:55:00+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "change_doc",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation_test",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-session-routing-persist-contract.mts",
+      "kind": "auto_test",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-session-routing-persist-contract.sh",
+      "kind": "auto_test",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-session-routing-persist.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-session-routing.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-session.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-types.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/02-多会话模型.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/02-HTTP与MCP服务.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/01-概览.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/00-README.md",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "新建 session-routing 持久化模块",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-session-routing-persist.ts"
+      ],
+      "depends_on": [],
+      "test_evidence": "C1–C5 契约通过；persist 251 行"
+    },
+    {
+      "id": "T2",
+      "title": "Daemon 启动加载与 activeSession 写盘 hook",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": ["T1"],
+      "test_evidence": "静态接线 + C6 HTTP 跨重启"
+    },
+    {
+      "id": "T3",
+      "title": "回退栈 helper 统一写路径与 HTTP 改调",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-session-routing.ts",
+        "src/daemon/daemon-http-routes-session.ts",
+        "src/daemon/daemon-http-routes-types.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": ["T1"],
+      "test_evidence": "fallbackSessionMap 直写 0 命中；C6 POST 落盘"
+    },
+    {
+      "id": "T4",
+      "title": "TTL 定时 prune 与损坏降级验收补强",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-session-routing-persist.ts",
+        "src/daemon/daemon.ts",
+        "src/daemon/AGENTS.md"
+      ],
+      "depends_on": ["T2", "T3"],
+      "test_evidence": "C2/C3/C5 + startSessionRoutingPruneTimer 静态"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "warning",
+      "status": "accepted_debt",
+      "file": "src/daemon/daemon.ts",
+      "summary": "daemon.ts 1885 行超 AGENTS 300 行上限，属批2 queue/channel/logging 遗留；本变更持久化已拆至 daemon-session-routing-persist.ts",
+      "task_id": null,
+      "resolution": "02 §2 明确禁止把 persist 逻辑塞回 daemon.ts；批2 拆分独立变更跟进"
+    },
+    {
+      "id": "R2",
+      "severity": "warning",
+      "status": "accepted_debt",
+      "file": "src/daemon/daemon-session-routing-persist.ts",
+      "summary": "buildSnapshot 写盘时全量刷新所有条目 lastTouchedAt，弱化运行期 per-entry TTL；load/重启 prune 仍正确",
+      "task_id": "T-FIX-01",
+      "resolution": "P2 可接受；升级路径为脏键 touch 或 persist 前仅更新变更键"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  },
+  "test_summary": {
+    "contract_script": "auto_test/run-session-routing-persist-contract.sh",
+    "result": "ALL PASS",
+    "date": "2026-07-12",
+    "pending_manual": ["S1–S5 飞书+Electron E2E"]
+  }
+}

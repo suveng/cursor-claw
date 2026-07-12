@@ -28,7 +28,8 @@
 | `daemon-http-routes-session.ts` | active-session、session-fallback 等 |
 | `daemon-http-routes-misc.ts` | SSE queue-events、chat-names、user-names |
 | `daemon-http-workflow-signal.ts` | `POST /api/workflow-signal`（action=resume） |
-| `daemon-session-routing.ts` | `fallbackSessionMap` — 临时会话回退栈 SSOT（与 `activeSessionMap` 并列） |
+| `daemon-session-routing.ts` | `fallbackSessionMap` — 临时会话回退栈 SSOT（与 `activeSessionMap` 并列）；`set/clearSessionFallback` 统一 persist；`wireSessionRoutingPersist` 由 `daemon.ts` 注入 active 引用 |
+| `daemon-session-routing-persist.ts` | `session-routing.json` load/save/prune/debounce（纯函数导出，无类；`daemon.ts` T2 已接线） |
 | `daemon-http-admin-crud.ts` | admin CRUD 入口（tasks + workspace/agent entity） |
 | `daemon-http-admin-content.ts` | mcp / rules / skills admin 子路由 |
 | `daemon-http-mcp-admin.ts` | MCP 配置合并、开关、健康探测转发（供 admin-content） |
@@ -44,6 +45,12 @@
 | `daemon-slash-mcp.ts` | `/mcp` 斜杠子命令（复用 `daemon-http-mcp-admin`） |
 | `feishu-event-handlers.ts` / `feishu-card-action.ts` / `server-admin.ts` / `daemon-scheduled-tasks.ts` / `chat-name-resolve.ts` | 飞书事件与合并卡按钮回调；其余为已有边界锚点 |
 
+## session-routing 持久化（`daemon-session-routing-persist.ts`）
+
+- **纯函数导出**：禁止 Service 类；`lastTouchedAt` 由模块内 touch 旁路表维护，与传入 `Map` 键对齐。
+- **容错**：读盘/写盘失败不抛未捕获异常；写盘失败 `stderr` WARN（`[session-routing]` 前缀）。
+- **接线**：`daemonMain` 在 `wireDaemonSubmodules` 前 `loadSessionRoutingInto`（失败 `session_routing_load_failed` WARN，空映射继续）；`setActiveSession` / `clearActiveSession` / fallback helper 末尾 `scheduleSessionRoutingPersist`；`startSessionRoutingPruneTimer` 6h `.unref()`，有剔除时 debounce 写盘；本文件不 import `daemon.ts`。
+
 ## 依赖注入规矩（批1）
 
 - 子模块**禁止**互相 import；跨域仅经 `daemon.ts` 内 `wireDaemonSubmodules` 注入 `*Deps`。
@@ -55,7 +62,7 @@
 - bridge 域：`../bridge/file-queue.js`、`../bridge/wechat-manager.js`、`../bridge/lark-core.js`
 - workflow 域：`../workflow/server-workflow.js`
 - shared 跨域类型：`../shared/channel-types.js`、`../shared/feishu-presentation-gate.js`、`../shared/tool-presentation.js`、`../shared/constants.js`
-- 域内同目录：`./daemon-orchestrator.js`、`./daemon-slash-executor.js`、`./daemon-slash-mcp.js`、`./daemon-presentation-*.js`、`./daemon-http-*.js`、`./daemon-session-routing.js`、`./daemon-presentation-milestone.js`、`./daemon-merge-action-feedback.js`、`./daemon-merge-command.js`、`./feishu-card-action.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`、`./feishu-event-handlers.js`
+- 域内同目录：`./daemon-orchestrator.js`、`./daemon-slash-executor.js`、`./daemon-slash-mcp.js`、`./daemon-presentation-*.js`、`./daemon-http-*.js`、`./daemon-session-routing.js`、`./daemon-session-routing-persist.js`、`./daemon-presentation-milestone.js`、`./daemon-merge-action-feedback.js`、`./daemon-merge-command.js`、`./feishu-card-action.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`、`./feishu-event-handlers.js`
 
 ## MCP admin HTTP（`/api/mcp`）
 

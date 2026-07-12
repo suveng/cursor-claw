@@ -64,7 +64,12 @@ import { createPresentationHandlers, type PresentationHandlerApi, type Presentat
 import type { SessionProgressState } from "./daemon-presentation-ordering.js";
 import { createAdminCrudRoutes } from "./daemon-http-admin-crud.js";
 import { createAdminApiHandler } from "./daemon-http-routes.js";
-import { fallbackSessionMap } from "./daemon-session-routing.js";
+import { fallbackSessionMap, wireSessionRoutingPersist } from "./daemon-session-routing.js";
+import {
+  loadSessionRoutingInto,
+  scheduleSessionRoutingPersist,
+  startSessionRoutingPruneTimer,
+} from "./daemon-session-routing-persist.js";
 import { startHttpServer as startDaemonHttpServer, type HttpServerDeps } from "./daemon-http-server.js";
 
 const _require = createRequire(import.meta.url);
@@ -806,7 +811,17 @@ function flushPendingDone(sessionKey: string): void {
 function setActiveSession(chatId: string, sessionKey: string): void {
   activeSessionMap.set(chatId, sessionKey);
   sessionToChatMap.set(sessionKey, chatId);
+  scheduleSessionRoutingPersist(activeSessionMap, fallbackSessionMap);
   log("INFO", `会话路由更新: ${chatId} → ${sessionKey}`);
+}
+
+/** 清除 chat 活跃会话映射并触发 persist（HTTP DELETE /api/active-session） */
+function clearActiveSession(chatId: string): void {
+  const sessionKey = activeSessionMap.get(chatId);
+  activeSessionMap.delete(chatId);
+  if (sessionKey) sessionToChatMap.delete(sessionKey);
+  scheduleSessionRoutingPersist(activeSessionMap, fallbackSessionMap);
+  log("INFO", `会话路由清除: ${chatId}`);
 }
 
 function resolveRawChatId(sessionKey?: string): string | undefined {
@@ -1592,6 +1607,7 @@ function wireDaemonSubmodules(_ctx: DaemonBootstrapContext): void {
     isMergeDispatchAllowed,
   });
   scheduleAgentDispatchRef = orchestratorApi.scheduleAgentDispatch;
+  wireSessionRoutingPersist(activeSessionMap);
 
   /** T5：斜杠执行器 deps（handleCommand 主路径 SSOT） */
   slashExecutorDeps = {
@@ -1701,6 +1717,7 @@ function wireDaemonSubmodules(_ctx: DaemonBootstrapContext): void {
     ackMessages,
     getEarliestMessageTime,
     setActiveSession,
+    clearActiveSession,
     activeSessionMap,
     fallbackSessionMap,
     sseClients,
@@ -1762,6 +1779,16 @@ export async function daemonMain(): Promise<void> {
 
   initQueue();
   startMediaCacheCleanup();
+
+  // 冷启动恢复 session-routing.json；损坏/缺失降级为空映射，不阻断启动
+  const routingLoad = loadSessionRoutingInto(activeSessionMap, fallbackSessionMap, setActiveSession);
+  if (!routingLoad.ok) {
+    log("WARN", `session_routing_load_failed: ${routingLoad.error}`);
+  } else if (routingLoad.pruned > 0) {
+    log("INFO", `session_routing_pruned: ${routingLoad.pruned}`);
+    scheduleSessionRoutingPersist(activeSessionMap, fallbackSessionMap);
+  }
+  startSessionRoutingPruneTimer(activeSessionMap, fallbackSessionMap);
 
   wireDaemonSubmodules({ channels, sessionProgressMap, mergeBatchBySession });
 
