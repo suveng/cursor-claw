@@ -5,3 +5,4 @@
 - 子进程编排复用 `spawn` + `stdio: 'inherit'` + `cwd: ROOT`；非 Windows 不设 `shell: true`。
 - 检查逻辑 inline 于入口文件，**不**新建 `lib/` 或共享 checks 模块（YAGNI）。
 - 新增平台入口时各自独立单文件（如 `mac.cjs`、`linux.cjs`），勿强行抽象 deploy 框架。
+- Linux 用户目录安装须在 `~/.local/bin/<app>` 暴露 CLI 命令名（`ensureBinSymlink`），与 AppImage/目录包产物解耦。

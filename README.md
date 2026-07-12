@@ -501,7 +501,7 @@ npm run build
 npm run dist:win   # Windows
 npm run dist:mac   # macOS（dmg，默认打包后安装并以 --profile=swg 启动）
 npm run pack:mac   # macOS 目录包（同上）
-npm run dist:linux # Linux（AppImage，默认打包后安装并以 --profile=swg 启动）
+npm run dist:linux # Linux（AppImage，安装后 ~/.local/bin/cursor-claw 可用）
 npm run pack:linux # Linux 目录包（同上）
 
 # macOS 也可直接调用 deploy CLI
