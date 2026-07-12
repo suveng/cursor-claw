@@ -66,7 +66,7 @@ hotfix-lite 记录型：**知识库无需更新**。
 |---|-----|------|------|
 | 1 | 重新构建 | 执行 `npm run build`，确认主进程 bundle 成功产出 | ✅ 修复轮 build 已通过 |
 | 2 | bundle 符号检查 | `grep -n 'failedCooldowns' out/main/index.js`：`stopAllSdkSessions` 路径应经 `clearSdkDispatchState`，**不应**出现裸 `failedCooldowns.clear()`（修复前产物在 ~36292 行可见该裸引用） | ✅ 已确认：`stopAllSdkSessions` 调用 `clearSdkDispatchState`（`out/main/index.js` ~36294–36296） |
-| 3 | `/restart` 冒烟 | 应用运行中执行 `/restart`，确认不再报 `failedCooldowns is not defined`，Daemon/SDK 可正常重启 | ⏳ 建议人工 |
+| 3 | `/restart` 冒烟 | 应用运行中执行 `/restart`，确认不再报 `failedCooldowns is not defined`，Daemon/SDK 可正常重启 | ✅ v1.14.4 实机飞书 `/restart` ×2；shutdown→~2s 新 Daemon；无 ReferenceError |
 
 ## 6、归档说明
 
