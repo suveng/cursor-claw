@@ -27,7 +27,7 @@ const COMMANDS: Record<string, string> = {
   "/status": "查看 Agent / Daemon 状态",
   "/list": "查看消息队列列表（不消费）",
   "/task": "定时任务（/task 查看子命令说明；如 /task ls）",
-  "/workflow": "工作流管理（/workflow ls | info | run | resume | status | delete）",
+  "/workflow": "工作流管理（/workflow ls | info | create | update | run | resume | status | delete）",
   "/wf": "同 /workflow",
   "/model": "SDK / Claude Code 模型（/model ls | info | set <序号>）",
   "/mcp": "MCP 服务器管理（/mcp ls | info | enable | disable | delete | add）",

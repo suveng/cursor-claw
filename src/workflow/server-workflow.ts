@@ -166,9 +166,9 @@ export function registerWorkflowAgentTools(mcpServer: McpServer): void {
 export function registerWorkflowAdminTools(mcpServer: McpServer): void {
   mcpServer.tool(
     "manage_workflows",
-    "管理工作流定义与实例。支持：list / get / create / update / delete / run / status",
+    "管理工作流定义与实例。支持：list / get / create / update / delete / run / resume / status",
     {
-      action: z.enum(["list", "get", "create", "update", "delete", "run", "status"]).describe("操作"),
+      action: z.enum(["list", "get", "create", "update", "delete", "run", "resume", "status"]).describe("操作"),
       id: z.string().optional().describe("工作流定义 ID 或实例 ID"),
       data: z.string().optional().describe("工作流定义 YAML 或 JSON（create/update 时使用，YAML 推荐）"),
       input: z.string().optional().describe("run 时的初始输入"),
@@ -191,7 +191,9 @@ export function registerWorkflowAdminTools(mcpServer: McpServer): void {
         }
 
         if (action === "create") {
-          if (!data) return txt("❌ 需要提供 data 参数（JSON 格式的工作流定义）");
+          if (!data) {
+            return txt("❌ 需要提供 data 参数（YAML 或 JSON 格式的工作流定义）");
+          }
           const parsed = parseWorkflowDefinitionText(data);
           const now = Date.now();
           const def = normalizeWorkflowDefinition({
@@ -202,12 +204,16 @@ export function registerWorkflowAdminTools(mcpServer: McpServer): void {
             updatedAt: now,
           });
           saveDefinition(def);
-          return txt(`✅ 工作流「${def.name}」已创建。ID: \`${def.id}\`\n节点: ${def.nodes.map((n) => n.name).join(" → ")}`);
+          return txt(
+            `✅ 工作流「${def.name}」已创建。ID: \`${def.id}\`\n节点: ${def.nodes.map((n) => n.name).join(" → ")}`,
+          );
         }
 
         if (action === "update") {
           if (!id) return txt("❌ 需要提供 id 参数");
-          if (!data) return txt("❌ 需要提供 data 参数");
+          if (!data) {
+            return txt("❌ 需要提供 data 参数（YAML 或 JSON 格式的工作流定义）");
+          }
           const existing = getDefinition(id);
           if (!existing) return txt(`❌ 工作流 "${id}" 不存在`);
           const patch = parseWorkflowDefinitionText(data);
@@ -245,14 +251,27 @@ export function registerWorkflowAdminTools(mcpServer: McpServer): void {
           const fresh = getInstance(inst.id)!;
           emitInstanceUpdate(fresh);
           emitLaunch(fresh, result);
-          emitNotify(fresh.notifyChatId, `🚀 工作流「${def.name}」已启动，第一个节点: ${result.node?.name}`);
+          emitNotify(
+            fresh.notifyChatId,
+            `🚀 工作流「${def.name}」已启动，第一个节点: ${result.node?.name}`,
+          );
 
-          return txt([
-            `🚀 工作流「${def.name}」已启动`,
-            `实例 ID: \`${inst.id}\``,
-            `第一个节点: ${result.node?.name}`,
-            "Agent 已发起启动信号",
-          ].join("\n"));
+          return txt(
+            [
+              `🚀 工作流「${def.name}」已启动`,
+              `实例 ID: \`${inst.id}\``,
+              `第一个节点: ${result.node?.name}`,
+              "Agent 已发起启动信号",
+            ].join("\n"),
+          );
+        }
+
+        // 恢复 paused 实例（与斜杠 / HTTP 共用 resumeWorkflowAndEmit）
+        if (action === "resume") {
+          if (!id) return txt("❌ 需要提供 id 参数（工作流实例 ID）");
+          const out = resumeWorkflowAndEmit(id);
+          if (!out.ok) return txt(`❌ ${out.error ?? "恢复失败"}`);
+          return txt(`✅ ${out.message ?? "工作流已恢复"}`);
         }
 
         if (action === "status") {

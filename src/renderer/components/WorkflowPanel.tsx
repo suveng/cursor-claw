@@ -62,6 +62,7 @@ export default function WorkflowPanel() {
   const [runningDef, setRunningDef] = useState<WorkflowDefinition | null>(null)
   const [runBusy, setRunBusy] = useState(false)
   const [runError, setRunError] = useState("")
+  const [autoPause, setAutoPause] = useState(true)
 
   const refreshDefs = useCallback(async () => {
     setDefs(await window.electronAPI.getWorkflowDefinitions())
@@ -69,6 +70,12 @@ export default function WorkflowPanel() {
 
   const refreshInstances = useCallback(async () => {
     setInstances(await window.electronAPI.getWorkflowInstances())
+  }, [])
+
+  useEffect(() => {
+    void window.electronAPI.getConfig().then((cfg) => {
+      setAutoPause(cfg.workflowAutoPauseStale !== false)
+    })
   }, [])
 
   useEffect(() => {
@@ -82,6 +89,11 @@ export default function WorkflowPanel() {
       setViewInst((prev) => (prev && prev.id === updated.id ? updated : prev))
     })
   }, [])
+
+  const toggleAutoPause = async (checked: boolean) => {
+    setAutoPause(checked)
+    await window.electronAPI.saveConfig({ workflowAutoPauseStale: checked })
+  }
 
   const saveDef = async (d: WorkflowDefinition) => {
     await window.electronAPI.saveWorkflowDefinition(d)
@@ -141,6 +153,21 @@ export default function WorkflowPanel() {
           )}
         </div>
 
+        {/* 自动 paused 开关 + 驳回说明（R4/R5） */}
+        <div className="space-y-1 rounded-md border border-gray-800 bg-gray-800/20 px-3 py-2 text-[11px] text-gray-500">
+          <label className="flex items-center gap-2 text-gray-400 select-none">
+            <input
+              type="checkbox"
+              checked={autoPause}
+              onChange={(e) => void toggleAutoPause(e.target.checked)}
+              className="rounded border-gray-600"
+            />
+            启动时自动暂停陈旧 running 实例
+          </label>
+          <p>开启后应用/Daemon 启动会将未正常结束的 running 标为 paused（首次升级可能批量暂停）。关闭则启动不改写 running。</p>
+          <p>驳回重跑时 Prompt 会附带「上次本节点产出」，便于对照修正。</p>
+        </div>
+
         {subTab === "definitions" && (
           <div className="space-y-1.5">
             {runError && <p className="rounded-md border border-red-800/50 bg-red-950/30 px-3 py-2 text-xs text-red-400">{runError}</p>}
@@ -185,3 +212,4 @@ export default function WorkflowPanel() {
     </>
   )
 }
+

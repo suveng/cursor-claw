@@ -15,7 +15,8 @@
 | `command-handler-model.ts` | `/model` |
 | `command-handler-task.ts` | `/task`；导出 `TaskRunFn` / `TaskEnqueueFn` |
 | `command-handler-mcp.ts` | `/mcp` |
-| `command-handler-workflow.ts` | `/workflow` |
+| `command-handler-workflow.ts` | `/workflow` 路由分发 |
+| `command-handler-workflow-crud.ts` | `/workflow create|update` 定义 CRUD |
 
 域外 / 调度侧仍 `import … from "./command-handler"`（或 `../scheduling/command-handler`），**禁止**新建 barrel `index.ts`。
 

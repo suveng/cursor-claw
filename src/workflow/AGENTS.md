@@ -32,7 +32,12 @@
 | `workflow-path.ts` | 运行时 `APP_DATA_DIR/workflows` 路径 SSOT、存储根日志、遗留目录迁移 |
 | `workflow-session-key.ts` | `buildWorkflowSessionKey` / `assignInstanceSessionKey` |
 | `workflow-store.ts` | 实例与定义运行时存储（每次 IO 经 `workflow-path` 懒解析） |
-| `workflow-engine.ts` | `createInstance`、`startWorkflow`、`handleNext`/`handleReject` |
+| `workflow-engine.ts` | 引擎 facade：re-export 公开符号（路径稳定） |
+| `workflow-engine-prompt.ts` | Prompt 组装、`applyConfigPlaceholders`、上次产出注入 |
+| `workflow-engine-advance.ts` | `handleNext`、Gateway 穿越、`enterTaskNode`（前进路径不 spawn gateway） |
+| `workflow-engine-reject.ts` | `handleReject`；回退跳过 gateway 至最近 task，禁止对 gateway 组装 Prompt/spawn |
+| `workflow-engine-lifecycle.ts` | `createInstance` / `startWorkflow` / `resumeWorkflow` / `recoverStaleInstances` |
+| `workflow-gateway.ts` | Gateway `resolveGatewayNext` 极简 when 求值 |
 | `server-workflow.ts` | Daemon MCP 工具注册、`resumeWorkflowAndEmit` stdout 信号 SSOT |
 | `builtin-workflows.ts` | 内置工作流加载 |
 | `template-utils.ts` | 模板变量与占位符工具 |

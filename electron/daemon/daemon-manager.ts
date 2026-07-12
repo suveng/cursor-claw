@@ -608,6 +608,7 @@ export async function startDaemon(): Promise<{ ok: boolean; error?: string }> {
       CURSOR_CLAW_TEMPLATE_DIR: templateDir,
       NODE_USE_ENV_PROXY: "1",
       CLAW_CHANNELS_JSON: JSON.stringify(channelConfigs),
+      WORKFLOW_AUTO_PAUSE_STALE: config.workflowAutoPauseStale === false ? "0" : "1",
       ...(config.daemonPort ? { LARK_DAEMON_PORT: String(config.daemonPort) } : {}),
     }
     applyProxyEnv(env, config)

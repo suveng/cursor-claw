@@ -97,6 +97,8 @@ interface AppConfig {
   cursorApiKey: string
   /** 历史 CLI 绑定已迁移，Dashboard 待展示一次性提示 Banner */
   cliMigrationPending?: boolean
+  /** 启动时是否将陈旧 running→paused（默认 true） */
+  workflowAutoPauseStale?: boolean
 }
 
 interface ScheduledTask {

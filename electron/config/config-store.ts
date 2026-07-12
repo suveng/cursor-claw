@@ -64,6 +64,8 @@ export interface AppConfig {
   othersModelParams: string
   taskModel: string
   taskModelParams: string
+  /** 启动时是否将陈旧 running 实例标记为 paused（默认 true） */
+  workflowAutoPauseStale: boolean
 }
 
 const defaults: AppConfig = {
@@ -102,6 +104,7 @@ const defaults: AppConfig = {
   othersModelParams: "",
   taskModel: "",
   taskModelParams: "",
+  workflowAutoPauseStale: true,
 }
 
 let _store: Store<AppConfig> | null = null

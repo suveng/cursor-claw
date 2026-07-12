@@ -26,5 +26,6 @@
 ## 编码规矩
 
 - 共享类型从 `../../src/shared/channel-types` import；**禁止**在本目录重复定义 IPC 契约类型。
+- `AppConfig` 新增字段须同步：`config-store.ts`、`electron/preload.ts`、`src/renderer/env.d.ts`。
 - 单文件 ≤300 行；更新渠道默认值与 IPC channel 名勿随意改动。
 - SDK error 可观测性与保活文案规矩见 [agent/cursor-sdk/AGENTS.md](../agent/cursor-sdk/AGENTS.md)。

@@ -37,6 +37,10 @@ function serializeDefinition(def: WorkflowDefinition): string {
       maxRetries: n.maxRetries,
       ...(n.model ? { model: n.model } : {}),
       ...(n.isolated ? { isolated: n.isolated } : {}),
+      // Gateway 字段：缺省 task 不写出，保持既有 YAML 简洁
+      ...(n.kind && n.kind !== "task" ? { kind: n.kind } : {}),
+      ...(n.routes?.length ? { routes: n.routes } : {}),
+      ...(n.defaultNext ? { defaultNext: n.defaultNext } : {}),
     })),
     createdAt: def.createdAt,
     updatedAt: def.updatedAt,

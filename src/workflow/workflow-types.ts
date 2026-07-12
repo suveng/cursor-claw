@@ -1,5 +1,11 @@
 // ── 工作流数据模型 ─────────────────────────────────────────
 
+/** Gateway 条件路由条目 */
+export interface WorkflowRoute {
+  when: string
+  next: string
+}
+
 export interface WorkflowNode {
   id: string
   name: string
@@ -7,6 +13,10 @@ export interface WorkflowNode {
   model?: string
   maxRetries: number
   isolated?: boolean
+  /** 默认 task；gateway 不跑 Agent，仅条件路由 */
+  kind?: "task" | "gateway"
+  routes?: WorkflowRoute[]
+  defaultNext?: string
 }
 
 export interface WorkflowDefinition {
@@ -76,13 +86,31 @@ export function normalizePrompt(prompt: WorkflowPromptInput | undefined): string
   return prompt
 }
 
+/** 规范化定义：缺省 kind=task；gateway 校验 next 指向存在节点 */
 export function normalizeWorkflowDefinition(def: WorkflowDefinition): WorkflowDefinition {
+  const nodeIds = new Set((def.nodes ?? []).map((n) => n.id))
   return {
     ...def,
-    nodes: def.nodes.map((n) => ({
-      ...n,
-      prompt: normalizePrompt(n.prompt as WorkflowPromptInput),
-      maxRetries: n.maxRetries ?? 2,
-    })),
+    nodes: (def.nodes ?? []).map((n) => {
+      const kind = n.kind === "gateway" ? "gateway" : "task"
+      if (kind === "gateway") {
+        for (const r of n.routes ?? []) {
+          if (r.next && !nodeIds.has(r.next)) {
+            throw new Error(`Gateway 节点「${n.id}」路由 next「${r.next}」不存在`)
+          }
+        }
+        if (n.defaultNext && !nodeIds.has(n.defaultNext)) {
+          throw new Error(`Gateway 节点「${n.id}」defaultNext「${n.defaultNext}」不存在`)
+        }
+      }
+      return {
+        ...n,
+        kind,
+        prompt: normalizePrompt(n.prompt as WorkflowPromptInput),
+        maxRetries: n.maxRetries ?? 2,
+        ...(n.routes ? { routes: n.routes } : {}),
+        ...(n.defaultNext ? { defaultNext: n.defaultNext } : {}),
+      }
+    }),
   }
 }

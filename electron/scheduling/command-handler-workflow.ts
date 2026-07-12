@@ -1,21 +1,31 @@
-import { resolveChannelForSession } from "../config/config-store"
 import { deleteDefinition, getDefinition, getInstance, listDefinitions, listInstances } from "../workflow/workflow-file"
 import { resumeWorkflowInstance, runWorkflowDefinition } from "../workflow/workflow-runner"
 import type { WorkflowDefinition } from "../../src/workflow/workflow-types"
 import { reportCommandResult } from "./command-handler-shared"
+import { handleWorkflowCreate, handleWorkflowUpdate } from "./command-handler-workflow-crud"
 
 const WORKFLOW_SUBCMD_HELP =
   "💡 /workflow 子命令\n" +
   "🔹 /workflow ls — 列出工作流定义\n" +
   "🔹 /workflow info <序号|ID> — 查看定义详情\n" +
+  "🔹 /workflow create — 其后附 YAML/JSON 正文创建定义\n" +
+  "🔹 /workflow update <id> — 其后附 YAML/JSON 正文更新定义\n" +
   "🔹 /workflow run <序号|ID> [初始输入] — 启动工作流\n" +
   "🔹 /workflow resume <实例ID|序号> — 恢复暂停的工作流\n" +
   "🔹 /workflow status [实例ID] — 查看实例状态\n" +
   "🔹 /workflow delete <序号|ID> — 删除工作流定义"
 
+/** 解析 1-based 序号；非法返回 null */
+function parseOneBasedIndex(s: string | undefined): number | null {
+  if (s === undefined || s === "") return null
+  const n = parseInt(s, 10)
+  if (!Number.isInteger(n) || n < 1) return null
+  return n
+}
+
 function resolveWorkflowDef(defs: WorkflowDefinition[], token: string | undefined): WorkflowDefinition | null {
   if (!token) return null
-  const idx = parseTaskOneBasedIndex(token)
+  const idx = parseOneBasedIndex(token)
   if (idx !== null && idx >= 1 && idx <= defs.length) return defs[idx - 1]
   return defs.find((d) => d.id === token) ?? null
 }
@@ -37,6 +47,16 @@ export async function handleFeishuWorkflowCommand(
   const sub = low(parts[1])
   if (sub === "help" || sub === "-h" || sub === "--help") {
     await reportCommandResult(port, messageId, true, WORKFLOW_SUBCMD_HELP)
+    return
+  }
+
+  // create / update：保留多行正文，交给 CRUD 子模块
+  if (sub === "create") {
+    await handleWorkflowCreate(port, messageId, raw)
+    return
+  }
+  if (sub === "update") {
+    await handleWorkflowUpdate(port, messageId, raw, parts[2])
     return
   }
 
@@ -102,14 +122,13 @@ export async function handleFeishuWorkflowCommand(
       return
     }
     const instances = listInstances().sort((a, b) => b.updatedAt - a.updatedAt)
-    const idx = parseTaskOneBasedIndex(token)
+    const idx = parseOneBasedIndex(token)
     const inst = instances.find((i) => i.id === token)
       ?? (idx !== null && idx >= 1 && idx <= instances.length ? instances[idx - 1] : undefined)
     if (!inst) {
       await reportCommandResult(port, messageId, false, "❌ 实例不存在")
       return
     }
-    // 斜杠入口结构化日志（与 workflow-runner 的 electron 源区分）
     console.log(JSON.stringify({ workflow_resume: { instance_id: inst.id, source: "slash" } }))
     const result = await resumeWorkflowInstance(inst.id)
     console.log(JSON.stringify({ workflow_resume: { instance_id: inst.id, source: "slash", ok: result.ok } }))
@@ -136,7 +155,7 @@ export async function handleFeishuWorkflowCommand(
     const instances = listInstances().sort((a, b) => b.updatedAt - a.updatedAt)
     const token = parts[2]
     if (token) {
-      const idx = parseTaskOneBasedIndex(token)
+      const idx = parseOneBasedIndex(token)
       const inst = instances.find((i) => i.id === token)
         ?? (idx !== null && idx >= 1 && idx <= instances.length ? instances[idx - 1] : undefined)
       if (!inst) {

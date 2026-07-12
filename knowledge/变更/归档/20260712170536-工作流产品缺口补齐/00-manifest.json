@@ -1,0 +1,378 @@
+{
+  "change_id": "20260712170536",
+  "id": "20260712170536-工作流产品缺口补齐",
+  "name": "工作流产品缺口补齐",
+  "title": "工作流产品缺口补齐",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T17:05:36+0800",
+  "updated_at": "2026-07-12T19:18:04+0800",
+  "depends_on": [
+    "20260712113344-工作流恢复入口与信号接口",
+    "20260712145628-工作流会话键与存储统一"
+  ],
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/工作流/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/工作流/01-概览.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/工作流/02-定义与实例.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/工作流/03-节点执行与流转.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/工作流/04-触发与管理入口.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/知识地图.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-engine.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-engine-prompt.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-engine-advance.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-engine-reject.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-engine-lifecycle.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-gateway.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/server-workflow.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-types.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-definition-store.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "resources/template/workflow/node-prompt.md",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler-workflow.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler-workflow-crud.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/workflow/workflow-file.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/workflow/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/config/config-store.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/config/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/preload.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-slash-command-router.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-bootstrap.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/env.d.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/WorkflowDefEditor.tsx",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/WorkflowGatewayFields.tsx",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/WorkflowPanel.tsx",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/WorkflowInstanceDetail.tsx",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "拆分 workflow-engine（≤300 门禁前置）",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/workflow/workflow-engine.ts",
+        "src/workflow/workflow-engine-prompt.ts",
+        "src/workflow/workflow-engine-advance.ts",
+        "src/workflow/workflow-engine-reject.ts",
+        "src/workflow/workflow-engine-lifecycle.ts",
+        "src/workflow/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "MCP 文案对齐 + manage_workflows resume（R1+R2）",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/workflow/server-workflow.ts",
+        "src/daemon/daemon-slash-command-router.ts"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "Prompt config 二次替换 + 驳回上次 output（R8+R3）",
+      "status": "done",
+      "depends_on": [
+        "T1"
+      ],
+      "files": [
+        "src/workflow/workflow-engine-prompt.ts",
+        "resources/template/workflow/node-prompt.md"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "Gateway 类型、求值、advance 接入与 DefEditor（R7）",
+      "status": "done",
+      "depends_on": [
+        "T1"
+      ],
+      "files": [
+        "src/workflow/workflow-types.ts",
+        "src/workflow/workflow-gateway.ts",
+        "src/workflow/workflow-engine-advance.ts",
+        "src/workflow/workflow-definition-store.ts",
+        "src/renderer/components/WorkflowDefEditor.tsx",
+        "src/renderer/components/WorkflowGatewayFields.tsx"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "自动 paused 接线/开关/说明 + 驳回说明（R5+R4）",
+      "status": "done",
+      "depends_on": [
+        "T1"
+      ],
+      "files": [
+        "src/workflow/workflow-engine-lifecycle.ts",
+        "electron/config/config-store.ts",
+        "electron/preload.ts",
+        "src/renderer/env.d.ts",
+        "electron/daemon/daemon-manager.ts",
+        "electron/workflow/workflow-file.ts",
+        "src/daemon/daemon-bootstrap.ts",
+        "src/renderer/components/WorkflowPanel.tsx",
+        "src/renderer/components/WorkflowInstanceDetail.tsx"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "斜杠 /workflow create|update（R9）",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/scheduling/command-handler-workflow.ts",
+        "electron/scheduling/command-handler-workflow-crud.ts",
+        "src/daemon/daemon-slash-command-router.ts"
+      ]
+    },
+    {
+      "id": "T-FIX-01",
+      "title": "handleReject 禁止回退到 Gateway spawn（REV-01）",
+      "status": "done",
+      "depends_on": [
+        "T1",
+        "T4"
+      ],
+      "files": [
+        "src/workflow/workflow-engine-reject.ts",
+        "src/workflow/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "REV-01",
+      "severity": "critical",
+      "status": "fixed",
+      "file": "src/workflow/workflow-engine-reject.ts",
+      "summary": "handleReject 回退目标可为 Gateway，会组装 Prompt 并可能 spawn Agent，违反 R7/02§八 Gateway 不触发 __WF_LAUNCH__",
+      "task_id": "T-FIX-01",
+      "score": 95,
+      "resolution": "resolveRejectTarget：默认跳过连续 gateway 至最近 task；显式 gateway→中文失败；不对 gateway buildRetryPrompt/spawn；AGENTS 已注明；复评通过"
+    }
+  ],
+  "revisions": [],
+  "external": {
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / integrations.notifications 配置",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "figma_note": "文案/设置辅助说明视为无新视觉；开关与说明落 WorkflowPanel / InstanceDetail 既有区域",
+    "task_type": "功能",
+    "priority": "P1"
+  },
+  "archived_at": "2026-07-12T19:18:04+0800"
+}

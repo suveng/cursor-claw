@@ -2,7 +2,7 @@
 
 ## 模块边界
 
-- `workflow-file.ts`：薄封装，委托 `../../src/workflow/workflow-store`；export 名保持稳定。
+- `workflow-file.ts`：薄封装，委托 `../../src/workflow/workflow-store`；`seedBuiltins` 内调用 `recoverStaleInstances`（读 `workflowAutoPauseStale`）。
 - `workflow-runner.ts`：`runWorkflowDefinition` / `resumeWorkflowInstance`；实例读写**仅**经 `workflow-file`。
 
 ## 编码规矩

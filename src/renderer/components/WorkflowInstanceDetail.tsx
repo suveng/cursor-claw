@@ -61,6 +61,11 @@ export default function WorkflowInstanceDetail({ inst, defName, onClose, onDelet
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto px-6 py-4 text-xs">
           {error && <p className="rounded-md border border-red-800/50 bg-red-950/30 px-3 py-2 text-red-400">{error}</p>}
+          {inst.status === "paused" && (
+            <p className="rounded-md border border-yellow-800/40 bg-yellow-950/20 px-3 py-2 text-yellow-500/90">
+              实例已暂停（常见于应用重启时自动保护未完成的 running）。可点下方「恢复」，或使用斜杠 /workflow resume、HTTP / MCP resume。
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <div><span className="text-gray-600">实例ID</span><p className="font-mono text-gray-400">{inst.id}</p></div>
             <div><span className="text-gray-600">步骤</span><p className="text-gray-300">{inst.stepCount} / {inst.maxSteps}</p></div>

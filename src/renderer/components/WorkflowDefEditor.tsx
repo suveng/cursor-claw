@@ -2,13 +2,14 @@ import { useState, useEffect, useCallback } from "react"
 import { Plus, Trash2, X, ChevronDown, FolderOpen } from "lucide-react"
 import type { WorkflowDefinition, WorkflowNode } from "../../workflow/workflow-types"
 import SearchableSelect from "./SearchableSelect"
+import WorkflowGatewayFields from "./WorkflowGatewayFields"
 
 const inputCls = "w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-200 outline-none focus:border-blue-500"
 
 function uid(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8) }
 
 function emptyNode(): WorkflowNode {
-  return { id: uid(), name: "", prompt: "", maxRetries: 1 }
+  return { id: uid(), name: "", prompt: "", maxRetries: 1, kind: "task" }
 }
 
 /** 新建空白工作流定义 */
@@ -100,8 +101,13 @@ export default function WorkflowDefEditor({ initial, onSave, onCancel }: DefEdit
     setActiveNodeIdx(to)
   }
 
-  const canSave = def.name.trim() && def.nodes.every((n) => n.name.trim() && n.prompt.trim())
+  // gateway 可不填 prompt；task 仍要求名称+prompt
+  const canSave = def.name.trim() && def.nodes.every((n) => {
+    if ((n.kind ?? "task") === "gateway") return Boolean(n.name.trim())
+    return Boolean(n.name.trim() && n.prompt.trim())
+  })
   const activeNode = def.nodes[activeNodeIdx]
+  const isGateway = (activeNode?.kind ?? "task") === "gateway"
 
   const getInheritedModel = (nodeIdx: number): string => {
     for (let i = nodeIdx - 1; i >= 0; i--) {
@@ -165,7 +171,7 @@ export default function WorkflowDefEditor({ initial, onSave, onCancel }: DefEdit
                     className={`group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition ${idx === activeNodeIdx ? "bg-blue-600/20 text-blue-300" : "text-gray-400 hover:bg-gray-800 hover:text-gray-200"}`}
                   >
                     <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold ${idx === activeNodeIdx ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-400"}`}>{idx + 1}</span>
-                    <span className="min-w-0 flex-1 truncate">{node.name || "未命名节点"}</span>
+                    <span className="min-w-0 flex-1 truncate">{node.name || "未命名节点"}{(node.kind ?? "task") === "gateway" ? " · gw" : ""}</span>
                     {def.nodes.length > 1 && (
                       <button onClick={(e) => { e.stopPropagation(); removeNode(idx) }} className="invisible shrink-0 text-gray-600 hover:text-red-400 group-hover:visible"><Trash2 size={11} /></button>
                     )}
@@ -190,45 +196,54 @@ export default function WorkflowDefEditor({ initial, onSave, onCancel }: DefEdit
                   <label className="mb-1 block text-xs text-gray-500">节点名称 *</label>
                   <input type="text" value={activeNode.name} onChange={(e) => updateNode(activeNodeIdx, { name: e.target.value })} className={inputCls} placeholder="例如：代码审查" />
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs text-gray-500">Prompt *</label>
-                  <textarea
-                    value={activeNode.prompt}
-                    onChange={(e) => updateNode(activeNodeIdx, { prompt: e.target.value })}
-                    rows={10}
-                    className={inputCls + " font-mono text-xs leading-relaxed"}
-                    placeholder="该节点的 Agent 指令..."
-                  />
-                </div>
-                <div className="flex items-end gap-4">
-                  <div className="w-28 shrink-0">
-                    <label className="mb-1 block text-xs text-gray-500">最大重试</label>
-                    <input type="number" min={0} value={activeNode.maxRetries} onChange={(e) => updateNode(activeNodeIdx, { maxRetries: parseInt(e.target.value) || 0 })} className={inputCls} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <label className="mb-1 block text-xs text-gray-500">模型</label>
-                    {activeNodeIdx === 0 || activeNode.isolated ? (
-                      <SearchableSelect
-                        value={activeNode.model ?? ""}
-                        onChange={(v) => updateNode(activeNodeIdx, { model: v || undefined })}
-                        options={modelOptions}
-                        placeholder={activeNodeIdx === 0 ? `默认: ${modelLabel(defaultModel)}` : `继承: ${getInheritedModel(activeNodeIdx)}`}
+                <WorkflowGatewayFields
+                  node={activeNode}
+                  nodeIds={def.nodes.map((n) => n.id)}
+                  onChange={(patch) => updateNode(activeNodeIdx, patch)}
+                />
+                {!isGateway && (
+                  <>
+                    <div>
+                      <label className="mb-1 block text-xs text-gray-500">Prompt *</label>
+                      <textarea
+                        value={activeNode.prompt}
+                        onChange={(e) => updateNode(activeNodeIdx, { prompt: e.target.value })}
+                        rows={8}
+                        className={inputCls + " font-mono text-xs leading-relaxed"}
+                        placeholder="该节点的 Agent 指令；可用 {{config.KEY}}"
                       />
-                    ) : (
-                      <div className="flex h-[34px] items-center rounded-md border border-gray-700/50 bg-gray-800/50 px-3 text-xs text-gray-400">
-                        继承：{getInheritedModel(activeNodeIdx)}
+                    </div>
+                    <div className="flex items-end gap-4">
+                      <div className="w-28 shrink-0">
+                        <label className="mb-1 block text-xs text-gray-500">最大重试</label>
+                        <input type="number" min={0} value={activeNode.maxRetries} onChange={(e) => updateNode(activeNodeIdx, { maxRetries: parseInt(e.target.value) || 0 })} className={inputCls} />
                       </div>
+                      <div className="min-w-0 flex-1">
+                        <label className="mb-1 block text-xs text-gray-500">模型</label>
+                        {activeNodeIdx === 0 || activeNode.isolated ? (
+                          <SearchableSelect
+                            value={activeNode.model ?? ""}
+                            onChange={(v) => updateNode(activeNodeIdx, { model: v || undefined })}
+                            options={modelOptions}
+                            placeholder={activeNodeIdx === 0 ? `默认: ${modelLabel(defaultModel)}` : `继承: ${getInheritedModel(activeNodeIdx)}`}
+                          />
+                        ) : (
+                          <div className="flex h-[34px] items-center rounded-md border border-gray-700/50 bg-gray-800/50 px-3 text-xs text-gray-400">
+                            继承：{getInheritedModel(activeNodeIdx)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {activeNodeIdx > 0 && (
+                      <label className="flex items-center gap-2 text-xs text-gray-400 select-none">
+                        <input type="checkbox" checked={activeNode.isolated ?? false} onChange={(e) => {
+                          const isolated = e.target.checked
+                          updateNode(activeNodeIdx, isolated ? { isolated } : { isolated: false, model: undefined })
+                        }} className="rounded border-gray-600" />
+                        隔离运行（独立 Agent 会话，可单独设置模型）
+                      </label>
                     )}
-                  </div>
-                </div>
-                {activeNodeIdx > 0 && (
-                  <label className="flex items-center gap-2 text-xs text-gray-400 select-none">
-                    <input type="checkbox" checked={activeNode.isolated ?? false} onChange={(e) => {
-                      const isolated = e.target.checked
-                      updateNode(activeNodeIdx, isolated ? { isolated } : { isolated: false, model: undefined })
-                    }} className="rounded border-gray-600" />
-                    隔离运行（独立 Agent 会话，可单独设置模型）
-                  </label>
+                  </>
                 )}
               </div>
             </div>

@@ -50,6 +50,7 @@
 
 - `WorkflowPanel.tsx`：定义/实例列表与启动弹窗（≤300 行）。
 - `WorkflowDefEditor.tsx`：工作流定义编辑弹窗；`emptyWorkflowDef()` 供新建入口。
+- `WorkflowGatewayFields.tsx`：Gateway kind/routes/defaultNext 字段编辑（从 DefEditor 拆出守行数）。
 - `WorkflowInstanceDetail.tsx`：实例详情弹窗；导出 `STATUS_STYLE`/`STATUS_LABEL`；paused 态「恢复」经 `resumeWorkflowInstance` IPC。
 
 ## 通用

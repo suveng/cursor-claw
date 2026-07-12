@@ -22,6 +22,7 @@ import {
 import { startHttpServer as startDaemonHttpServer, type HttpServerDeps } from "./daemon-http-server.js";
 import type { ChannelRuntime } from "./daemon-channel.js";
 import type * as http from "node:http";
+import { recoverStaleInstances } from "../workflow/workflow-engine.js";
 
 export function clearFileQueue(log: (level: string, ...args: unknown[]) => void): number {
   const queueDir = getQueueDir();
@@ -108,6 +109,12 @@ export interface PostWireStartDeps {
 
 /** 通道启动 + HTTP + 定时任务；返回监听端口 */
 export async function startChannelsHttpAndScheduler(deps: PostWireStartDeps): Promise<number> {
+  // 冷启动：尊重 WORKFLOW_AUTO_PAUSE_STALE（Electron 注入；缺省 true）
+  const recovered = recoverStaleInstances();
+  if (recovered.length > 0) {
+    deps.log("INFO", `workflow recover: ${recovered.length} 个 running→paused`);
+  }
+
   for (const cfg of deps.channelConfigs) {
     const rt: ChannelRuntime = { cfg, lastP2pChatId: null, bindArmed: false };
     deps.channels.set(cfg.id, rt);

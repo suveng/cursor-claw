@@ -87,6 +87,8 @@ export interface AppConfig {
   wechatAccountId: string
   agentMode: "cli" | "sdk"
   cursorApiKey: string
+  /** 启动时是否将陈旧 running→paused（默认 true） */
+  workflowAutoPauseStale: boolean
 }
 
 export interface DaemonStatus {
