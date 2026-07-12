@@ -2,7 +2,7 @@
 
 ## 一、能力范围
 
-Daemon HTTP、MCP（`/mcp`、`/mcp-admin`）、Presentation/MergeBatch/Agent API。无 poll-message。
+Daemon HTTP、MCP（`/mcp` Agent 工具）、Presentation/MergeBatch/Agent API。无 poll-message；MCP 管理走 `/api/mcp`。
 
 ## 二、设计决策与取舍
 
@@ -14,7 +14,7 @@ Daemon HTTP、MCP（`/mcp`、`/mcp-admin`）、Presentation/MergeBatch/Agent API
 
 ## 三、服务端规则
 
-- 群聊须 @ 入队；斜杠 `executeSlashCommand` 即时 reply（`/merge` 例外；`dual|electron` 可写 `.fcmd`）。
+- 群聊须 @ 入队；斜杠 `executeSlashCommand` 即时 reply（`/merge` 例外；**仅** `dual|electron` 可写 `.fcmd`）。
 - 合并卡 SSOT：`handleMergeBatchAction`（按钮/斜杠/HTTP 三入口）。
 - ack 删队列；DONE 在 ack 路径（T7 无 poll）。
 - MergeBatch：`merge-batch/action`；collecting 静默窗口内禁止 orchestrator claim。
@@ -39,9 +39,9 @@ flowchart LR
 |---|---|
 | send_text / send_image / send_file | 文本/媒体回复（任务路径） |
 
-### MCP Admin（`/mcp-admin`）
+### MCP 管理（HTTP / 斜杠）
 
-manage_*（T10 废弃中；`manage_mcp`→`/api/mcp`）。
+`POST /api/mcp`（list/add/delete/enable/disable/info）；IM `/mcp` 子命令同语义。`/mcp-admin` 已移除（410）。
 
 ### HTTP 路由（节选）
 
@@ -58,8 +58,8 @@ manage_*（T10 废弃中；`manage_mcp`→`/api/mcp`）。
 | POST | /api/send-text | 文本出站 |
 | GET/POST | /api/mcp | list；POST add/delete/enable/disable/info |
 | GET | /api/queue-events | SSE |
-| GET | /commands/skip-check\|executed-ids | dual 斜杠去重（claim 前 skip-check；5s 缓存） |
-| GET/POST | /commands* | dual/electron 遗留 fcmd |
+| GET | /commands/skip-check\|executed-ids | **仅 dual** 斜杠去重（claim 前 skip-check；5s 缓存） |
+| GET/POST | /commands* | **仅 dual/electron** 遗留 fcmd poll |
 | POST | /api/command/execute | Electron agent-api 同步转发 |
 | POST | /api/workflow-signal | 工作流 resume 信号（`daemon-http-workflow-signal.ts`） |
 | POST | /api/mcp/status-map | Electron `fetchElectronMcpStatusMap` |
@@ -82,9 +82,9 @@ SSE；stdout `__WECHAT_QR__` 等供 Electron 解析。
 
 ## 九、已知限制与 TODO
 
-- poll-message 404；`/mcp-admin` 待 T10 废弃；默认 `SLASH_EXEC_MODE=dual`。
+- poll-message 404；`/mcp-admin` 已移除；**默认 `SLASH_EXEC_MODE=daemon`**；显式 `dual` 保留 poll 兼容。
 
 ## 十、变更记录
 
-2026-07-12：HTTP dispatch retry 对齐（20260712144755）；session-routing 持久化（20260712113356）；斜杠/workflow/merge（20260712113307 等）。
+2026-07-12：斜杠稳态默认 daemon、`/mcp-admin` 移除（20260712144931）；HTTP dispatch retry（20260712144755）；session-routing（20260712113356）；斜杠/workflow/merge（20260712113307 等）。
 2026-06-27：Presentation/merge API（20260627162620）。

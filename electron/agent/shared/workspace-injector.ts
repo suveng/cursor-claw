@@ -30,12 +30,12 @@ export function clearInjectionCache(_dir?: string): void {
 
 // ── MCP helpers（仅 cleanup 使用）────────────────────────────────
 
+/** 仅注入 Agent MCP；admin 管理改 POST /api/mcp 或 IM /mcp（/mcp-admin 已移除） */
 export function buildMcpServers(): Record<string, unknown> {
   if (!daemonPort) return {}
   const base = `http://127.0.0.1:${daemonPort}`
   return {
     "cursor-claw": { url: `${base}/mcp` },
-    "cursor-claw-admin": { url: `${base}/mcp-admin` },
   }
 }
 

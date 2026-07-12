@@ -888,10 +888,11 @@ let commandPollSkipChecker: ((messageId: string) => boolean) | undefined
 /** T5：Electron 侧缓存 Daemon 已执行 messageId（sync checker 读本地 Set） */
 let cachedDaemonSlashExecutedIds = new Set<string>()
 
+/** 与 Daemon getSlashExecMode 一致：稳态默认 daemon，非法值回退 daemon */
 function resolveSlashExecMode(): "daemon" | "dual" | "electron" {
-  const raw = (process.env.SLASH_EXEC_MODE ?? "dual").trim().toLowerCase()
+  const raw = (process.env.SLASH_EXEC_MODE ?? "daemon").trim().toLowerCase()
   if (raw === "daemon" || raw === "dual" || raw === "electron") return raw
-  return "dual"
+  return "daemon"
 }
 
 /** 从 Daemon HTTP 同步已执行 messageId 列表（dual poll 去重用） */
@@ -908,7 +909,7 @@ async function syncDaemonSlashExecutedIds(): Promise<void> {
   } catch { /* Daemon 未就绪时跳过 */ }
 }
 
-/** dual 模式注入 poll skip；daemon/electron 模式清除 */
+/** dual 模式注入 poll skip；daemon/electron 模式清除 checker（稳态 daemon 不写 fcmd） */
 function wireSlashPollSkipChecker(): void {
   if (resolveSlashExecMode() !== "dual") {
     setCommandPollSkipChecker(undefined)
@@ -918,7 +919,7 @@ function wireSlashPollSkipChecker(): void {
 }
 
 /**
- * dual 模式 claim 前实时 skip-check（T-FIX-03 / R3）。
+ * 仅 dual 斜杠兼容：claim 前实时 skip-check（T-FIX-03 / R3）。
  * 批量 executed-ids 同步有 5s 窗口，单条查询对齐 Daemon markSlashMessageIdExecuted 60s TTL。
  * 失败策略：保守视为已执行并跳过，优先防止双回复（宁可漏执行也不重复 reportCommandResult）。
  */
@@ -961,7 +962,7 @@ async function checkAndExecutePendingCommands(): Promise<void> {
   const dualSlashPoll = resolveSlashExecMode() === "dual"
 
   for (const cmd of cmds) {
-    // dual：claim 前 skip-check，消除 executed-ids 批量同步窗口内的双回复竞态
+    // 仅 dual 斜杠兼容：claim 前 skip-check，消除 executed-ids 批量同步窗口内的双回复竞态
     if (dualSlashPoll && cmd.messageId) {
       if (await shouldSkipDaemonSlashCommand(lock.port, cmd.messageId)) {
         broadcastLog(`[指令] 跳过已执行 messageId=${cmd.messageId}`, "INFO")

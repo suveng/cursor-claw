@@ -30,7 +30,7 @@
 
 **errorNotified 契约**：`notifying` 入口检查；失败/超时/取消仅一次 IM；`aborted` 静默；S7 `resume()` 重置闩。
 
-**Daemon dispatch 对称**：`daemon-http-routes-orchestrator` 在 `!ok` 且非 `agent_busy` 时 `notifySessionUser`+`stop_progress`。
+**Daemon dispatch 对称**：`POST /api/agent/dispatch` 失败与 IM launch 共用 `handleLaunchFailure`（`daemon-orchestrator-retry.ts`）：`releaseClaimedMessages` + 有限重试（最多 3 次退避）；未耗尽不 ack、排程 `scheduleDispatchRetry`；非 busy 每次失败可 `notifySessionUser`；`agent_busy` 走 `parseBusyRetryDelayMs`+`scheduleBusyRetry`；耗尽后 `notifySessionUser`（`stop_progress`）+ `ackMessages`，日志 `dispatch_retry_exhausted`。接线见 `daemon-http-routes-orchestrator.ts`。
 
 ## 四、客户端流程
 
@@ -75,6 +75,7 @@ SDK pre-send 边界见 §二；CC project scope 门控见 07。
 
 ## 十、变更记录
 
+- 2026-07-12：§三 HTTP dispatch 失败语义对齐 `handleLaunchFailure`（#1 `20260712144755`；archive 步骤 6 核对）。
 - 2026-07-12：`notifyResumeFailure` 抽取 shared（archive 20260712113332）。
 - 2026-07-12：终态契约 + D1～D3（archive 20260711232258）。
 - 2026-07-05：SDK pre-send 保护、context_blocked（archive 20260705230806）。

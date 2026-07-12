@@ -1,0 +1,192 @@
+{
+  "change_id": "20260712144931",
+  "id": "20260712144931-斜杠执行模式稳态收尾",
+  "name": "斜杠执行模式稳态收尾",
+  "title": "斜杠执行模式稳态收尾",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "parent_change_id": "20260712113307-控制层HTTP化与斜杠去Electron依赖",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T14:49:31+0800",
+  "updated_at": "2026-07-12T16:01:53+0800",
+  "archived_at": "2026-07-12T16:01:53+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-slash-steady-state-contract.sh",
+      "role": "automation_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-slash-steady-state-contract.mts",
+      "role": "automation_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-server.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-non-api-routes.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/shared/workspace-injector.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/01-概览.md",
+      "role": "knowledge",
+      "kind": "kb",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/02-HTTP与MCP服务.md",
+      "role": "knowledge",
+      "kind": "kb",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/04-远程指令.md",
+      "role": "knowledge",
+      "kind": "kb",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/10-SDK上下文保护与失败归因.md",
+      "role": "knowledge",
+      "kind": "kb",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/04-配置与更新.md",
+      "role": "knowledge",
+      "kind": "kb",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712113307-控制层HTTP化与斜杠去Electron依赖/05-summary.md",
+      "role": "knowledge",
+      "kind": "kb",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "默认 SLASH_EXEC_MODE 切到 daemon",
+      "status": "done"
+    },
+    {
+      "id": "T2",
+      "title": "dual poll 去重路径注释与 daemon 默认自检",
+      "status": "done"
+    },
+    {
+      "id": "T3",
+      "title": "移除 /mcp-admin HTTP 端点",
+      "status": "done"
+    },
+    {
+      "id": "T4",
+      "title": "workspace-injector 停止注入 cursor-claw-admin",
+      "status": "done"
+    },
+    {
+      "id": "T5",
+      "title": "AGENTS 与知识库默认稳态同步",
+      "status": "done"
+    },
+    {
+      "id": "T6",
+      "title": "ST-S 工程验收与父债回归",
+      "status": "done",
+      "evidence": "06-automation-test.md §7；run-slash-steady-state-contract.sh ALL PASS"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R-01",
+      "severity": "warning",
+      "status": "false_positive",
+      "file": "src/daemon/daemon-http-admin-crud.ts",
+      "summary": "stop/restart/reset 路径 deps.getSlashExecMode?.() ?? \"dual\" 与 R1 默认 daemon 字面不一致",
+      "resolution": "getSlashExecMode 已于 daemon.ts:1680 注入；该分支仅 electron 走入队，daemon/dual 均 HTTP 转发，缺省回退无功能偏差"
+    }
+  ],
+  "revisions": [],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "技术债",
+    "priority": "P1"
+  }
+}

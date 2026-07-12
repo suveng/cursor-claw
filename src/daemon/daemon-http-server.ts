@@ -3,7 +3,7 @@
  */
 import * as http from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createMcpServer, createAdminMcpServer } from "./daemon-http-mcp.js";
+import { createMcpServer } from "./daemon-http-mcp.js";
 import { handleNonApiRoute, type NonApiRoutesDeps } from "./daemon-http-non-api-routes.js";
 
 export interface HttpServerDeps extends NonApiRoutesDeps {
@@ -65,17 +65,25 @@ export function startHttpServer(deps: HttpServerDeps): Promise<number> {
       const method = req.method;
 
       try {
-        if (pathname === "/mcp" || pathname === "/mcp-admin") {
-          const isAgent = pathname === "/mcp";
-          const srv = isAgent ? createMcpServer(mcpDeps) : createAdminMcpServer(mcpDeps);
+        // Agent MCP 工具入口（任务 Agent send_* 等）
+        if (pathname === "/mcp") {
+          const srv = createMcpServer(mcpDeps);
           const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-          if (isAgent) { deps.activeMcpConnections++; deps.lastMcpRequestTime = Date.now(); }
+          deps.activeMcpConnections++;
+          deps.lastMcpRequestTime = Date.now();
           res.on("close", () => {
-            transport.close(); srv.close();
-            if (isAgent) deps.activeMcpConnections = Math.max(0, deps.activeMcpConnections - 1);
+            transport.close();
+            srv.close();
+            deps.activeMcpConnections = Math.max(0, deps.activeMcpConnections - 1);
           });
           await srv.connect(transport);
           await transport.handleRequest(req, res);
+          return;
+        }
+
+        // /mcp-admin 已移除：MCP 管理 SSOT 为 POST /api/mcp 或 IM /mcp
+        if (pathname === "/mcp-admin") {
+          json(res, { error: "mcp-admin 已移除", hint: "请使用 POST /api/mcp 或 IM /mcp" }, 410);
           return;
         }
 

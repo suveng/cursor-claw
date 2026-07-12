@@ -168,11 +168,13 @@ export async function handleNonApiRoute(
   }
 
   if (method === "GET" && pathname === "/commands") {
+    // 仅 dual|electron 斜杠兼容：Electron 5s poll 拉取 .fcmd 待执行指令
     deps.json(res, { commands: deps.getPendingCommands() });
     return true;
   }
 
   if (method === "POST" && pathname === "/commands/claim") {
+    // 仅 dual|electron 斜杠兼容：Electron claim .fcmd 后本地执行
     const body = JSON.parse(await deps.readBody(req));
     const result = deps.claimCommand(body.id);
     deps.json(res, result ? { ok: true, ...result } : { ok: false, error: "not found" });

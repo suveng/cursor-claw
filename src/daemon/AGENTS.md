@@ -105,9 +105,9 @@
 ## 斜杠执行器（daemon-slash-executor）
 
 - **SSOT**：`executeSlashCommand` 进程内即时执行并 `replyToMessage`；`handleCommand` 主路径接线（T5）。
-- **`SLASH_EXEC_MODE`**：`daemon` | `dual` | `electron`；默认 `dual`；`getSlashExecMode()` 读 env，非法值回退 `dual`。
-- **`handleCommand` 顺序**：T8 `tryHandleMergeSlashCommand` → `electron` 仅 `pushCommandToQueue` → 否则 `executeSlashCommand` → `markSlashMessageIdExecuted` → `dual` 双写 `.fcmd`。
-- **`slashExecutedMessageIds`**：60s TTL Map；`wireDaemonSubmodules` 注入 `slashExecutorDeps`；dual poll 经 `GET /commands/skip-check|executed-ids` 查询。
+- **`SLASH_EXEC_MODE`**：`daemon` | `dual` | `electron`；**稳态默认 `daemon`**；`getSlashExecMode()` 读 env，非法值回退 `daemon`。
+- **`handleCommand` 顺序**：T8 `tryHandleMergeSlashCommand` → `electron` 仅 `pushCommandToQueue` → 否则 `executeSlashCommand` → `markSlashMessageIdExecuted` → **仅 `dual`** 双写 `.fcmd`。
+- **`slashExecutedMessageIds`**：60s TTL Map；`wireDaemonSubmodules` 注入 `slashExecutorDeps`；**仅 dual** poll 经 `GET /commands/skip-check|executed-ids` 查询。
 - **本地指令**：`/help`、`/status`、`/list`、`/clean` 不调 Electron；`/mcp` 走 `daemon-slash-mcp.ts`（复用 T3）。
 - **Electron 依赖**：`forwardElectronCommandApi` → `POST /api/command/execute`；未就绪返回「应用未运行」类中文。
 - **T8 划界**：执行器忽略 `/merge` 与 `merge_*` 前缀（double-guard）；**禁止**在 T5 改 `handleMergeBatchAction`。

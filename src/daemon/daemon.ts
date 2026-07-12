@@ -101,11 +101,11 @@ const savedProxyKeys = stripProxyEnv();
 /** 斜杠执行模式：daemon 仅 Daemon SSOT；dual 双写 .fcmd；electron 回滚仅入队 */
 type SlashExecMode = "daemon" | "dual" | "electron";
 
-/** 迁移期默认 dual；非法值回退 dual */
+/** 稳态默认 daemon；显式 dual|electron 为兼容回滚；非法值回退 daemon */
 function getSlashExecMode(): SlashExecMode {
-  const raw = (process.env.SLASH_EXEC_MODE ?? "dual").trim().toLowerCase();
+  const raw = (process.env.SLASH_EXEC_MODE ?? "daemon").trim().toLowerCase();
   if (raw === "daemon" || raw === "dual" || raw === "electron") return raw;
-  return "dual";
+  return "daemon";
 }
 
 /** dual 期 Daemon 已执行 messageId（60s TTL），供 Electron poll skip-check 查询 */
@@ -1393,7 +1393,7 @@ async function handleCommand(
   await executeSlashCommand(slashExecutorDeps, trimmed, messageId, chatId, chatType, channelSource);
   markSlashMessageIdExecuted(messageId);
 
-  // dual 双写：保留 .fcmd 供 Electron poll；poll 经 skip-check 跳过已执行 messageId
+  // 仅 dual 兼容：双写 .fcmd 供 Electron 5s poll；daemon 默认不写 fcmd
   if (mode === "dual") {
     pushCommandToQueue(trimmed, messageId, cmdSource, chatId, chatType);
   }
@@ -1730,7 +1730,7 @@ function wireDaemonSubmodules(_ctx: DaemonBootstrapContext): void {
     adminEntityRoutes,
   });
 
-  /** dual 期 Electron poll 去重：GET /commands/skip-check、/commands/executed-ids */
+  /** 仅 dual|electron 斜杠兼容：Electron poll 去重查询（daemon 默认不走 poll） */
   const baseHandleAdminApi = handleAdminApiRef;
   handleAdminApiRef = async (pathname, method, req, res) => {
     if (method === "GET" && pathname === "/commands/skip-check") {
@@ -1854,7 +1854,7 @@ export async function daemonMain(): Promise<void> {
   });
   process.env.LARK_DAEMON_PORT = String(daemonPort);
   writeLockFile(daemonPort);
-  log("INFO", "MCP 服务已就绪 (/mcp + /mcp-admin)");
+  log("INFO", "MCP 服务已就绪 (/mcp Agent 工具；MCP 管理走 POST /api/mcp 或 IM /mcp)");
 
   setDaemonSchedulerLogger((msg) => { log("INFO", msg); });
   startDaemonScheduledTasks(

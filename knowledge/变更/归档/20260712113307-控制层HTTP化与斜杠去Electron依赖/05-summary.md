@@ -33,7 +33,7 @@
 |----|----------|------|------|
 | M3 健康转发 | Electron `POST /api/mcp/status-map` | **已注册**（T-FIX-02）；委托 `getMcpStatusMap` | agent-api 未监听时仍降级「未知」+ `healthError` |
 | `slash_exec` 日志 `source` | `source=im\|menu` + 执行路径字段 | **已对齐**（T-FIX-01）：`source` 为通道来源，`exec_path` 为 `skip\|local\|mcp\|electron` | — |
-| 默认 `SLASH_EXEC_MODE` | 设计步骤 9 稳态为 `daemon` | 现网默认仍为 **`dual`** | 迁移期未收尾；poll 主路径仍保留 |
+| 默认 `SLASH_EXEC_MODE` | 设计步骤 9 稳态为 `daemon` | **`daemon`**（开箱默认） | **closed_by: `20260712144931`** — 双侧 `getSlashExecMode`/`resolveSlashExecMode` 默认与非法回退均为 `daemon`；poll 仅 `dual\|electron` 兼容 |
 | `GET /commands/skip-check` | claim 前实时去重 | **已接线**（T-FIX-03）；poll claim 前查询，保留 `executed-ids` 批量缓存 | skip-check 失败保守跳过 |
 
 其余主路径（Daemon SSOT、`/api/command/execute`、`/api/mcp` enable/disable/info、菜单与 admin stop 去 fcmd）与设计一致。
@@ -42,7 +42,7 @@
 
 - **模块**：Daemon 控制层（斜杠、MCP admin HTTP）、Electron command 执行后端（`command-executor` + agent-api）。
 - **接口**：新增 Electron `POST /api/command/execute`；扩展 Daemon `POST /api/mcp`（enable/disable/info）；遗留 `/commands*` 仅 dual/electron 模式。
-- **环境变量**：`SLASH_EXEC_MODE=daemon|dual|electron`（默认 `dual`）。
+- **环境变量**：`SLASH_EXEC_MODE=daemon|dual|electron`（**默认 `daemon`**；`closed_by: 20260712144931`）。
 - **数据**：无持久化变更；dual 期内存 `slashExecutedMessageIds` + `.fcmd` 双写去重。
 
 ### 3.1 Ponytail 技术债
