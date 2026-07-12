@@ -48,11 +48,14 @@ function emitInstanceUpdate(inst: WorkflowInstance): void {
   process.stdout.write(`__WF_INSTANCE__:${JSON.stringify(inst)}\n`);
 }
 
-/** 工作流恢复结构化日志（写 stderr，避免污染 stdout 信号行） */
-function logWorkflowResume(instanceId: string, ok: boolean): void {
-  process.stderr.write(
-    `workflow_resume ${JSON.stringify({ instance_id: instanceId, source: "daemon", ok })}\n`,
-  );
+/** 工作流恢复结构化日志（写 stderr，避免污染 stdout 信号行；入口可省略 ok） */
+function logWorkflowResume(instanceId: string, ok?: boolean): void {
+  const entry: { instance_id: string; source: "daemon"; ok?: boolean } = {
+    instance_id: instanceId,
+    source: "daemon",
+  };
+  if (ok !== undefined) entry.ok = ok;
+  process.stderr.write(`workflow_resume ${JSON.stringify(entry)}\n`);
 }
 
 function validateRunning(instanceId: string): string | null {
@@ -90,7 +93,7 @@ export function resumeWorkflowAndEmit(
   instanceId: string,
 ): { ok: boolean; error?: string; message?: string; instanceId?: string } {
   const id = instanceId.trim();
-  logWorkflowResume(id, false);
+  logWorkflowResume(id);
 
   const result = resumeWorkflow(id);
   if (result.failed) {

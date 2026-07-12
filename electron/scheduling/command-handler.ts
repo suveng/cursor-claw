@@ -678,7 +678,7 @@ export async function handleFeishuWorkflowCommand(
     const inst = instances.find((i) => i.id === token)
       ?? (idx !== null && idx >= 1 && idx <= instances.length ? instances[idx - 1] : undefined)
     if (!inst) {
-      await reportCommandResult(port, messageId, false, "❌ 找不到该实例")
+      await reportCommandResult(port, messageId, false, "❌ 实例不存在")
       return
     }
     // 斜杠入口结构化日志（与 workflow-runner 的 electron 源区分）

@@ -1,0 +1,57 @@
+{
+  "change_id": "20260712144641",
+  "id": "20260712144641-工作流恢复债务清偿",
+  "name": "工作流恢复债务清偿",
+  "title": "工作流恢复债务清偿",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "parent_change_id": "20260712113344-工作流恢复入口与信号接口",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T14:46:41+0800",
+  "updated_at": "2026-07-12T15:30:27+0800",
+  "archived_at": "2026-07-12T15:30:27+0800",
+  "tasks": [
+    {
+      "id": "LITE-D1",
+      "title": "Daemon resumeWorkflowAndEmit 入口日志对齐 Electron",
+      "status": "done",
+      "files": ["src/workflow/server-workflow.ts"]
+    },
+    {
+      "id": "LITE-D3",
+      "title": "斜杠 resume 实例未命中文案对齐设计",
+      "status": "done",
+      "files": ["electron/scheduling/command-handler.ts"]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260712144641-工作流恢复债务清偿/00-manifest.json",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712144641-工作流恢复债务清偿/01-proposal.md",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712144641-工作流恢复债务清偿/05-summary.md",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/server-workflow.ts",
+      "kind": "code",
+      "status": "changed"
+    },
+    {
+      "path": "electron/scheduling/command-handler.ts",
+      "kind": "code",
+      "status": "changed"
+    }
+  ]
+}
