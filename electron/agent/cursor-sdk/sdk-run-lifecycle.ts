@@ -18,9 +18,8 @@ import {
 } from "./engine-port-adapter"
 import {
   broadcastSdkSessionStatus,
-  failedCooldowns,
+  clearSdkDispatchState,
   markSessionActivity,
-  pendingLaunches,
   sdkSessions,
 } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
@@ -96,6 +95,5 @@ export function stopSdkSession(sessionKey: string): void {
 
 export function stopAllSdkSessions(): void {
   for (const key of [...sdkSessions.keys()]) stopSdkSession(key)
-  failedCooldowns.clear()
-  pendingLaunches.clear()
+  clearSdkDispatchState()
 }

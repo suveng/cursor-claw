@@ -199,6 +199,12 @@ export function sleep(ms: number): Promise<void> {
 /** 多 session 共用 workspaceDir 时 WARN（每目录每进程至多 1 条） */
 const warnedWorkspaceDirs = new Set<string>()
 
+/** 停止全部 SDK 会话后清理 dispatch 冷却与 pending launch 状态 */
+export function clearSdkDispatchState(): void {
+  failedCooldowns.clear()
+  pendingLaunches.clear()
+}
+
 export function warnIfSharedWorkspaceDir(workspaceDir: string | undefined, sessionKey: string): void {
   if (!workspaceDir?.trim()) return
   let count = 0

@@ -1,0 +1,60 @@
+{
+  "name": "修复restart失败failedCooldowns未定义",
+  "flow": "lite",
+  "stage": "applied",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "updated_at": "2026-07-12T21:09:42+08:00",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "stopAllSdkSessions 经 clearSdkDispatchState 清理 dispatch 状态，修复 bundle 裸引用 failedCooldowns",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-session-registry.ts",
+        "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+        "electron/agent/cursor-sdk/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "electron/agent/cursor-sdk/sdk-session-registry.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "kind": "agents",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712210942-修复restart失败failedCooldowns未定义/00-manifest.json",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712210942-修复restart失败failedCooldowns未定义/01-proposal.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712210942-修复restart失败failedCooldowns未定义/05-summary.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    }
+  ]
+}

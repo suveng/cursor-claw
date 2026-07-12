@@ -37,3 +37,4 @@ Thumbs.db
 .claude
 crash_log
 daemon/daemon.log
+log/daemon.log
