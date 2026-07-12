@@ -12,7 +12,7 @@
 - **收尾模板**：`completeRunFromTemplate` — 幂等闩、f41 成功路径禁止双写 assistant、失败挂 `archiveAgentFailureLogs`。
 - **guard busy（S8）**：四引擎须 `enterGuardWithLifecycle`；busy→`notifyGuardBusy`（`session_abnormal`，`stop_progress`）一次 IM；`stale_aborted` 不二次 notify。
 - **续接（S7）**：`RunLifecycle.resume()` 清零 `errorNotified`/`runFinalizing`→`guarding`；`sdk-run-recover` 续接前调用。
-- **pre-send（SDK 专有）**：`lastPreSend*` 快照；ratio≥100% 且未轮转 → `context_blocked`。
+- **pre-send（SDK）**：`lastPreSend*`；ratio≥100% 未轮转→`context_blocked`。
 
 ## 三、服务端规则
 
@@ -74,5 +74,5 @@ SDK pre-send 边界见 §二；CC project scope 门控见 07。
 
 ## 十、变更记录
 
-- 2026-07-12：四引擎终态契约 + D1～D3（S8 busy IM、S7 resume、契约冒烟）（archive 20260711232258）。
+- 2026-07-12：终态契约 + D1～D3（archive 20260711232258）。
 - 2026-07-05：SDK pre-send 保护、context_blocked（archive 20260705230806）。

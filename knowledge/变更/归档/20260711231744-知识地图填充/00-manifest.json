@@ -1,0 +1,65 @@
+{
+  "change_id": "20260711231744-知识地图填充",
+  "id": "20260711231744-知识地图填充",
+  "name": "知识地图填充",
+  "title": "知识地图填充",
+  "projectName": "cursor-claw",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "updated_at": "2026-07-11T23:20:30+08:00",
+  "archived_at": "2026-07-11T23:20:30+08:00",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "填充知识地图五节、知识索引 B 节与工程平台 README 分区入口",
+      "status": "completed",
+      "files": [
+        "knowledge/知识地图.md",
+        "knowledge/知识索引.md",
+        "knowledge/工程平台/README.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260711231744-知识地图填充/00-manifest.json",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711231744-知识地图填充/01-proposal.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711231744-知识地图填充/05-summary.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/知识地图.md",
+      "kind": "index",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/知识索引.md",
+      "kind": "index",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/工程平台/README.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed"
+    }
+  ]
+}

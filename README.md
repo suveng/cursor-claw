@@ -31,7 +31,7 @@ Cursor Agent 的交互被锁死在本地 IDE 中，一旦离开电脑，所有 A
 | Rule & Skill | 管理 Cursor Rules 和 Agent Skills，支持文件树浏览和编辑              |
 | 自管理能力 | Agent 可通过 MCP 工具管理自身（MCP/Rules/Skills/Tasks/Workspace） |
 | 数字身份 | 为群聊和非主用户会话注入自定义角色定义                                    |
-| 工作区注入 | 自动写入 `.cursor/mcp.json`、Loop 协议规则和自管理 Skill            |
+| 工作区注入 | launch 写入 mcp.json；Rules 不自动注入（workspace-injector no-op）；Skills 可选；Loop/cursor-claw.mdc 可选手动 inject |
 | 应用隔离 | 支持多开，通过启动参数 `--profile=xxx` 隔离多个应用数据                   |
 | 应用内更新 | 支持检查更新 / 一键更新，Homebrew 用户可通过 brew 升级                   |
 | 系统托盘 | 关闭窗口可最小化到托盘，后台持续运行                                     |
@@ -43,24 +43,24 @@ Cursor Agent 的交互被锁死在本地 IDE 中，一旦离开电脑，所有 A
 │  Electron 应用                                          │
 │  · 配置向导 / Dashboard / 设置（React + Tailwind）          │
 │  · 管理 Daemon 生命周期、Cron 调度、多会话管理               │
-│  · 自动注入 .cursor/mcp.json、Rules 和 Skills               │
+│  · launch 写入 mcp.json；Rules 不自动注入；Skills 可选     │
 └──────────────┬──────────────────────────────┬──────────────┘
                │ spawn                        │ 写入工作区
                ▼                              ▼
 ┌──────────────────────────┐    ┌─────────────────────────────┐
 │  Daemon 守护进程          │    │  .cursor/                    │
 │  · 飞书 WebSocket 长连接  │    │  ├── mcp.json                │
-│  · 微信 iLink 长轮询      │    │  ├── rules/                  │
-│  · 本机 HTTP API          │    │  │   └── cursor-claw.mdc     │
-│  · 文件消息队列           │    │  └── skills/                 │
-│  · 指令路由（飞书/微信）  │    │      └── cursor-claw-admin │
-│  · 会话保活（自动重连）   │    └──────────────┬──────────────┘
+│  · 微信 iLink 长轮询      │    │  ├── rules/（可选手动 inject）│
+│  · 本机 HTTP API          │    │  └── skills/                 │
+│  · 文件消息队列           │    │      └── cursor-claw-admin │
+│  · 指令路由（飞书/微信）  │    └──────────────┬──────────────┘
+│  · 会话保活（自动重连）   │                   │
 └──────────────┬───────────┘                   │ stdio
                │ HTTP 127.0.0.1                ▼
                │                  ┌─────────────────────────────┐
                └─────────────────►│  MCP Server                  │
                                   │  · send_text（发送消息）      │
-                                  │  · HTTP poll-message（拉取）  │
+                                  │  · dispatch 入站（Daemon→SDK）│
                                   │  · send_image / send_file    │
                                   │  · manage_agent / mcp / ...  │
                                   │  Cursor 子进程，stdio 通信    │

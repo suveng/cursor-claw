@@ -1,0 +1,30 @@
+{
+  "change_id": "20260711232319",
+  "id": "20260711232319-README架构图对齐SDK-only",
+  "name": "README架构图对齐SDK-only",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "updated_at": "2026-07-11T23:28:39+08:00",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "修正根 README 架构图中 poll-message 拉取表述，对齐 IM SDK-only 现状",
+      "status": "done",
+      "files": [
+        "README.md",
+        "knowledge/变更/归档/20260711232319-README架构图对齐SDK-only/00-manifest.json"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    "README.md",
+    "knowledge/变更/归档/20260711232319-README架构图对齐SDK-only/00-manifest.json",
+    "knowledge/变更/归档/20260711232319-README架构图对齐SDK-only/01-proposal.md",
+    "knowledge/变更/归档/20260711232319-README架构图对齐SDK-only/05-summary.md"
+  ],
+  "archived_at": "2026-07-11T23:28:39+08:00"
+}

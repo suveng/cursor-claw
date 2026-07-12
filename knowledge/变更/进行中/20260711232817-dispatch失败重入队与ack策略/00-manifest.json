@@ -1,0 +1,23 @@
+{
+  "change_id": "20260711232817",
+  "id": "20260711232817-dispatch失败重入队与ack策略",
+  "name": "dispatch失败重入队与ack策略",
+  "flow": "standard",
+  "stage": "proposed",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-11T23:28:17+0800",
+  "updated_at": "2026-07-11T23:30:05+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "status": "done"
+    }
+  ]
+}

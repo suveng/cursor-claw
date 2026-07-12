@@ -4,4 +4,5 @@
 
 ## 分区入口
 
-（按项目补充各 `knowledge/工程平台/<分区>/00-README.md`。）
+- [Daemon守护进程](Daemon守护进程/00-README.md)
+- [Electron桌面应用](Electron桌面应用/00-README.md)

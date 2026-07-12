@@ -22,7 +22,18 @@
       "kind": "config"
     }
   ],
-  "engineeringPlatforms": [],
+  "engineeringPlatforms": [
+    {
+      "name": "Daemon守护进程",
+      "path": "knowledge/工程平台/Daemon守护进程/",
+      "kind": "server"
+    },
+    {
+      "name": "Electron桌面应用",
+      "path": "knowledge/工程平台/Electron桌面应用/",
+      "kind": "client"
+    }
+  ],
   "feishu": {
     "enabled": true,
     "envPath": ".cursor/hooks/feishu.env"
