@@ -1373,8 +1373,9 @@ async function handleCommand(
     return;
   }
 
-  // daemon / dual 主路径：Daemon SSOT 即时执行并 reply
-  await executeSlashCommand(slashExecutorDeps, trimmed, messageId, chatId, chatType);
+  // daemon / dual 主路径：Daemon SSOT 即时执行并 reply（通道来源 im|menu 写入 slash_exec）
+  const channelSource = source === "menu" ? "menu" : "im";
+  await executeSlashCommand(slashExecutorDeps, trimmed, messageId, chatId, chatType, channelSource);
   markSlashMessageIdExecuted(messageId);
 
   // dual 双写：保留 .fcmd 供 Electron poll；poll 经 skip-check 跳过已执行 messageId

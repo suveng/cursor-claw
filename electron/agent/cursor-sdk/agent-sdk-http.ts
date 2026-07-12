@@ -29,6 +29,7 @@ import { registerCursorEnginePort } from "./engine-port-adapter"
 import { registerCcEnginePort } from "../claude-code/engine-port-adapter"
 import { registerCodexEnginePort } from "../codex/engine-port-adapter"
 import { registerOpencodeEnginePort } from "../opencode/engine-port-adapter"
+import { getMcpStatusMap } from "../../mcp/mcp-manager"
 
 registerCcEnginePort()
 registerCodexEnginePort()
@@ -215,6 +216,20 @@ export function ensureAgentSdkHttpServer(): void {
         const { handleCommandExecuteHttp } = await import("./agent-command-http")
         const cmdResult = await handleCommandExecuteHttp(body)
         jsonAgentApi(res, cmdResult.body, cmdResult.httpStatus)
+        return
+      }
+      if (pathname === "/api/mcp/status-map") {
+        // Daemon fetchElectronMcpStatusMap 健康探测；直接委托 getMcpStatusMap，不经 IPC/.fcmd
+        const workspaceDir =
+          typeof body.workspaceDir === "string" ? body.workspaceDir.trim() || undefined : undefined
+        const force = body.force === true
+        try {
+          const statusMap = await getMcpStatusMap(force, workspaceDir)
+          jsonAgentApi(res, { ok: true, statusMap }, 200)
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e)
+          jsonAgentApi(res, { ok: false, error: msg || "获取 MCP 健康状态失败" }, 503)
+        }
         return
       }
       if (pathname === "/api/sdk-warmup") {

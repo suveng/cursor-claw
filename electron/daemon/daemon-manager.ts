@@ -916,6 +916,30 @@ function wireSlashPollSkipChecker(): void {
   setCommandPollSkipChecker((messageId) => cachedDaemonSlashExecutedIds.has(messageId))
 }
 
+/**
+ * dual 模式 claim 前实时 skip-check（T-FIX-03 / R3）。
+ * 批量 executed-ids 同步有 5s 窗口，单条查询对齐 Daemon markSlashMessageIdExecuted 60s TTL。
+ * 失败策略：保守视为已执行并跳过，优先防止双回复（宁可漏执行也不重复 reportCommandResult）。
+ */
+async function shouldSkipDaemonSlashCommand(port: number, messageId: string): Promise<boolean> {
+  if (!messageId) return false
+  if (cachedDaemonSlashExecutedIds.has(messageId)) return true
+  try {
+    const q = encodeURIComponent(messageId)
+    const res = await httpGet(
+      `http://127.0.0.1:${port}/commands/skip-check?messageId=${q}`,
+    ) as { executed?: boolean }
+    if (res.executed) {
+      cachedDaemonSlashExecutedIds.add(messageId)
+      return true
+    }
+    return false
+  } catch {
+    // skip-check 不可达时保守跳过，避免与 Daemon 主路径竞态导致双回复
+    return true
+  }
+}
+
 /** 注入 poll 路径 messageId 去重检查（T5 dual 模式使用） */
 export function setCommandPollSkipChecker(fn: ((messageId: string) => boolean) | undefined): void {
   commandPollSkipChecker = fn
@@ -933,7 +957,17 @@ async function checkAndExecutePendingCommands(): Promise<void> {
   const cmds = commandsRes.commands
   if (!cmds || cmds.length === 0) return
 
+  const dualSlashPoll = resolveSlashExecMode() === "dual"
+
   for (const cmd of cmds) {
+    // dual：claim 前 skip-check，消除 executed-ids 批量同步窗口内的双回复竞态
+    if (dualSlashPoll && cmd.messageId) {
+      if (await shouldSkipDaemonSlashCommand(lock.port, cmd.messageId)) {
+        broadcastLog(`[指令] 跳过已执行 messageId=${cmd.messageId}`, "INFO")
+        continue
+      }
+    }
+
     let claimed: { command: string; messageId: string; chatId?: string; chatType?: string } | null
     try {
       const claimRes = await httpPost(`http://127.0.0.1:${lock.port}/commands/claim`, { id: cmd.id }) as
@@ -942,6 +976,7 @@ async function checkAndExecutePendingCommands(): Promise<void> {
       claimed = { command: claimRes.command!, messageId: claimRes.messageId!, chatId: claimRes.chatId, chatType: claimRes.chatType }
     } catch { continue }
 
+    // claim 后二次校验（缓存可能在 claim 间隙被 Daemon 主路径更新）
     if (commandPollSkipChecker?.(claimed.messageId)) {
       broadcastLog(`[指令] 跳过已执行 messageId=${claimed.messageId}`, "INFO")
       continue

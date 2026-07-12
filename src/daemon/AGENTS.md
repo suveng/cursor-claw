@@ -103,7 +103,7 @@
 - **本地指令**：`/help`、`/status`、`/list`、`/clean` 不调 Electron；`/mcp` 走 `daemon-slash-mcp.ts`（复用 T3）。
 - **Electron 依赖**：`forwardElectronCommandApi` → `POST /api/command/execute`；未就绪返回「应用未运行」类中文。
 - **T8 划界**：执行器忽略 `/merge` 与 `merge_*` 前缀（double-guard）；**禁止**在 T5 改 `handleMergeBatchAction`。
-- **日志**：结构化字段 `slash_exec`（command、message_id、mode、ok、source）。
+- **日志**：结构化字段 `slash_exec`（command、message_id、mode、ok、source=im|menu、exec_path=skip|local|mcp|electron）。
 - **子模块禁止互引环**：`daemon-slash-mcp` 不 import `daemon-slash-executor`。
 - **T6 菜单与 admin**：`feishu-event-handlers` 菜单经 `handleSlashCommand`（= `handleCommand`，source=`menu`）；`POST /api/agent` stop/restart/reset 经 `forwardElectronCommandApi` 同步返回；`electron` 模式仍回滚 `.fcmd`。
 

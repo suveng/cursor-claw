@@ -31,10 +31,10 @@
 
 | 项 | 设计预期 | 实际 | 原因 |
 |----|----------|------|------|
-| M3 健康转发 | Electron `POST /api/mcp/status-map` | Daemon 客户端已实现，Electron agent-api **未注册**该路由 | T3 部分交付；健康列降级为「未知」+ `healthError`，非静默成功 |
-| `slash_exec` 日志 `source` | `im\|menu` | 日志 `source` 为执行分类 `skip\|local\|mcp\|electron`，**未**透传 IM/菜单来源 | `handleCommand` 已收 `source` 参数但未传入执行器 |
+| M3 健康转发 | Electron `POST /api/mcp/status-map` | **已注册**（T-FIX-02）；委托 `getMcpStatusMap` | agent-api 未监听时仍降级「未知」+ `healthError` |
+| `slash_exec` 日志 `source` | `source=im\|menu` + 执行路径字段 | **已对齐**（T-FIX-01）：`source` 为通道来源，`exec_path` 为 `skip\|local\|mcp\|electron` | — |
 | 默认 `SLASH_EXEC_MODE` | 设计步骤 9 稳态为 `daemon` | 现网默认仍为 **`dual`** | 迁移期未收尾；poll 主路径仍保留 |
-| `GET /commands/skip-check` | 设计提及单条 skip | 已实现路由，Electron poll 仍用 `executed-ids` 批量同步 | R3 短窗口双回复风险 |
+| `GET /commands/skip-check` | claim 前实时去重 | **已接线**（T-FIX-03）；poll claim 前查询，保留 `executed-ids` 批量缓存 | skip-check 失败保守跳过 |
 
 其余主路径（Daemon SSOT、`/api/command/execute`、`/api/mcp` enable/disable/info、菜单与 admin stop 去 fcmd）与设计一致。
 
@@ -55,15 +55,17 @@
 |------|------|----------|
 | `daemon-slash-mcp.ts` vs `command-handler` | `/mcp` 子命令解析重复 | 斜杠内循环 `POST /api/mcp` 合并 |
 | `daemon-http-mcp-admin` vs `daemon-orchestrator` | HTTP 客户端重复 | 注入 orchestrator 转发 |
-| `GET /commands/skip-check` | 已接线未用于 poll | 与 `executed-ids` 二选一 |
+| `GET /commands/skip-check` | claim 前实时查询 + `executed-ids` 批量缓存并存 | 稳定后 `daemon` 模式可整段废弃 poll |
 
 ### 3.2 开放评审（accepted_debt 候选）
 
-| ID | 严重度 | 摘要 | 任务 |
-|----|--------|------|------|
-| R1 | warning | `slash_exec` 结构化日志缺少 `source=im\|menu` | T-FIX-01 |
-| R2 | warning | `POST /api/mcp/status-map` 未在 Electron agent-api 注册 | T-FIX-02 |
-| R3 | info | dual 模式 5s `executed-ids` 同步窗口可能双回复 | T-FIX-03 |
+**无开放项** — R1/R2/R3 已由 T-FIX-01～03 清偿（manifest `reviews.status=fixed`）：
+
+| ID | 状态 | 清偿摘要 | 任务 |
+|----|------|----------|------|
+| R1 | fixed | `slash_exec` 输出 `source=im\|menu` 与 `exec_path` | T-FIX-01 |
+| R2 | fixed | Electron agent-api 注册 `POST /api/mcp/status-map` | T-FIX-02 |
+| R3 | fixed | dual poll claim 前 `GET /commands/skip-check` 实时去重 | T-FIX-03 |
 
 ## 4、知识库影响清单
 

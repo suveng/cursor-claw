@@ -1,7 +1,7 @@
 # 控制层HTTP化与斜杠去Electron依赖 - 任务分解
 
 > **来源**：`/kb-plan`（基于 `01-proposal.md`、`02-design.md`）
-> **任务数**：6（T1–T6）
+> **任务数**：9（T1–T6 + T-FIX-01～03 债务修复）
 > **T8 划界**：`/merge` 与合并卡按钮归变更 `20260712113253-合并卡飞书按钮与merge指令`；本变更**不得**实现 `handleMergeBatchAction`、合并卡路由或 `POST /api/control-command` 总线。
 
 ## 一、执行计划
@@ -327,4 +327,138 @@ Daemon 须成为 IM 斜杠 SSOT：`executeSlashCommand` 进程内即时执行并
 ### 依赖
 
 - 前置任务: T5
-- 后续任务: 无（实现完成后 `/kb-archive`）
+- 后续任务: 无（主路径实现完成；债务修复见 T-FIX-01～03）
+
+---
+
+## T-FIX-01: slash_exec 日志补全 source=im|menu
+
+### 背景
+
+`04-review` R1：`slash_exec` 结构化日志当前 `source` 字段表示执行路径（`local|mcp|electron|skip`），与 `02` §八·（二）第 8 项及 T4 验收要求的**通道来源** `source=im|menu` 不一致。`handleCommand` 已接收 `source` 参数（飞书菜单 T6 传 `"menu"`，IM 斜杠默认 `"im"` 或省略），但未传入 `executeSlashCommand` / `logSlashExec`，影响 dual 期可观测与排障。
+
+### 上下文文件
+
+- 必读: `src/daemon/daemon-slash-executor.ts` — `logSlashExec`（L42–47）、`executeSlashCommand`（L79+）、`SlashSource` 类型
+- 必读: `src/daemon/daemon.ts` — `handleCommand`（L1344–1383）`source` 参数与 `executeSlashCommand` 调用
+- 必读: `src/daemon/feishu-event-handlers.ts` — `onFeishuMenuV6` 传 `"menu"`（L73–78）
+- 参考: `knowledge/变更/进行中/20260712113307-控制层HTTP化与斜杠去Electron依赖/04-review.md` — §3-1、R1
+
+### 实现范围
+
+- 修改: `src/daemon/daemon-slash-executor.ts` —
+  - `executeSlashCommand` 增加 `channelSource?: "im" | "menu"` 参数（或等价命名，与 `handleCommand` 对齐）
+  - `logSlashExec` 字段拆分或扩展：保留执行路径（可重命名为 `exec_path` 或并存），**新增** `source: "im" | "menu"` 写入 `slash_exec` JSON
+  - 默认：未传时归一化为 `"im"`（与 IM 斜杠主路径一致）
+- 修改: `src/daemon/daemon.ts` —
+  - `handleCommand` 将 `source === "menu" ? "menu" : "im"` 传入 `executeSlashCommand`
+  - `daemon-http-admin-crud.ts` 经 `handleSlashCommand` 的 admin 路径视为 `"im"`（或文档约定 admin 映射）
+- **禁止**改动 `SlashSource` 执行路径语义导致 `/mcp`、`local` 分支回归；仅补通道来源字段
+
+### 接口契约
+
+- `export async function executeSlashCommand(deps, text, messageId, chatId?, chatType?, channelSource?: "im" | "menu"): Promise<void>`
+- `slash_exec` JSON 至少含：`command`、`message_id`、`mode`、`ok`、`source`（`im|menu`）；执行路径字段名与现网日志消费方兼容（新增字段优先于破坏性重命名）
+
+### 验收标准
+
+- [ ] **静态**：`executeSlashCommand` 签名含 `channelSource`；`logSlashExec` 输出 JSON 含 `"source":"im"` 或 `"source":"menu"`（R1）
+- [ ] **静态**：`handleCommand` 调用链将菜单 `"menu"`、IM 省略/`"im"` 正确下传；`feishu-event-handlers` 菜单路径无需改签名（已传 `"menu"` 至 `handleCommand`）
+- [ ] **运行时**：`SLASH_EXEC_MODE=dual`，飞书发 `/status`（IM）→ Daemon 日志 `slash_exec` 含 `"source":"im"`
+- [ ] **运行时**：飞书菜单 `cmd_status` → 日志 `slash_exec` 含 `"source":"menu"`
+- [ ] **回归**：`local`/`mcp`/`electron` 执行路径与回复语义不变（AC5）
+- [ ] 无 `02`/`03` 未要求的抽象层或未批准的新依赖（Ponytail 口径）
+
+### 依赖
+
+- 前置任务: T4（`executeSlashCommand` / `logSlashExec` 落点）
+- 后续任务: 无（修复 R1 后可由 `/kb-revise` 关闭 manifest `reviews[R1]`）
+
+---
+
+## T-FIX-02: Electron 注册 POST /api/mcp/status-map
+
+### 背景
+
+`04-review` R2：Daemon `fetchElectronMcpStatusMap`（`daemon-http-mcp-admin.ts:128-136`）调用 `POST /api/mcp/status-map`，但 `agent-sdk-http.ts` 仅注册 `launch|dispatch|command/execute|sdk-warmup`，导致 Electron 运行中 `/mcp ls`/`info` 健康列恒为「未知」并带 `healthError`。本任务补齐 M3 闭环，委托 `getMcpStatusMap`（`mcp-manager`）。
+
+### 上下文文件
+
+- 必读: `electron/agent/cursor-sdk/agent-sdk-http.ts` — 路由注册（L193–233）
+- 必读: `src/daemon/daemon-http-mcp-admin.ts` — `fetchElectronMcpStatusMap` 请求体 `{ workspaceDir, force: false }`（L128–136）
+- 必读: `electron/mcp/mcp-manager.ts` — `getMcpStatusMap(force?, workspaceDir?, engineType?)`（L59+）
+- 参考: `electron/main.ts` — IPC `mcp:status-map` 委托模式（L139）
+- 参考: `electron/scheduling/command-handler.ts` — `handleFeishuMcpCommand` 健康展示参照（L495+）
+
+### 实现范围
+
+- 修改: `electron/agent/cursor-sdk/agent-sdk-http.ts` —
+  - 注册 `POST /api/mcp/status-map`
+  - 请求体：`{ workspaceDir?: string, force?: boolean }`（与 Daemon 客户端对齐）
+  - 响应：`{ ok: true, statusMap: Record<string, string> }` 或 `{ ok: false, error: string }`（中文可理解）
+  - handler 内 `await getMcpStatusMap(force ?? false, workspaceDir)`，**不**经 `.fcmd` 或 IPC 绕路
+- 可选（≤300 行约束）：若 `agent-sdk-http.ts` 逼近上限，可拆至 `agent-mcp-http.ts` 薄模块并由 sdk-http import
+- **禁止**修改 `POST /api/agent/launch|dispatch`、`POST /api/command/execute` 契约
+
+### 接口契约
+
+- `POST /api/mcp/status-map`
+  - 请求：`{ workspaceDir?: string, force?: boolean }`
+  - 成功：`{ ok: true, statusMap: Record<string, string> }`（键为 MCP 名，值为健康状态字符串，与 `getMcpStatusMap` 一致）
+  - 失败：`{ ok: false, error: string }`，HTTP 400/503 与现网 agent-api 错误风格一致
+
+### 验收标准
+
+- [ ] **静态**：`agent-sdk-http.ts`（或拆出模块）存在 `/api/mcp/status-map` 路由分支，import `getMcpStatusMap`（R2）
+- [ ] **静态**：Daemon `fetchElectronMcpStatusMap` 请求路径与响应字段无需改动即可对接
+- [ ] **运行时**：Electron 运行中 `curl -X POST http://127.0.0.1:<agent-api-port>/api/mcp/status-map -d '{"workspaceDir":"<workspace>"}'` 返回 `{ ok: true, statusMap: {...} }`
+- [ ] **运行时**：Daemon `POST /api/mcp` action `info` 或斜杠 `/mcp ls`，健康列展示非「未知」（无 `healthError` 端点缺失类文案）
+- [ ] **回归**：`enable`/`disable` 写盘语义不变；端点缺失时仍不静默成功（AC2）
+- [ ] 无 `02`/`03` 未要求的抽象层或未批准的新依赖（Ponytail 口径）
+
+### 依赖
+
+- 前置任务: T3（Daemon MCP HTTP 与 `fetchElectronMcpStatusMap` 客户端）
+- 后续任务: 无（修复 R2 后可由 `/kb-revise` 关闭 manifest `reviews[R2]`）
+
+---
+
+## T-FIX-03: dual 模式 poll claim 前 skip-check 去重
+
+### 背景
+
+`04-review` R3：`SLASH_EXEC_MODE=dual` 时 Daemon 主路径即时 `executeSlashCommand` 并 `markSlashMessageIdExecuted`，同时双写 `.fcmd`；Electron poll 经 `syncDaemonSlashExecutedIds` 每 5s 批量拉取 `GET /commands/executed-ids` 填充 `cachedDaemonSlashExecutedIds`，**claim 前**仅查本地缓存。Daemon 标记与 poll 同步之间存在短窗口，Electron 可能在同步前 claim 并二次 `reportCommandResult`。Daemon 已预留 `GET /commands/skip-check?messageId=`（`daemon.ts:1715-1719`），本任务在 **claim 前**对单 `messageId` 实时查询，消除竞态。
+
+### 上下文文件
+
+- 必读: `electron/daemon/daemon-manager.ts` — `checkAndExecutePendingCommands`（L924+）、`syncDaemonSlashExecutedIds`（L897–908）、`wireSlashPollSkipChecker`（L911–917）
+- 必读: `src/daemon/daemon.ts` — `GET /commands/skip-check`（L1715–1719）、`markSlashMessageIdExecuted` / `isSlashMessageIdExecuted`
+- 参考: `knowledge/变更/进行中/20260712113307-控制层HTTP化与斜杠去Electron依赖/04-review.md` — §3-3、§6 dual 双回复风险表
+
+### 实现范围
+
+- 修改: `electron/daemon/daemon-manager.ts` —
+  - 在 `checkAndExecutePendingCommands` 的 `for (const cmd of cmds)` 循环内，**`POST .../commands/claim` 之前**（或 claim 成功后、执行前）对 `cmd.messageId` 调用 `GET http://127.0.0.1:${lock.port}/commands/skip-check?messageId=<id>`
+  - 若 `{ executed: true }` 则跳过该条（日志与现网 `commandPollSkipChecker` 跳过一致），**不** claim 或 claim 后立即 continue 不执行（择最小改动且避免重复 claim 副作用）
+  - 保留 `syncDaemonSlashExecutedIds` + `cachedDaemonSlashExecutedIds` 作为批量优化（可选：skip-check 命中时写入本地缓存）
+  - skip-check 请求失败时：**保守跳过执行**（`executed: true` 等价）或回退 `commandPollSkipChecker`（择一并在代码注释说明，优先防双回复）
+- **禁止**修改 `SLASH_EXEC_MODE` 三态语义、`daemon` 模式主路径（无 poll 双写）
+
+### 接口契约
+
+- 既有 Daemon：`GET /commands/skip-check?messageId=<string>` → `{ executed: boolean }`（不变）
+- Electron poll：每条 pending 指令在 claim/执行前须查询 skip-check；与 `markSlashMessageIdExecuted` 60s TTL 对齐
+
+### 验收标准
+
+- [ ] **静态**：`checkAndExecutePendingCommands` 在 claim 前或执行前调用 `GET /commands/skip-check`（R3）；非仅依赖 `cachedDaemonSlashExecutedIds`
+- [ ] **静态**：`GET /commands/skip-check` 路由与 `isSlashMessageIdExecuted` 逻辑未被削弱
+- [ ] **运行时**：`SLASH_EXEC_MODE=dual`，飞书发 `/status`，Daemon 已 reply 后 5s 内 Electron poll **不**二次 `reportCommandResult`（日志无重复 `[指令] 执行 /status` 或双回复）
+- [ ] **运行时**：人为构造「Daemon 已 mark、poll 尚未 sync executed-ids」时序（快速连发或 mock 延迟 sync），仍仅一次用户可见回复
+- [ ] **回归**：`electron` 模式纯 poll 路径不受影响；`daemon` 模式无 `.fcmd` 双写无此路径
+- [ ] 无 `02`/`03` 未要求的抽象层或未批准的新依赖（Ponytail 口径）
+
+### 依赖
+
+- 前置任务: T5（`slashExecutedMessageIds`、`skip-check` 路由、`markSlashMessageIdExecuted`）
+- 后续任务: 无（修复 R3 后可由 `/kb-revise` 关闭 manifest `reviews[R3]`）

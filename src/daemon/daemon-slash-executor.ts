@@ -30,7 +30,16 @@ export interface SlashExecutorDeps {
   isElectronApiReachable: () => boolean;
 }
 
-type SlashSource = "skip" | "local" | "mcp" | "electron";
+/** 斜杠执行路径（local/mcp/electron 等），与通道来源 source 区分 */
+type SlashExecPath = "skip" | "local" | "mcp" | "electron";
+
+/** 通道来源：IM 斜杠或飞书菜单（写入 slash_exec.source） */
+type ChannelSource = "im" | "menu";
+
+/** 归一化通道来源：未传或非 menu 时视为 im（与 IM 斜杠主路径一致） */
+function normalizeChannelSource(channelSource?: ChannelSource): ChannelSource {
+  return channelSource === "menu" ? "menu" : "im";
+}
 
 /** T8 划界：/merge 与 merge_* 前缀不进入通用执行器 */
 function shouldSkipSlashCommand(text: string): boolean {
@@ -38,10 +47,17 @@ function shouldSkipSlashCommand(text: string): boolean {
   return lower === "/merge" || lower.startsWith("/merge ") || lower.startsWith("merge_");
 }
 
-/** 结构化 slash_exec 日志 */
+/** 结构化 slash_exec 日志（source=通道来源，exec_path=执行路径） */
 function logSlashExec(
   deps: SlashExecutorDeps,
-  fields: { command: string; message_id: string; mode: string; ok: boolean; source: SlashSource },
+  fields: {
+    command: string;
+    message_id: string;
+    mode: string;
+    ok: boolean;
+    source: ChannelSource;
+    exec_path: SlashExecPath;
+  },
 ): void {
   deps.log("INFO", `slash_exec ${JSON.stringify(fields)}`);
 }
@@ -82,15 +98,18 @@ export async function executeSlashCommand(
   messageId: string,
   chatId?: string,
   chatType?: string,
+  channelSource?: ChannelSource,
 ): Promise<void> {
   const trimmed = text.trim();
+  const source = normalizeChannelSource(channelSource);
   if (!trimmed || shouldSkipSlashCommand(trimmed)) {
     logSlashExec(deps, {
       command: trimmed.split(/\s+/)[0] ?? trimmed,
       message_id: messageId,
       mode: deps.getSlashExecMode?.() ?? "daemon",
       ok: true,
-      source: "skip",
+      source,
+      exec_path: "skip",
     });
     return;
   }
@@ -99,16 +118,16 @@ export async function executeSlashCommand(
   const mode = deps.getSlashExecMode?.() ?? "daemon";
   let ok = false;
   let message = "";
-  let source: SlashSource = "electron";
+  let execPath: SlashExecPath = "electron";
 
   try {
     if (head === "/mcp") {
-      source = "mcp";
+      execPath = "mcp";
       const mcpResult = await executeSlashMcp(deps, trimmed);
       ok = mcpResult.ok;
       message = mcpResult.message;
     } else if (isDaemonLocalCommand(head)) {
-      source = "local";
+      execPath = "local";
       if (head === "/help") {
         ok = true;
         message = buildHelpText();
@@ -131,7 +150,7 @@ export async function executeSlashCommand(
         message = `✅ 已清空消息队列，共移除 ${cleared} 条`;
       }
     } else {
-      source = "electron";
+      execPath = "electron";
       const fwd = await deps.forwardElectronCommandApi("/api/command/execute", {
         command: trimmed,
         messageId,
@@ -151,5 +170,5 @@ export async function executeSlashCommand(
   }
 
   await deps.replyToMessage(messageId, message, chatId);
-  logSlashExec(deps, { command: head, message_id: messageId, mode, ok, source });
+  logSlashExec(deps, { command: head, message_id: messageId, mode, ok, source, exec_path: execPath });
 }

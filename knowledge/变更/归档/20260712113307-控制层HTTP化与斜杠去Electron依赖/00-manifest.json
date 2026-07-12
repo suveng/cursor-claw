@@ -3,11 +3,12 @@
   "id": "20260712113307-控制层HTTP化与斜杠去Electron依赖",
   "name": "控制层HTTP化与斜杠去Electron依赖",
   "flow": "standard",
-  "stage": "applied",
+  "stage": "archived",
   "source": "kb-propose",
   "workflow_version": "v2.6",
   "created_at": "2026-07-12T11:33:07+0800",
-  "updated_at": "2026-07-12T12:49:29+0800",
+  "updated_at": "2026-07-12T12:55:55+0800",
+  "archived_at": "2026-07-12T12:55:55+0800",
   "files": [
     {
       "path": "00-manifest.json",
@@ -182,7 +183,7 @@
         "electron/scheduling/command-handler.ts"
       ],
       "depends_on": ["T1"],
-      "verification": "待执行 S10；静态契约 ✅"
+      "verification": "静态 ✅；S10 待实机（agent-api 未监听）"
     },
     {
       "id": "T3",
@@ -194,7 +195,7 @@
         "src/daemon/server-admin.ts"
       ],
       "depends_on": [],
-      "verification": "待执行 S4/S5；R2 健康列降级已知"
+      "verification": "R2 静态 ✅；S4/S5 待实机"
     },
     {
       "id": "T4",
@@ -206,7 +207,7 @@
         "src/daemon/daemon-orchestrator.ts"
       ],
       "depends_on": ["T2", "T3"],
-      "verification": "待执行 S1–S3/S6；R1 日志缺 source"
+      "verification": "R1 静态 ✅；S6 静态 ✅；S1–S3 待实机"
     },
     {
       "id": "T5",
@@ -217,7 +218,7 @@
         "electron/daemon/daemon-manager.ts"
       ],
       "depends_on": ["T4"],
-      "verification": "待执行 S7/S11；R3 dual 竞态"
+      "verification": "R3 静态 ✅；S7/S11 待实机"
     },
     {
       "id": "T6",
@@ -229,36 +230,67 @@
         "src/daemon/daemon.ts"
       ],
       "depends_on": ["T5"],
-      "verification": "待执行 S8/S9"
+      "verification": "S8/S9 待实机"
+    },
+    {
+      "id": "T-FIX-01",
+      "title": "slash_exec 日志补全 source=im|menu",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-slash-executor.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": ["T4"],
+      "verification": "R1 静态 grep ✅；运行时 slash_exec source 待实机"
+    },
+    {
+      "id": "T-FIX-02",
+      "title": "Electron 注册 POST /api/mcp/status-map",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/agent-sdk-http.ts"
+      ],
+      "depends_on": ["T3"],
+      "verification": "R2 静态 grep ✅；curl status-map 待实机"
+    },
+    {
+      "id": "T-FIX-03",
+      "title": "dual 模式 poll claim 前 skip-check 去重",
+      "status": "done",
+      "files": [
+        "electron/daemon/daemon-manager.ts"
+      ],
+      "depends_on": ["T5"],
+      "verification": "R3 静态 grep ✅；dual 时序待实机"
     }
   ],
   "reviews": [
     {
       "id": "R1",
       "severity": "warning",
-      "status": "open",
+      "status": "fixed",
       "file": "src/daemon/daemon-slash-executor.ts",
       "summary": "slash_exec 结构化日志缺少 source=im|menu 字段",
       "task_id": "T-FIX-01",
-      "resolution": null
+      "resolution": "executeSlashCommand 增加 channelSource 参数；logSlashExec 输出 source=im|menu 与 exec_path 执行路径字段"
     },
     {
       "id": "R2",
       "severity": "warning",
-      "status": "open",
+      "status": "fixed",
       "file": "electron/agent/cursor-sdk/agent-sdk-http.ts",
       "summary": "POST /api/mcp/status-map 未在 Electron agent-api 注册，MCP 健康探测降级",
       "task_id": "T-FIX-02",
-      "resolution": null
+      "resolution": "agent-sdk-http 注册 POST /api/mcp/status-map，委托 getMcpStatusMap"
     },
     {
       "id": "R3",
       "severity": "info",
-      "status": "open",
+      "status": "fixed",
       "file": "electron/daemon/daemon-manager.ts",
       "summary": "dual 模式 poll 去重依赖 5s executed-ids 批量同步，短窗口可能双回复",
       "task_id": "T-FIX-03",
-      "resolution": null
+      "resolution": "claim 前 GET /commands/skip-check 实时去重；失败保守跳过"
     }
   ],
   "external": {
