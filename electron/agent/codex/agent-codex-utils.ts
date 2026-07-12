@@ -156,6 +156,12 @@ export function resetCodexRunPresentationState(session: CodexSessionAgent): void
   session.toolPresentationOutboundIds = undefined
   session.streamId = undefined
   session.streamLastPostAt = undefined
+  // 对称 resetCodexStreamState：清 timer/链，避免本文件 import stream 循环依赖
+  if (session.streamPostTimer) {
+    clearTimeout(session.streamPostTimer)
+    session.streamPostTimer = undefined
+  }
+  session.streamPostChain = undefined
   session.logAgg = { kind: null, buf: "" }
   session.seenProcessEvent = false
   session.presentationDeferStream = false

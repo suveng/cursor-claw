@@ -3,9 +3,6 @@
  * 仿 agent-cc-stream：flush/append 日志、stream-text、presentation-event；收尾见 agent-codex-complete。
  */
 import { readLockFile, httpPost } from "../../daemon/daemon-client"
-import {
-  isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind,
-} from "../../../src/shared/feishu-presentation-gate"
 import { pushUiLog, broadcastSessionStatus } from "../../app/ui-logger"
 import { appendContextFooter, formatContextFooter, resolveDisplayContextTokens, resetContextUsagePeak } from "../cursor-sdk/context-usage"
 import { resolveSessionChatName } from "../shared/agent-launcher"
@@ -15,7 +12,7 @@ import {
 } from "../shared/feishu-plain-assistant-reply"
 import { maybeRotateContext } from "../cursor-sdk/context-rotation-lite"
 import type { CodexSessionAgent } from "./agent-codex-types"
-import { resolveSessionChannelType } from "./agent-codex-utils"
+import { presentationOrderingEligible, resolveSessionChannelType } from "./agent-codex-utils"
 import { persistCodexActiveRunSnapshot } from "./codex-run-persist"
 
 const LOG_FLUSH_LEN = 400
@@ -52,13 +49,12 @@ export function appendCodexLog(session: CodexSessionAgent, kind: "thinking" | "t
   agg.buf += delta
   if (agg.buf.length >= LOG_FLUSH_LEN) flushCodexLog(session)
 }
-/** presentation-event 出站 */
+/** 出站 presentation-event；飞书里程碑抑制由 Daemon 处理，Electron 侧始终 POST */
 export async function postCodexPresentationEvent(
   session: CodexSessionAgent,
   event: Omit<import("./agent-sdk").PresentationEvent, "session_key">,
-  resolveChannelType: (sessionKey: string) => string | undefined,
+  _resolveChannelType: (sessionKey: string) => string | undefined,
 ): Promise<void> {
-  if (feishuSuppressesProcessKind(resolveChannelType(session.sessionKey), event.kind)) return
   const lock = readLockFile()
   if (!lock?.port) return
   const payload = { session_key: session.sessionKey, ...event }
@@ -105,6 +101,38 @@ export function clearCodexStreamPostTimer(session: CodexSessionAgent): void {
   }
 }
 
+/** ordering 且已见过程、尚无 outbound 时 defer assistant 非 final 出站 */
+function shouldDeferCodexAssistantPost(session: CodexSessionAgent): boolean {
+  if (!presentationOrderingEligible(session)) return false
+  if (session.outboundMessageId) return false
+  return !!(session.presentationDeferStream || session.seenProcessEvent)
+}
+
+/** Rev2 end-only：含过程 Run 仅 Run 收尾 final 出站 */
+function shouldEndOnlyCodexAssistantDefer(session: CodexSessionAgent): boolean {
+  if (!presentationOrderingEligible(session)) return false
+  if (session.outboundMessageId) return false
+  return !!(session.seenProcessEvent || session.presentationDeferStream)
+}
+
+/** 纯对话 preamble：ordering 开启但尚未见过程事件 */
+function isAwaitingFirstCodexProcessEvent(session: CodexSessionAgent): boolean {
+  return presentationOrderingEligible(session)
+    && !session.outboundMessageId
+    && !session.seenProcessEvent
+}
+
+/** 首包 POST 前短窗等待 tool/thinking，与 STREAM_POST_INTERVAL 对齐 */
+function scheduleCodexPreambleRelease(session: CodexSessionAgent): void {
+  if (!session.f41Stream) return
+  clearCodexStreamPostTimer(session)
+  session.streamPostTimer = setTimeout(() => {
+    session.streamPostTimer = undefined
+    if (shouldDeferCodexAssistantPost(session)) return
+    scheduleCodexStreamPost(session, false)
+  }, STREAM_POST_INTERVAL_MS)
+}
+
 /** 执行流式 flush（final 时附加 context footer） */
 export async function doFlushCodexStreamPost(session: CodexSessionAgent, final: boolean): Promise<void> {
   clearCodexStreamPostTimer(session)
@@ -133,6 +161,9 @@ export async function doFlushCodexStreamPost(session: CodexSessionAgent, final: 
     if (final) session.streamLastPostAt = Date.now()
     return
   }
+  if (!final && shouldDeferCodexAssistantPost(session)) return
+  // Rev2 end-only：含过程 Run 仅 Run 收尾 flushCodexStreamPost(true) 出站
+  if (!final && shouldEndOnlyCodexAssistantDefer(session)) return
   if (final) {
     const footer = formatContextFooter(
       session.contextUsage,
@@ -188,6 +219,11 @@ export function appendCodexStreamDelta(session: CodexSessionAgent, delta: string
   if (isFeishuPlainAssistantReply(session.f41Stream, resolveSessionChannelType(session.sessionKey))) {
     return
   }
+  if (shouldDeferCodexAssistantPost(session)) return
+  if (isAwaitingFirstCodexProcessEvent(session)) {
+    scheduleCodexPreambleRelease(session)
+    return
+  }
   scheduleCodexStreamPost(session, false)
 }
 
@@ -200,9 +236,15 @@ export function closeCodexThinkingIfOpen(
   void postCodexPresentationEvent(session, { kind: "thinking", final: true }, resolveChannelType)
 }
 
+/**
+ * 过程事件可见时置 ordering 闩（seenProcessEvent / presentationDeferStream）。
+ * 对称 OpenCode markOpencodeProcessEventSeen；飞书里程碑降级在 Daemon 侧，不在此早退。
+ */
 export function markCodexProcessEventSeen(session: CodexSessionAgent): void {
+  if (!presentationOrderingEligible(session)) return
   clearCodexStreamPostTimer(session)
   session.seenProcessEvent = true
+  session.presentationDeferStream = true
 }
 
 /** 高水位触发上下文轮转；resident 下清空 thread 句柄，下次 dispatch 走 resumeThread/startThread */

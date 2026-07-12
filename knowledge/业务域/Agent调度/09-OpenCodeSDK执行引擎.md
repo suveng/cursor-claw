@@ -56,7 +56,7 @@ RunGuard+`enterGuardWithLifecycle`+watchdog；SSE 未知 WARN；失败经 `forma
 
 ## 九、已知限制与 TODO
 
-外部探活依赖 `config.get`；embedded server 冷启动后 `opencodeSessionId` 有效性待验证；`probeOpencodeRecoverTarget` 与 `startOpencodeRun` 双连 `resolveOpencodeClient`（ponytail，见 `electron/agent/opencode/AGENTS.md`）。Codex ordering 不在本引擎范围。
+外部探活依赖 `config.get`；embedded server 冷启动后 `opencodeSessionId` 有效性待验证；`probeOpencodeRecoverTarget` 与 `startOpencodeRun` 双连 `resolveOpencodeClient`（ponytail，见 `electron/agent/opencode/AGENTS.md`）。Codex ordering 已对齐 Rev2 end-only，见 [08](./08-CodexSDK执行引擎.md)。
 
 ## 十、变更记录
 

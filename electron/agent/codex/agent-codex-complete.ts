@@ -10,6 +10,7 @@ import type { CodexSessionAgent } from "./agent-codex-types"
 import {
   flushCodexLog,
   flushCodexStreamPost,
+  clearCodexStreamPostTimer,
   maybeRotateCodexSessionContext,
   broadcastCodexSessionStatus,
 } from "./agent-codex-stream"
@@ -63,6 +64,8 @@ export async function completeCodexRun(
   flushCodexLog(session)
   session.thinkingOpen = false
 
+  // Rev2 end-only：含过程 defer 场景下 flushCodexStreamPost(true) 为唯一 assistant IM 出站（禁止 mid-run release）
+  clearCodexStreamPostTimer(session)
   if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
     await flushCodexStreamPost(session, true)
   } else if (session.streamBuffer.trim()) {
@@ -77,6 +80,8 @@ export async function completeCodexRun(
       assistantText: appendContextFooter(session.streamBuffer, footer),
     })
   }
+  // 收尾后丢弃 in-flight 链，避免下一 Run 串到旧 POST（对称 OpenCode resetStreamPostChain）
+  session.streamPostChain = undefined
 
   const isWatchdogTimeout = session.watchdogTimedOut === true
   const isError = session.lastStatus?.status === "ERROR" || (exitCode !== null && exitCode !== 0)

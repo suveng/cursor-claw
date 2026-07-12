@@ -39,7 +39,7 @@
 
 ## presentation gate 引用约定
 
-- **飞书过程抑制**：daemon `handleToolPresentationEvent` / `handleThinkingPresentationEvent` **须**调用 `isFeishuProcessPresentationSuppressed` 决定 CardKit/里程碑出站；**SDK/CC** `postPresentationEvent` **禁止**飞书早退（Codex/OpenCode 仍早退，待对齐）。禁止在调用方复制通道判断逻辑。
+- **飞书过程抑制**：daemon `handleToolPresentationEvent` / `handleThinkingPresentationEvent` **须**调用 `isFeishuProcessPresentationSuppressed` 决定 CardKit/里程碑出站；四引擎 `post*PresentationEvent` **禁止** Electron 侧飞书早退（里程碑降级在 Daemon 双侧门控）。禁止在调用方复制通道判断逻辑。
 - **门控范围**：仅抑制飞书 tool/thinking CardKit；assistant `stream-text` 与 `PRESENTATION_ORDERING` 不受影响；微信路径不经此 gate。
 - **tool-presentation**：`TOOL_LOG_DETAIL_MAX`、`TOOL_CARD_SHELL_OUTPUT_MAX`、`TOOL_MILESTONE_TEXT_MAX` 为截断上限 SSOT；`formatToolMilestoneText` 为飞书 tool 里程碑文案 SSOT；`lark-core`、electron agent 与 daemon 里程碑须引用本模块，不重复定义 magic number。
 - **工具名归一化**：`normalizePresentationToolName(rawName)` 将 CC/SDK 原始名映射为 tier 与里程碑 canonical 名；未命中别名表则 `toLowerCase().trim()` 原样返回（默认 silent）。**CC 别名**（`PRESENTATION_TOOL_NAME_ALIASES`）：`bash`→`shell`、`edit`/`strreplace`→`strreplace`、`write`→`write`、`delete`→`delete`、`task`→`task`；调用 `resolveSdkToolPresentationTier` 前须先归一化。

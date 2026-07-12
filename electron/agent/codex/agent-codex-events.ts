@@ -3,6 +3,7 @@
  * 8 类 ThreadEvent → PresentationEvent / contextUsage / codexSessionId。
  */
 import type { Usage, ThreadItem } from "@openai/codex-sdk"
+import { resolveSdkToolPresentationTier } from "../../../src/shared/sdk-tool-presentation-tier.js"
 import { pushUiLog } from "../../app/ui-logger"
 import { updateContextUsageDisplay, type TurnUsageSlice } from "../cursor-sdk/context-usage"
 import { formatCodexFailureMessage, sanitizeCodexSensitiveText } from "./codex-failure-messages"
@@ -63,19 +64,26 @@ function handleItemStarted(
     return
   }
   if (item.type === "command_execution" || item.type === "mcp_tool_call") {
-    flushCodexLog(session)
-    closeCodexThinkingIfOpen(session, resolveChannelType)
     const toolName = resolveToolName(session, item)
+    const tier = resolveSdkToolPresentationTier(toolName)
     session.lastTool = { name: toolName, status: "running" }
-    markCodexProcessEventSeen(session)
-    session.toolPresentationOutboundIds?.delete(toolName)
-    void postCodexPresentationEvent(session, {
-      kind: "tool",
-      tool_name: toolName,
-      tool_status: "started",
-      tool_shell_command: item.type === "command_execution" ? item.command : undefined,
-      final: false,
-    }, resolveChannelType)
+    if (tier === "notify") {
+      // notify 级：置过程闩并 POST presentation-event（对称 OpenCode/Cursor）
+      flushCodexLog(session)
+      closeCodexThinkingIfOpen(session, resolveChannelType)
+      markCodexProcessEventSeen(session)
+      session.toolPresentationOutboundIds?.delete(toolName)
+      void postCodexPresentationEvent(session, {
+        kind: "tool",
+        tool_name: toolName,
+        tool_status: "started",
+        tool_shell_command: item.type === "command_execution" ? item.command : undefined,
+        final: false,
+      }, resolveChannelType)
+    } else {
+      // silent 级：仅 UI 日志与 lastTool，不触发 ordering 过程闩
+      pushUiLog("Codex", "INFO", `[${session.sessionKey}] [tool] ${toolName}: running`)
+    }
     return
   }
   if (item.type === "file_change") {

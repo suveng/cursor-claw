@@ -2,25 +2,29 @@
 
 ## 一、能力范围
 
-`@openai/codex-sdk`：`new Codex` + `startThread`/`resumeThread` + `runStreamed`、launch/dispatch、Presentation、`codex-agent-api`、MCP 内联、`codexSessionId` 续接。经 `engine-port-adapter.ts` 实现 `AgentEnginePort`，终态经 `RunLifecycle`+`completeRunFromTemplate`。不负责其他引擎与 Daemon claim。
+`@openai/codex-sdk`：`new Codex` + `startThread`/`resumeThread` + `runStreamed`、launch/dispatch、Presentation ordering、`codex-agent-api`、MCP 内联、`codexSessionId` 续接。经 `engine-port-adapter.ts` 实现 `AgentEnginePort`，终态经 `RunLifecycle`+`completeRunFromTemplate`。不负责其他引擎与 Daemon claim。
 
 ## 二、设计决策与取舍
 
 - **Engine Port**：`registerCodexEnginePort`；`mapCodexThreadEventToRunEvent` 映射 `ThreadEvent`→`RunEvent`。
-- **终态出口**：`completeCodexViaLifecycle`/`notifyCodexRunFailure`/`notifyCodexWatchdogTimeout`→shared 模板；运行中 IM 直接 import `run-notify`（无本地 notify 副本）。
+- **终态出口**：`completeCodexViaLifecycle`/`notifyCodexRunFailure`/`notifyCodexWatchdogTimeout`→shared 模板；运行中 IM 直接 import `run-notify`。
 - **失败文案**：`codex-failure-messages.ts` 脱敏+归因提取，用户句委托 `formatRunFailureMessage`。
 - **resume**：`codexSessionId` 来自 `startThread`/`resumeThread`；dispatch 复用 `resolveCodexThread`。
-- **主进程续接（S7）**：`recoverCodexActiveRuns` 经 `recoverAllActiveRuns`；读 `codex-active-runs.json`；CLI 不可用→`failAllCodexRunsOnCliMissing` 逐条 IM+清盘（**不再**整函数静默早退，父变更 T-FIX-01 已清偿）；guard 前 `probeCodexRecoverTarget`（`codex-run-probe.ts`）→`startCodexRun`；失败经 `classifyResumeFailure`→`notifyResumeFailure`。
+- **续接（S7）**：`recoverCodexActiveRuns`；CLI 不可用→`failAllCodexRunsOnCliMissing` 逐条 IM+清盘；guard 前 `probeCodexRecoverTarget`→`startCodexRun`。
 - **MCP**：`codex-mcp-loader` 读 `~/.codex` 与 `{ws}/.codex/config.toml`，project>global。
+- **Presentation ordering（Rev2 end-only）**：对称 OpenCode/Cursor；门控 `presentationOrderingEligible`；defer 内联 `agent-codex-stream.ts`；notify 置双侧闩；禁止 Electron 飞书早退；终态 `flushCodexStreamPost(true)`；tool 分级见 `agent-codex-events.ts` 与 AGENTS.md。
 
 ## 三、服务端规则
 
 1. `type==="codex"` + API Key；模型空 → `CODEX_DEFAULT_MODEL_ID`。
 2. `pendingDispatch` 时 launch→dispatch；`enterGuardWithLifecycle` 单飞。
-3. ContextRotation 清 `codexSessionId`；Profile 已删 → `opencode-missing` 对称 `codex-missing`。
+3. ContextRotation 清 `codexSessionId`；Profile 已删 → `codex-missing`。
 4. 任务/工作流 POST `codex-agent-api`；IM 经统一网关 `agent-sdk-http`。
+5. `PRESENTATION_ORDERING=0` 时 defer/preamble 全链 no-op，回滚现网直通。
 
 ## 四、客户端流程
+
+ThreadEvent tool 分级→presentation-event；含过程 Run non-final assistant 仅 buffer；收尾 `completeCodexRun` final flush 唯一 assistant IM。
 
 ```mermaid
 sequenceDiagram
@@ -38,26 +42,25 @@ sequenceDiagram
 | `launchCodexAgent`/`dispatchToCodexAgent` | 首条/resume |
 | `POST /api/codex/agent/launch\|dispatch` | 本地 HTTP |
 | `POST /api/agent/launch\|dispatch` | IM 统一网关 |
+| 出站 | `POST /api/presentation-event`、`POST /api/stream-text`（Daemon） |
 
 ## 六、数据
 
-`CodexSessionAgent`（`agent-codex-types.ts`）；`codex-active-runs.json`（`CodexActiveRunRecord`：`codexSessionId`、`lastTaskMessage`、呈现游标）；`errorNotified`/`watchdogTimedOut`/`runFinalizing` 门控见 [10](./10-SDK上下文保护与失败归因.md)。
+`CodexSessionAgent`；ordering 闩 `seenProcessEvent`/`presentationDeferStream`/`streamBuffer`（`agent-codex-stream.ts`）；`codex-active-runs.json`；门控字段见 [10](./10-SDK上下文保护与失败归因.md)。
 
 ## 七、非功能与可观测
 
-RunGuard+`enterGuardWithLifecycle`+`armCodexWatchdog`（S8 busy→`notifyGuardBusy` 一次 IM）；事件未知类型 WARN；apiKey 脱敏 `maskCodexApiKey`；失败归档经 `completeRunFromTemplate`。
+RunGuard+`enterGuardWithLifecycle`+`armCodexWatchdog`（S8 busy→`notifyGuardBusy`）；未知事件 WARN；apiKey 脱敏；`resetCodexRunPresentationState` 防跨 Run 串 POST；失败归档经 `completeRunFromTemplate`。
 
 ## 八、推送
 
-无；出站对称 SDK/CC（stream-text/presentation-event）；终态 `notifySessionChat`。
+无；出站对称 SDK/CC/OpenCode（stream-text/presentation-event）；终态 `notifySessionChat`。
 
 ## 九、已知限制与 TODO
 
-Dashboard MCP 占位；须本机 Codex CLI；`probeCodexRecoverTarget` 用空 prompt 首事件探活（SDK 无只读 thread API）；ponytail 升级路径见 `electron/agent/codex/AGENTS.md`。
+Dashboard MCP 占位；须本机 Codex CLI；`probeCodexRecoverTarget` 空 prompt 探活；defer 内联 stream（可拆 `agent-codex-presentation.ts`）。
 
 ## 十、变更记录
 
-- 2026-07-12：续接终态 hardening — CLI 缺失逐条 notify、`codex-run-probe`、失败分类（archive 20260712145449；清偿父变更 Codex CLI 早退债）。
-- 2026-07-12：主进程续接 `codex-run-recover`+`codex-active-runs.json`（archive 20260712113332）。
-- 2026-07-12：Engine Port + RunLifecycle（archive 20260711232258）。
-- 2026-06-30：Codex 三引擎接入（archive 20260630104714）。
+- 2026-07-12：Presentation ordering Rev2 end-only（20260712145313）；续接 hardening（20260712145449）；主进程续接（20260712113332）；Engine Port（20260711232258）。
+- 2026-06-30：Codex 三引擎接入（20260630104714）。
