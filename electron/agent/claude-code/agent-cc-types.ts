@@ -37,6 +37,8 @@ export interface CcSessionAgent {
   activeQuery: Query | null
   /** SDK init/result 写入的 session_id，供 resume 续接上下文 */
   ccSessionId: string | null
+  /** 最后一次用户 prompt，供主进程重启 recover 重发 */
+  lastTaskMessage?: string
   startedAt: number
   lastActivityAt: number
   chatType: ChatType

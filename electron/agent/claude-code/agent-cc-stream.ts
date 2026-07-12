@@ -14,12 +14,15 @@ import type { CcSessionAgent } from "./agent-cc-types"
 import { presentationOrderingEligible, resolveSessionChannelType } from "./agent-cc-utils"
 import { finalizeCcRunOnWatchdogTimeout } from "./engine-port-adapter"
 import { completeCcViaLifecycle, notifyCcRunFailure } from "./engine-port-adapter"
+import { clearCcActiveRun } from "./cc-run-persistence"
+import { clearCcPersistThrottle } from "./cc-run-persist"
 import {
   notifySessionChat,
   postPresentationEvent,
   postStreamText,
   type StreamTextPayload,
 } from "./agent-cc-notify"
+import { persistCcActiveRunSnapshot } from "./cc-run-persist"
 
 export { notifySessionChat, postPresentationEvent, postStreamText, type StreamTextPayload } from "./agent-cc-notify"
 
@@ -109,6 +112,7 @@ export async function doFlushStreamPost(session: CcSessionAgent, final: boolean)
   }
   await postStreamText(session, payload)
   session.streamLastPostAt = Date.now()
+  persistCcActiveRunSnapshot(session)
 }
 
 /** 将 flush 操作串入 Promise 链，保证顺序 */
@@ -237,6 +241,8 @@ export async function completeCcRun(
   }
   session.activeQuery = null
   session.pendingDispatch = false
+  clearCcActiveRun(sessionKey)
+  clearCcPersistThrottle(sessionKey)
   await reportSessionAgentPhase(sessionKey, "idle")
 
   if (session.residentMode) { resetPresentationState(session); broadcastCcSessionStatus(getAllSessions()); return }

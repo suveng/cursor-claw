@@ -12,6 +12,7 @@
 - **失败文案**：`codex-failure-messages.ts` — 脱敏与归因提取；用户可见句委托 `formatRunFailureMessage`（`formatCodexFailureMessage` 组装 `RunFailureReason`）；apiKey 脱敏经 `maskCodexApiKey`；**禁止** `OPENAI_API_KEY`/apiKey 明文进入文案、UI 日志或崩溃归档。
 - **MCP 内联**：`mcp/loaders/codex-mcp-loader.ts` 读 Codex CLI 原生 `config.toml`（`~/.codex/config.toml` global + `{ws}/.codex/config.toml` project），**不读** `.cursor/mcp.json` / `.mcp.json`。优先级 project > global；`loadCodexMcpServers` / `appendInlineMcpToCodexOptions` 每次 launch 重传 `mcpServers`（仿 CC/SDK 路径）。stdio resolve/cwd 约定与 `cc-mcp-loader` 一致。TOML 解析为文件内最小实现，**禁止**为此加 npm 依赖。
 - **HTTP 桥接**：`agent-codex-http.ts` 独立 server（仿 `agent-cc-http.ts`）；`session/session-dispatcher` 的 `initSessionDispatcher` 调 `ensureCodexHttpServer()`；端口 `userData/codex-agent-api-port.json`（写入失败 WARN）；路由 `POST /api/codex/agent/launch|dispatch`；launch/dispatch handler 由 `agent-codex-sdk.ts` 末尾 `registerCodex*Handler` 注入；`session-dispatcher.launchAgent` 在 `resource.type === "codex"` 时 POST 本地端口。
+- **活跃 Run 持久化/续接**：`codex-run-persistence.ts` + `codex-run-persist.ts`；`completeCodexRun` 终态 `clearCodexActiveRun`；`codex-run-recover.ts` — `recoverCodexActiveRuns`（`resumeThread` + `startCodexRun`）；init 经 orchestrator。
 
 ## 编码规矩
 

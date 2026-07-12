@@ -40,6 +40,7 @@ import { streamCodexEvents } from "./agent-codex-events"
 import { armCodexWatchdog } from "./agent-codex-watchdog"
 import { registerCodexLaunchHandler, registerCodexDispatchHandler } from "./agent-codex-http"
 import { formatCodexFailureMessage, sanitizeCodexSensitiveText } from "./codex-failure-messages"
+import { persistCodexActiveRunSnapshot } from "./codex-run-persist"
 
 export type { CodexLaunchOptions, CodexSessionAgent } from "./agent-codex-types"
 export { ensureCodexHttpServer, getCodexAgentApiPort } from "./agent-codex-http"
@@ -99,10 +100,12 @@ function resolveCodexThread(
   return session.activeThread
 }
 
-/** 启动 runStreamed 并挂载事件流 */
-function startCodexRun(session: CodexSessionAgent, prompt: string, guardToken: string, mcpInline?: Record<string, Record<string, unknown>>): void {
+/** 启动 runStreamed 并挂载事件流（recover 续接复用） */
+export function startCodexRun(session: CodexSessionAgent, prompt: string, guardToken: string, mcpInline?: Record<string, Record<string, unknown>>): void {
+  session.lastTaskMessage = prompt
   const thread = resolveCodexThread(session, mcpInline)
   armCodexWatchdog(session, guardToken, makeWatchdogOpts())
+  persistCodexActiveRunSnapshot(session, true)
   const runEpoch = { runStartedAt: session.runStartedAt, runGuardToken: session.runGuardToken }
   void (async () => {
     try {

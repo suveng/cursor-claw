@@ -1,0 +1,402 @@
+{
+  "change_id": "20260712113332",
+  "id": "20260712113332-非Cursor引擎主进程续接",
+  "name": "非Cursor引擎主进程续接",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T11:33:32+0800",
+  "updated_at": "2026-07-12T13:52:00+0800",
+  "reviews": [],
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "kind": "change_doc",
+      "role": "design",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation-test",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/shared/active-run-store.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/shared/run-resume-notify.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-recover.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-run-persistence.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-run-persist.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-claude-sdk.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-stream.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-types.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/codex-run-persistence.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/codex-run-persist.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-sdk.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-session-registry.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-stream.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-types.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/opencode-run-persistence.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/opencode-run-persist.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-sdk.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-session-registry.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-stream.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-types.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/shared/AGENTS.md",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/AGENTS.md",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/AGENTS.md",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/AGENTS.md",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-run-recover.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/codex-run-recover.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/opencode-run-recover.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/shared/agent-run-recover-orchestrator.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-events.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-events.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-complete.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-complete.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/daemon/AGENTS.md",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/07-ClaudeCodeSDK执行引擎.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/08-CodexSDK执行引擎.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/09-OpenCodeSDK执行引擎.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/10-SDK上下文保护与失败归因.md",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  },
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "共享 active-run-store JSON 读写",
+      "status": "done",
+      "depends_on": [],
+      "files": ["electron/agent/shared/active-run-store.ts"]
+    },
+    {
+      "id": "T2",
+      "title": "run-resume-notify 抽取与 Cursor import 迁移",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "electron/agent/shared/run-resume-notify.ts",
+        "electron/agent/cursor-sdk/sdk-run-recover.ts"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "Claude Code 活跃 Run 持久化层",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": [
+        "electron/agent/claude-code/cc-run-persistence.ts",
+        "electron/agent/claude-code/cc-run-persist.ts"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "Codex 活跃 Run 持久化层",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": [
+        "electron/agent/codex/codex-run-persistence.ts",
+        "electron/agent/codex/codex-run-persist.ts"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "OpenCode 活跃 Run 持久化层",
+      "status": "done",
+      "depends_on": ["T1"],
+      "files": [
+        "electron/agent/opencode/opencode-run-persistence.ts",
+        "electron/agent/opencode/opencode-run-persist.ts"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "Claude Code Run 启动/呈现/stop 持久化挂接",
+      "status": "done",
+      "depends_on": ["T3"],
+      "files": [
+        "electron/agent/claude-code/agent-claude-sdk.ts",
+        "electron/agent/claude-code/agent-cc-stream.ts"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "Codex Run 启动/呈现/stop 持久化挂接",
+      "status": "done",
+      "depends_on": ["T4"],
+      "files": [
+        "electron/agent/codex/agent-codex-sdk.ts",
+        "electron/agent/codex/agent-codex-session-registry.ts",
+        "electron/agent/codex/agent-codex-stream.ts"
+      ]
+    },
+    {
+      "id": "T8",
+      "title": "OpenCode Run 启动/呈现/stop 持久化挂接",
+      "status": "done",
+      "depends_on": ["T5"],
+      "files": [
+        "electron/agent/opencode/agent-opencode-sdk.ts",
+        "electron/agent/opencode/agent-opencode-session-registry.ts",
+        "electron/agent/opencode/agent-opencode-stream.ts"
+      ]
+    },
+    {
+      "id": "T9",
+      "title": "Claude Code 主进程 recover",
+      "status": "done",
+      "depends_on": ["T2", "T3", "T6"],
+      "files": [
+        "electron/agent/claude-code/cc-run-recover.ts",
+        "electron/agent/claude-code/agent-claude-sdk.ts",
+        "electron/agent/claude-code/agent-cc-events.ts",
+        "electron/agent/claude-code/agent-cc-stream.ts"
+      ]
+    },
+    {
+      "id": "T10",
+      "title": "Codex 主进程 recover",
+      "status": "done",
+      "depends_on": ["T2", "T4", "T7"],
+      "files": [
+        "electron/agent/codex/codex-run-recover.ts",
+        "electron/agent/codex/agent-codex-sdk.ts",
+        "electron/agent/codex/agent-codex-events.ts",
+        "electron/agent/codex/agent-codex-complete.ts"
+      ]
+    },
+    {
+      "id": "T11",
+      "title": "OpenCode 主进程 recover",
+      "status": "done",
+      "depends_on": ["T2", "T5", "T8"],
+      "files": [
+        "electron/agent/opencode/opencode-run-recover.ts",
+        "electron/agent/opencode/agent-opencode-sdk.ts",
+        "electron/agent/opencode/agent-opencode-complete.ts"
+      ]
+    },
+    {
+      "id": "T12",
+      "title": "四引擎 recover orchestrator",
+      "status": "done",
+      "depends_on": ["T9", "T10", "T11"],
+      "files": ["electron/agent/shared/agent-run-recover-orchestrator.ts"]
+    },
+    {
+      "id": "T13",
+      "title": "daemon-manager init 挂接 recoverAllActiveRuns",
+      "status": "done",
+      "depends_on": ["T12"],
+      "files": [
+        "electron/daemon/daemon-manager.ts",
+        "electron/daemon/AGENTS.md"
+      ]
+    }
+  ]
+}

@@ -6,6 +6,7 @@
 - **HTTP**：`agent-opencode-http.ts`；端口 `userData/opencode-agent-api-port.json`；路由 `POST /api/opencode/agent/launch|dispatch`；`session/session-dispatcher` 的 `initSessionDispatcher` 调 `ensureOpencodeHttpServer()`。
 - **内嵌 server**：`resolveOpencodeClient` 按 Profile id 缓存；`stopAllOpencodeSessions` 调 `closeAllEmbeddedOpencodeServers()`。
 - **ui-logger.SessionSource** 含 `"opencode"`（`app/ui-logger.ts`）。
+- **活跃 Run 持久化/续接**：`opencode-run-persistence.ts` + `opencode-run-persist.ts`；`completeOpencodeRun` 终态 `clearOpencodeActiveRun`；`opencode-run-recover.ts` — `recoverOpencodeActiveRuns`（探活 server + `session.get` 校验 + `startOpencodeRun`）；init 经 orchestrator。
 
 ## Engine Port
 

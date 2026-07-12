@@ -9,6 +9,8 @@
 - **Engine Port**：`registerCodexEnginePort`；`mapCodexThreadEventToRunEvent` 映射 `ThreadEvent`→`RunEvent`。
 - **终态出口**：`completeCodexViaLifecycle`/`notifyCodexRunFailure`/`notifyCodexWatchdogTimeout`→shared 模板；运行中 IM 直接 import `run-notify`（无本地 notify 副本）。
 - **失败文案**：`codex-failure-messages.ts` 脱敏+归因提取，用户句委托 `formatRunFailureMessage`。
+- **resume**：`codexSessionId` 来自 `startThread`/`resumeThread`；dispatch 复用 `resolveCodexThread`。
+- **主进程续接（S7）**：`codex-run-recover.recoverCodexActiveRuns` 经 `recoverAllActiveRuns`；读 `codex-active-runs.json`；`RunLifecycle.resume`→`enterGuardWithLifecycle`→`startCodexRun`（`lastTaskMessage`）；CLI 不可用整批 skip；失败 `notifyResumeFailure`。
 - **MCP**：`codex-mcp-loader` 读 `~/.codex` 与 `{ws}/.codex/config.toml`，project>global。
 
 ## 三、服务端规则
@@ -39,7 +41,7 @@ sequenceDiagram
 
 ## 六、数据
 
-`CodexSessionAgent`（`agent-codex-types.ts`）；`errorNotified`/`watchdogTimedOut`/`runFinalizing` 门控见 [10](./10-SDK上下文保护与失败归因.md)。
+`CodexSessionAgent`（`agent-codex-types.ts`）；`codex-active-runs.json`（`CodexActiveRunRecord`：`codexSessionId`、`lastTaskMessage`、呈现游标）；`errorNotified`/`watchdogTimedOut`/`runFinalizing` 门控见 [10](./10-SDK上下文保护与失败归因.md)。
 
 ## 七、非功能与可观测
 
@@ -51,9 +53,10 @@ RunGuard+`enterGuardWithLifecycle`+`armCodexWatchdog`（S8 busy→`notifyGuardBu
 
 ## 九、已知限制与 TODO
 
-Dashboard MCP 占位；须本机 Codex CLI；无主进程 recover 对等路径。
+Dashboard MCP 占位；须本机 Codex CLI；recover 无 `getRun` 终态探测，依赖 `resumeThread` 语义（待验证）。
 
 ## 十、变更记录
 
+- 2026-07-12：主进程续接 `codex-run-recover`+`codex-active-runs.json`（archive 20260712113332）。
 - 2026-07-12：Engine Port + RunLifecycle（archive 20260711232258）。
 - 2026-06-30：Codex 三引擎接入（archive 20260630104714）。

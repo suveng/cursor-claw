@@ -28,6 +28,8 @@ import { armCcWatchdog, streamCcSdkMessages } from "./agent-cc-events"
 import { registerCcLaunchHandler, registerCcDispatchHandler } from "./agent-cc-http"
 import { PLATFORM_RUN_LIMIT_MS } from "../cursor-sdk/finalize-sdk-run"
 import { CC_SESSIONS } from "./agent-cc-session-registry"
+import { persistCcActiveRunSnapshot } from "./cc-run-persist"
+import { markCcRunUserStopped } from "./cc-run-persistence"
 
 export type { PresentationEvent, PresentationKind } from "../cursor-sdk/agent-sdk"
 export type { ClaudeCodeLaunchOptions, CcSessionAgent } from "./agent-cc-types"
@@ -66,12 +68,14 @@ const completeCcRunOpts = {
   resetPresentationState: resetCcRunPresentationState,
 }
 
-/** 启动 Query 并挂载事件流 */
-function startCcQuery(session: CcSessionAgent, prompt: string, guardToken: string): void {
+/** 启动 Query 并挂载事件流（recover 续接复用） */
+export function startCcQuery(session: CcSessionAgent, prompt: string, guardToken: string): void {
+  session.lastTaskMessage = prompt
   const q = query({ prompt, options: buildQueryOptions(session) })
   session.activeQuery = q
   armCcWatchdog(session, guardToken, makeWatchdogOpts())
   streamCcSdkMessages(session, q, makeStreamOpts())
+  persistCcActiveRunSnapshot(session, true)
 }
 
 export async function launchClaudeCodeAgent(opts: import("./agent-cc-types").ClaudeCodeLaunchOptions): Promise<{ ok: boolean; error?: string }> {
@@ -213,6 +217,7 @@ export function isClaudeCodeSessionRunning(sessionKey: string): boolean {
 export function stopClaudeCodeSession(sessionKey: string): void {
   const s = CC_SESSIONS.get(sessionKey)
   if (!s) return
+  markCcRunUserStopped(sessionKey)
   s.abortController.abort()
   clearStreamPostTimer(s)
   if (s.activeQuery) { try { s.activeQuery.close() } catch { /* best-effort */ } }

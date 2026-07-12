@@ -29,6 +29,7 @@ import { streamOpencodeEvents } from "./agent-opencode-events"
 import { watchOpencodeRunGuard } from "./agent-opencode-watchdog"
 import { registerOpencodeLaunchHandler, registerOpencodeDispatchHandler } from "./agent-opencode-http"
 import { formatOpencodeFailureMessage, sanitizeOpencodeSensitiveText } from "./opencode-failure-messages"
+import { persistOpencodeActiveRunSnapshot } from "./opencode-run-persist"
 import type { AgentResource } from "../../../src/shared/channel-types"
 
 export type { OpencodeLaunchOptions, OpencodeSessionAgent } from "./agent-opencode-types"
@@ -81,7 +82,11 @@ function failRun(session: OpencodeSessionAgent, err: unknown, epoch: OpencodeRun
   void completeOpencodeRun(session, -1, completeOpts, FAIL_COOLDOWN_MS, epoch)
 }
 
-async function startOpencodeRun(session: OpencodeSessionAgent, prompt: string, guardToken: string, opts: OpencodeLaunchOptions): Promise<void> {
+/** 启动 prompt 并挂载事件流（recover 续接复用） */
+export async function startOpencodeRun(session: OpencodeSessionAgent, prompt: string, guardToken: string, opts: OpencodeLaunchOptions): Promise<void> {
+  session.lastTaskMessage = prompt
+  session.opencodeHostname = opts.opencodeHostname
+  session.opencodePort = opts.opencodePort
   const epoch = { runStartedAt: session.runStartedAt, runGuardToken: guardToken }
   const inlineConfig = appendInlineMcpToOpencodeConfig({}, readOpencodeMcpServers(opts.workspaceDir), opts.workspaceDir)
   let bundle
@@ -112,6 +117,8 @@ async function startOpencodeRun(session: OpencodeSessionAgent, prompt: string, g
     }
     session.opencodeSessionId = sid
   }
+
+  persistOpencodeActiveRunSnapshot(session, true)
 
   const { providerID, modelID } = parseModelRef(opts.model?.trim() || OPENCODE_DEFAULT_MODEL)
   watchOpencodeRunGuard(session, guardToken, {
@@ -148,6 +155,7 @@ function buildSession(opts: OpencodeLaunchOptions, existing?: OpencodeSessionAge
       providerId: opts.providerId.trim(), apiKey: opts.apiKey.trim(),
       model: opts.model?.trim() || undefined, deployMode: opts.deployMode,
       profileResourceId: opts.profileResourceId,
+      opencodeHostname: opts.opencodeHostname, opencodePort: opts.opencodePort,
     })
     return existing
   }
@@ -155,6 +163,7 @@ function buildSession(opts: OpencodeLaunchOptions, existing?: OpencodeSessionAge
     sessionKey: opts.sessionKey, opencodeSessionId: null, activeClient: null,
     deployMode: opts.deployMode, providerId: opts.providerId.trim(), apiKey: opts.apiKey.trim(),
     model: opts.model?.trim(), profileResourceId: opts.profileResourceId,
+    opencodeHostname: opts.opencodeHostname, opencodePort: opts.opencodePort,
     startedAt: Date.now(), lastActivityAt: Date.now(), chatType: opts.chatType,
     workspaceDir: opts.workspaceDir, senderOpenId: opts.senderOpenId, chatName: opts.chatName,
     meta: opts.meta, useMainWorkspace: opts.useMainWorkspace,
@@ -246,6 +255,7 @@ export async function dispatchToOpencodeAgent(sessionKey: string, taskText: stri
       senderOpenId: session.senderOpenId, chatName: session.chatName, taskMessage: taskText,
       providerId: session.providerId, apiKey: session.apiKey, model: session.model,
       deployMode: session.deployMode, profileResourceId: session.profileResourceId,
+      opencodeHostname: session.opencodeHostname, opencodePort: session.opencodePort,
     }
     await startOpencodeRun(session, buildPrompt(session.meta, taskText, sessionKey, session.useMainWorkspace), guard.token, opts)
     broadcastOpencodeSessionStatus([...OPENCODE_SESSIONS.values()])

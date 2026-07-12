@@ -6,6 +6,7 @@ import { reportSessionAgentPhase } from "../../daemon/daemon-client"
 import { resolveSessionChatName } from "../shared/agent-launcher"
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import { clearCodexStreamPostTimer, broadcastCodexSessionStatus } from "./agent-codex-stream"
+import { markCodexRunUserStopped } from "./codex-run-persistence"
 import type { CodexSessionAgent } from "./agent-codex-types"
 
 /** 活跃 Codex 会话缓存（launch/dispatch/stop 由 agent-codex-sdk 读写） */
@@ -47,6 +48,7 @@ export function isCodexSessionRunning(sessionKey: string): boolean {
 export function stopCodexSession(sessionKey: string): void {
   const s = CODEX_SESSIONS.get(sessionKey)
   if (!s) return
+  markCodexRunUserStopped(sessionKey)
   s.abortController.abort()
   clearCodexStreamPostTimer(s)
   s.streamPostChain = Promise.resolve()

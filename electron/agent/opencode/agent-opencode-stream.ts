@@ -12,6 +12,7 @@ import {
 import { maybeRotateContext } from "../cursor-sdk/context-rotation-lite"
 import type { OpencodeSessionAgent } from "./agent-opencode-types"
 import { presentationOrderingEligible, resolveSessionChannelType } from "./agent-opencode-utils"
+import { persistOpencodeActiveRunSnapshot } from "./opencode-run-persist"
 
 const LOG_FLUSH_LEN = 400
 const STREAM_POST_INTERVAL_MS = 400
@@ -196,6 +197,7 @@ async function doFlushOpencodeStreamPost(session: OpencodeSessionAgent, final: b
   }
   await postOpencodeStreamText(session, payload)
   session.streamLastPostAt = Date.now()
+  persistOpencodeActiveRunSnapshot(session)
 }
 
 export function flushOpencodeStreamPost(session: OpencodeSessionAgent, final: boolean): Promise<void> {

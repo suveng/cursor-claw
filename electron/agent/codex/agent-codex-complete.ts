@@ -18,6 +18,8 @@ import {
   notifyCodexRunFailure,
   notifyCodexWatchdogTimeout,
 } from "./engine-port-adapter"
+import { clearCodexActiveRun } from "./codex-run-persistence"
+import { clearCodexPersistThrottle } from "./codex-run-persist"
 
 export interface CompleteCodexRunOptions {
   deleteSession: (key: string) => void
@@ -93,6 +95,8 @@ export async function completeCodexRun(
   }
 
   session.activeThread = null
+  clearCodexActiveRun(sessionKey)
+  clearCodexPersistThrottle(sessionKey)
 
   if (session.runGuardToken) {
     completeRunGuard(sessionKey, session.runGuardToken)

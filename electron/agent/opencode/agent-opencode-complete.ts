@@ -18,6 +18,8 @@ import {
   notifyOpencodeRunFailure,
   notifyOpencodeWatchdogTimeout,
 } from "./engine-port-adapter"
+import { clearOpencodeActiveRun } from "./opencode-run-persistence"
+import { clearOpencodePersistThrottle } from "./opencode-run-persist"
 
 const FAILURE_FALLBACK = "⚠️ Agent 处理失败，建议精简输入后重新发送；若仍失败请稍后重试。"
 
@@ -95,6 +97,9 @@ export async function completeOpencodeRun(
     session.runFinalizing = false
     return
   }
+
+  clearOpencodeActiveRun(sessionKey)
+  clearOpencodePersistThrottle(sessionKey)
 
   if (session.runGuardToken) {
     completeRunGuard(sessionKey, session.runGuardToken)

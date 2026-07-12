@@ -8,9 +8,9 @@
 
 - **Engine Port**：`registerOpencodeEnginePort`；`mapOpencodeSseToRunEvent` 映射 SSE→`RunEvent`。
 - **终态出口**：`completeOpencodeViaLifecycle`/`notifyOpencodeRunFailure`/`notifyOpencodeWatchdogTimeout`→shared 模板；运行中 IM 直接 import `run-notify`。
-- **Client**：`resolveOpencodeClient` — embedded 懒启动 / external 连 `baseUrl`；探活 `config.get()`。
-- **MCP**：`opencode-mcp-loader` 读 `opencode.json`/项目配置。
-- **Presentation ordering（Rev2 end-only）**：对称 Cursor `sdk-run-presentation.ts`；门控 `presentationOrderingEligible`（`PRESENTATION_ORDERING`+`f41Stream`）。notify tool/`reasoning`→`markOpencodeProcessEventSeen`；含过程 Run non-final 不 POST assistant；唯一出站 `flushOpencodeStreamPost(true)`。`postOpencodePresentationEvent` 禁止飞书早退。tool 分级 `resolveSdkToolPresentationTier`；defer 内联 `agent-opencode-stream.ts`。SSOT：`electron/agent/opencode/AGENTS.md`。
+- **Client/MCP**：`resolveOpencodeClient` embedded/external；`opencode-mcp-loader` 读 `opencode.json`/项目配置。
+- **resume/续接（S7）**：`opencodeSessionId` 续跑；`recoverOpencodeActiveRuns` 读 `opencode-active-runs.json`（含 embedded 连接字段）→探活→`startOpencodeRun`；失败 `notifyResumeFailure`。
+- **Presentation ordering（Rev2 end-only）**：对称 Cursor；门控 `presentationOrderingEligible`；过程事件不抢 stream 首包；终态唯一 `flushOpencodeStreamPost(true)`。SSOT：`electron/agent/opencode/AGENTS.md`。
 
 ## 三、服务端规则
 
@@ -44,7 +44,7 @@ sequenceDiagram
 
 ## 六、数据
 
-`OpencodeSessionAgent`：`opencodeSessionId`、`errorNotified`、`watchdogTimedOut`、`runFinalizing`；ordering 字段 `seenProcessEvent`、`presentationDeferStream`、`streamBuffer`/`streamPostChain`/`outboundMessageId`；门控见 [10](./10-SDK上下文保护与失败归因.md)。
+`OpencodeSessionAgent`：`opencodeSessionId`、`errorNotified`、`watchdogTimedOut`、`runFinalizing`；`opencode-active-runs.json`（`OpencodeActiveRunRecord`）；ordering 字段 `seenProcessEvent`、`presentationDeferStream`、`streamBuffer`/`streamPostChain`/`outboundMessageId`；门控见 [10](./10-SDK上下文保护与失败归因.md)。
 
 ## 七、非功能与可观测
 
@@ -56,10 +56,11 @@ RunGuard+`enterGuardWithLifecycle`+watchdog；SSE 未知 WARN；失败经 `forma
 
 ## 九、已知限制与 TODO
 
-外部探活依赖 `config.get`；无主进程 recover 对等路径（S7 仅 Cursor）。Codex ordering 不在本引擎范围。
+外部探活依赖 `config.get`；embedded server 冷启动后 `opencodeSessionId` 有效性待验证。Codex ordering 不在本引擎范围。
 
 ## 十、变更记录
 
+- 2026-07-12：主进程续接 `opencode-run-recover`+`opencode-active-runs.json`（archive 20260712113332）。
 - 2026-07-12：Presentation defer/Rev2 end-only 对齐 Cursor（archive 20260712113320）。
 - 2026-07-12：Engine Port + RunLifecycle（archive 20260711232258）。
 - 2026-06-30：OpenCode 四引擎接入（archive 20260630105159）。

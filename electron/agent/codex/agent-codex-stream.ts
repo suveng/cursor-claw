@@ -16,6 +16,7 @@ import {
 import { maybeRotateContext } from "../cursor-sdk/context-rotation-lite"
 import type { CodexSessionAgent } from "./agent-codex-types"
 import { resolveSessionChannelType } from "./agent-codex-utils"
+import { persistCodexActiveRunSnapshot } from "./codex-run-persist"
 
 const LOG_FLUSH_LEN = 400
 const STREAM_POST_INTERVAL_MS = 400
@@ -154,6 +155,7 @@ export async function doFlushCodexStreamPost(session: CodexSessionAgent, final: 
   }
   await postCodexStreamText(session, payload)
   session.streamLastPostAt = Date.now()
+  persistCodexActiveRunSnapshot(session)
 }
 
 /** 串行链 flush */

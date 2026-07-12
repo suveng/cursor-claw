@@ -5,6 +5,7 @@ import { reportSessionAgentPhase } from "../../daemon/daemon-client"
 import { resolveSessionChatName } from "../shared/agent-launcher"
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import { clearOpencodeStreamPostTimer, broadcastOpencodeSessionStatus } from "./agent-opencode-stream"
+import { markOpencodeRunUserStopped } from "./opencode-run-persistence"
 import { closeAllEmbeddedOpencodeServers } from "./agent-opencode-utils"
 import type { OpencodeSessionAgent } from "./agent-opencode-types"
 
@@ -41,6 +42,7 @@ export function isOpencodeSessionRunning(sessionKey: string): boolean {
 export function stopOpencodeSession(sessionKey: string): void {
   const s = OPENCODE_SESSIONS.get(sessionKey)
   if (!s) return
+  markOpencodeRunUserStopped(sessionKey)
   s.abortController.abort()
   clearOpencodeStreamPostTimer(s)
   s.streamPostChain = Promise.resolve()

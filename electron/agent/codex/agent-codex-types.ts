@@ -46,6 +46,8 @@ export interface CodexSessionAgent {
   activeThread: Thread | null
   /** thread.started 写入的 thread_id，供 resumeThread 续接 */
   codexSessionId: string | null
+  /** 最后一次用户 prompt，供主进程重启 recover 重发 */
+  lastTaskMessage?: string
   startedAt: number
   lastActivityAt: number
   chatType: ChatType

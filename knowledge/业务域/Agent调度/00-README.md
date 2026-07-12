@@ -42,11 +42,11 @@
 | Daemon | `electron/daemon/daemon-manager.ts`、`electron/daemon/daemon-client.ts` |
 | 远程/Cron | `electron/scheduling/command-handler.ts`、`electron/scheduling/cron-scheduler.ts` |
 | Cursor | `electron/agent/cursor-sdk/agent-sdk.ts`、`electron/agent/cursor-sdk/sdk-run-*.ts`、`electron/agent/cursor-sdk/sdk-warmup.ts`、`electron/agent/cursor-sdk/context-usage-model-limit.ts`、`electron/mcp/loaders/mcp-sdk-loader.ts` |
-| Claude | `electron/agent/claude-code/agent-claude-sdk.ts`、`electron/agent/claude-code/agent-cc-*.ts`、`electron/mcp/loaders/cc-mcp-loader.ts` |
-| Codex | `electron/agent/codex/agent-codex-sdk.ts`、`electron/agent/codex/agent-codex-*.ts`、`electron/mcp/loaders/codex-mcp-loader.ts` |
-| OpenCode | `electron/agent/opencode/agent-opencode-sdk.ts`、`electron/agent/opencode/agent-opencode-*.ts`、`electron/mcp/loaders/opencode-mcp-loader.ts`、`electron/agent/opencode/opencode-failure-messages.ts` |
+| Claude | `electron/agent/claude-code/agent-claude-sdk.ts`、`electron/agent/claude-code/agent-cc-*.ts`、`electron/agent/claude-code/cc-run-*.ts`、`electron/mcp/loaders/cc-mcp-loader.ts` |
+| Codex | `electron/agent/codex/agent-codex-sdk.ts`、`electron/agent/codex/agent-codex-*.ts`、`electron/agent/codex/codex-run-*.ts`、`electron/mcp/loaders/codex-mcp-loader.ts` |
+| OpenCode | `electron/agent/opencode/agent-opencode-sdk.ts`、`electron/agent/opencode/agent-opencode-*.ts`、`electron/agent/opencode/opencode-run-*.ts`、`electron/mcp/loaders/opencode-mcp-loader.ts`、`electron/agent/opencode/opencode-failure-messages.ts` |
 | Session MCP | `electron/session/session-mcp-status.ts` |
-| 跨引擎 Port/Lifecycle | `electron/agent/shared/run-lifecycle*.ts`、`agent-engine-port.ts`、`run-notify.ts`、`run-failure-formatter.ts`、`run-complete-template.ts` |
+| 跨引擎 Port/Lifecycle | `electron/agent/shared/run-lifecycle*.ts`、`agent-engine-port.ts`、`run-notify.ts`、`run-failure-formatter.ts`、`run-complete-template.ts`、`active-run-store.ts`、`agent-run-recover-orchestrator.ts`、`run-resume-notify.ts` |
 | Daemon dispatch notify | `src/daemon/daemon-orchestrator-notify.ts`、`src/shared/orchestrator-failure-formatter.ts` |
 | 契约冒烟 | `npm run test:run-notify-contract`（变更 auto_test，mock 终态 IM） |
 | 跨引擎 | `electron/agent/shared/agent-launcher.ts`、`electron/agent/shared/crash-log-archiver.ts`、`electron/agent/shared/agent-run-guard.ts` |
@@ -55,6 +55,7 @@
 
 ## 变更记录
 
+- 2026-07-12：关键源码补四引擎 recover（`agent-run-recover-orchestrator`、`*-run-recover`、`*-active-runs.json`）（archive 20260712113332）。
 - 2026-07-12：关键源码补 Engine Port / RunLifecycle / dispatch 对称 notify（archive 20260711232258）。
 - 2026-07-11：关键源码 Daemon 编排锚点扩散（巨型单体拆分批1）。
 2026-07-05：新增 10 SDK 上下文保护（archive 20260705230806）。

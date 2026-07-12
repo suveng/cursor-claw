@@ -46,6 +46,10 @@ export interface OpencodeSessionAgent {
   apiKey: string
   model?: string
   profileResourceId?: string
+  opencodeHostname?: string
+  opencodePort?: number
+  /** 最后一次用户 prompt，供主进程重启 recover 重发 */
+  lastTaskMessage?: string
   startedAt: number
   lastActivityAt: number
   chatType: ChatType

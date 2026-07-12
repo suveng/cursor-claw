@@ -8,7 +8,7 @@
 
 - **Engine Port**：`engine-port-adapter.ts` 注册 `sdk`；`agent-sdk-http.ts` 查 `getEnginePort` 委托 launch/dispatch；`sdk-run-port-lifecycle.ts` 缓存 Lifecycle、`applySdkStreamRunEvent`、`completeSdkRunViaPort`。
 - **RunLifecycle**：`guarding→streaming→watching→completing→notifying`；`streamRunEvents` 终态经 `RunEvent` 路由，**禁止** adapter 外平行完整终态 notify。
-- **API/MCP/续接（S7）**：长驻+二次 send；`sdk-run-recover.recoverSdkActiveRuns` 于 init 挂接：`Agent.resume`→`getOrCreateSdkRunLifecycle().resume()`（清零 `errorNotified`/`runFinalizing`、`phase→guarding`）→`enterGuardWithLifecycle`→`startSdkRun`；失败 `notifyResumeFailure` 一次 IM。CC/Codex/OpenCode 无主进程 recover 对等路径。
+- **API/MCP/续接（S7）**：长驻+二次 send；`recoverAllActiveRuns` 于 `initDaemonManager` 挂接（内含 `recoverSdkActiveRuns`）；`Agent.resume`→`getOrCreateSdkRunLifecycle().resume()`→`enterGuardWithLifecycle`→`startSdkRun`；失败 `notifyResumeFailure`（`run-resume-notify.ts`，四引擎共用）。CC/Codex/OpenCode 对称 `*-run-recover`+`*-active-runs.json`（见 07–09）。
 - **呈现/ordering/watchdog**：Rev2 end-only、飞书 f41、tool 分级、watchdog 门控见 AGENTS.md；OpenCode 已对齐（见 [09](./09-OpenCodeSDK执行引擎.md) §二）。
 
 ## 三、服务端规则
@@ -55,10 +55,11 @@ RunGuard+`enterGuardWithLifecycle`（guard busy→`notifyGuardBusy`/`session_abn
 
 ## 九、已知限制与 TODO
 
-S7 仅 Cursor 主进程重启 recover；CC/Codex/OpenCode 续接为 SDK 内 sessionId，不经 `sdk-run-recover`。
+S7 四引擎主进程 recover 已对称；Cursor 独有 `Agent.resume`+`getRun` 终态探测，三引擎依赖各 SDK `resume` 语义（见 07–09 §九）。
 
 ## 十、变更记录
 
+- 2026-07-12：续接编排迁入 `recoverAllActiveRuns`；`notifyResumeFailure` 抽取 shared（archive 20260712113332）。
 - 2026-07-12：Engine Port + RunLifecycle 抽象，终态委托 shared（archive 20260711232258）。
 - 2026-07-11：首条冷启动优化（archive 20260711211323）。
 - 2026-07-05：pre-send 上下文保护（archive 20260705230806）。

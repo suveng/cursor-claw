@@ -8,7 +8,7 @@
 
 - **Engine Port**：`registerCcEnginePort` 于 `agent-sdk-http`；`mapCcSdkMessageToRunEvent`/`emitCcQueryTerminalRunEvent` 供 `agent-cc-events.ts` 路由。
 - **终态出口**：`completeCcViaLifecycle`/`notifyCcRunFailure`/`notifyCcWatchdogTimeout`→`enterNotifying`→`completeRunFromTemplate`；`agent-cc-notify.ts` **仅** re-export `run-notify`。
-- **resume**：`ccSessionId` 来自 `system/init`/`result`；`CC_RESIDENT_AGENT` 默认开。
+- **resume/续接（S7）**：`ccSessionId`+`options.resume`；`recoverCcActiveRuns` 读 `cc-active-runs.json`→`RunLifecycle.resume`→guard→`startCcQuery`（可重发 `lastTaskMessage`）；失败 `notifyResumeFailure`；`userStopped` 跳过。
 - **MCP inline**：`cc-mcp-loader`+审批门控；`strictMcpConfig:true` 见 AGENTS.md。
 
 ## 三、服务端规则
@@ -42,11 +42,11 @@ IM 委托 `launchCcAgentFromHttp`（统一网关路由）。
 
 ## 六、数据
 
-`CcSessionAgent`：`errorNotified`、`watchdogTimedOut`、`runFinalizing`、`ccSessionId`、`activeQuery` 等；Lifecycle 门控见 [10](./10-SDK上下文保护与失败归因.md)。
+`CcSessionAgent`：`errorNotified`、`watchdogTimedOut`、`runFinalizing`、`ccSessionId`、`activeQuery` 等；`cc-active-runs.json` 快照（`CcActiveRunRecord`：续接键 `ccSessionId`、`lastTaskMessage`、呈现游标）；Lifecycle 门控见 [10](./10-SDK上下文保护与失败归因.md)。
 
 ## 七、非功能与可观测
 
-RunGuard+`enterGuardWithLifecycle`+`armCcWatchdog`；busy IM 对称 Cursor/Codex/OpenCode；Presentation 对称 SDK ordering；失败文案 `formatRunFailureMessage`；MCP 三态 runtime→snapshot→disk。
+RunGuard+`enterGuardWithLifecycle`+`armCcWatchdog`；busy IM 对称四引擎；Presentation 对称 SDK ordering；`[recover]` 可检索。
 
 ## 八、推送
 
@@ -54,10 +54,11 @@ RunGuard+`enterGuardWithLifecycle`+`armCcWatchdog`；busy IM 对称 Cursor/Codex
 
 ## 九、已知限制与 TODO
 
-project scope 审批未并读 settings 多源（R1 accepted_debt）；无主进程 `sdk-run-recover` 对等路径。
+project scope 审批未并读 settings 多源（R1 accepted_debt）；CC recover 无 Cursor 式 `getRun` 终态探测，续接成败依赖 SDK `resume` 语义（待逐场景验证）。
 
 ## 十、变更记录
 
+- 2026-07-12：主进程续接 `cc-run-recover`+`cc-active-runs.json`（archive 20260712113332）。
 - 2026-07-12：Engine Port + RunLifecycle，终态委托 shared（archive 20260711232258）。
 - 2026-07-05：飞书 f41 assistant plain 收尾。
 - 2026-06-30：审批门控与 `query()` 落地（archive 20260630140113）。

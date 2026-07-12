@@ -18,6 +18,7 @@ import {
   appendCodexStreamDelta,
   maybeRotateCodexSessionContext,
 } from "./agent-codex-stream"
+import { persistCodexActiveRunSnapshot } from "./codex-run-persist"
 
 /** Codex Usage → TurnUsageSlice */
 function mapCodexUsageToSlice(usage: Usage): TurnUsageSlice {
@@ -172,6 +173,7 @@ export function handleCodexEvent(
 
   if (event.type === "thread.started") {
     session.codexSessionId = event.thread_id
+    persistCodexActiveRunSnapshot(session, true)
     pushUiLog("Codex", "INFO", `[${session.sessionKey}] codex_session_id=${event.thread_id}`)
     return
   }

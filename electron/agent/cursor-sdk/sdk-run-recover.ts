@@ -8,7 +8,7 @@ import { completeRunGuard, enterGuardWithLifecycle, releaseRunGuard } from "../s
 import { loadInlineMcpServersForSdk } from "../../mcp/loaders/mcp-sdk-loader"
 import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loaders/plugin-sdk-bootstrap"
 import { clearActiveSdkRun, listRecoverableSdkRuns } from "./sdk-run-persistence"
-import { notifySessionChat } from "../../daemon/sdk-daemon-notify"
+import { notifyResumeFailure } from "../shared/run-resume-notify"
 import { startSdkRun } from "./sdk-run-lifecycle"
 import { getOrCreateSdkRunLifecycle } from "./sdk-run-port-lifecycle"
 import {
@@ -22,18 +22,9 @@ import type { RecoverSummary, SdkSessionAgent } from "./sdk-session-types"
 import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
 import { pushUiLog } from "../../app/ui-logger"
 
-const RESUME_FAIL_USER_HINT = "请重新发送消息继续"
-
 function parseRecordChatType(raw: string): ChatType {
   const allowed: ChatType[] = ["p2p", "group", "task", "temp", "workflow"]
   return (allowed as string[]).includes(raw) ? (raw as ChatType) : "p2p"
-}
-
-/** 续接失败：向原 session 下发一次可理解 IM 提示 */
-export async function notifyResumeFailure(sessionKey: string, reason: string): Promise<void> {
-  const text = `⚠️ 未能自动续接上次任务（${reason}），${RESUME_FAIL_USER_HINT}。`
-  pushUiLog("SDK", "WARN", `[recover] notifyResumeFailure sessionKey=${sessionKey} reason=${reason}`)
-  await notifySessionChat(sessionKey, text, { stop_progress: true })
 }
 
 /** 主进程启动后批量续接活跃 Run（T6 在 initDaemonManager 挂接） */

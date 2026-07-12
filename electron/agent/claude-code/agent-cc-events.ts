@@ -21,6 +21,7 @@ import {
 import { formatCcHookUiLog } from "./cc-sdk-hooks"
 import { emitCcQueryTerminalRunEvent, mapCcSdkMessageToRunEvent } from "./engine-port-adapter"
 import { createRunLifecycle } from "../shared/run-lifecycle"
+import { persistCcActiveRunSnapshot } from "./cc-run-persist"
 
 /** content block 最小结构（含 tool_use.input） */
 type CcContentBlock = {
@@ -113,6 +114,7 @@ export function handleSdkMessage(
       if (msg.session_id) {
         pushUiLog("CC", "INFO", `[${session.sessionKey}] cc_session_id=${msg.session_id}`)
         session.ccSessionId = msg.session_id
+        persistCcActiveRunSnapshot(session, true)
       }
       if (msg.model) session.modelId = msg.model
       if (Array.isArray(msg.mcp_servers)) {
@@ -142,14 +144,20 @@ export function handleSdkMessage(
     handleContentBlocks(session, content, resolveChannelType, false)
     const usageSlice = mapUsageToSlice(msg.message.usage as Parameters<typeof mapUsageToSlice>[0])
     if (usageSlice) updateContextUsageDisplay(session, usageSlice)
-    if (msg.session_id) session.ccSessionId = msg.session_id
+    if (msg.session_id) {
+      session.ccSessionId = msg.session_id
+      persistCcActiveRunSnapshot(session, true)
+    }
     session.ccTextFromPartialStream = false
     return
   }
 
   if (msg.type === "stream_event") {
     handleStreamEvent(session, msg.event as { type?: string; delta?: { type?: string; text?: string; thinking?: string } }, resolveChannelType)
-    if (msg.session_id) session.ccSessionId = msg.session_id
+    if (msg.session_id) {
+      session.ccSessionId = msg.session_id
+      persistCcActiveRunSnapshot(session, true)
+    }
     return
   }
 
@@ -160,7 +168,10 @@ export function handleSdkMessage(
   }
 
   if (msg.type === "result") {
-    if (msg.session_id) session.ccSessionId = msg.session_id
+    if (msg.session_id) {
+      session.ccSessionId = msg.session_id
+      persistCcActiveRunSnapshot(session, true)
+    }
     const usageSlice = mapUsageToSlice(msg.usage)
     if (usageSlice) updateContextUsageDisplay(session, usageSlice)
     if (msg.duration_ms) {

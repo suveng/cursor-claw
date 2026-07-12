@@ -20,7 +20,7 @@
 - **终态 IM 唯一出站**：`run-notify.notifySessionChat` — 仅 `daemon-client`；`daemon/sdk-daemon-notify.ts` 与 `claude-code/agent-cc-notify.ts` **仅 re-export**；Codex/OpenCode **直接** import `run-notify`（禁止再写完整 `send-text`）。
 - **失败文案**：`run-failure-formatter.formatRunFailureMessage` — 引擎终态用户句 SSOT；Daemon dispatch 失败文案 SSOT 在 `src/shared/orchestrator-failure-formatter.ts`（`run-failure-formatter` re-export），`src/daemon/daemon-orchestrator-notify.ts` 仅 re-export。
 - **收尾模板**：`run-complete-template.completeRunFromTemplate` — 幂等 `errorNotified`/`runFinalizing`；f41 stream 成功路径由引擎 stream 收尾，模板**禁止**双写 assistant。
-- **状态机**：`run-lifecycle.createRunLifecycle` — 四引擎终态须经 `enterNotifying` → `completeRunFromTemplate`；`resume()` S7 清零 `errorNotified`/`runFinalizing` 并 `phase→guarding`（主进程重启续接仅 Cursor `sdk-run-recover`，CC/Codex/OpenCode 无对等 recover 路径）。
+- **状态机**：`run-lifecycle.createRunLifecycle` — 四引擎终态须经 `enterNotifying` → `completeRunFromTemplate`；`resume()` S7 清零 `errorNotified`/`runFinalizing` 并 `phase→guarding`（主进程重启续接经各引擎 `*-run-recover.ts` + `agent-run-recover-orchestrator`）。
 - **adapter 唯一切面**：各引擎 `engine-port-adapter.ts` 实现 `AgentEnginePort` 六方法；**禁止**在 adapter 外平行实现完整终态 notify/failure/complete 主路径（绕开 `errorNotified` 闩或模板直发失败/超时/取消 IM）；运行中「Agent 处理中…」、pre-send 阻断、resume 失败等**非终态** notify 除外。
 - **guard 挂接**：`agent-run-guard.enterGuardWithLifecycle(session, lifecycle?)` — busy 经 `formatRunFailureMessage` + `notifySessionChat` 一次 IM；闩算法核心不改。**四引擎 launch/dispatch**（Cursor `agent-sdk.ts`、CC `agent-claude-sdk.ts`、Codex `agent-codex-sdk.ts`、OpenCode `agent-opencode-sdk.ts`）均须 `createRunLifecycle(session)` + `enterGuardWithLifecycle`；禁止裸 `acquireRunGuard` 静默 busy 早退；`stale_aborted` 对称 Cursor 仅 `{ ok: false, error: "agent busy" }` 不二次 IM。
 
@@ -32,6 +32,9 @@
 - `retry-policy.ts`：幂等键与重试策略。
 - `workspace-injector.ts`：自动注入（rules/mcp/skills）已废弃为 no-op；`cleanupLegacyInjection` 仅作可选手动清理，**禁止**在 launch 或 Daemon 启动路径自动调用。
 - `launch-request-resolve.ts`：IM + 本地四入口 launch body/workDir/model 解析 SSOT（`parseLaunchRequestBody` / `resolveLaunchWorkDir` / `resolveLaunchModel` / `buildLaunchRequestBody`）；纯函数、无 HTTP/会话副作用；各 `agent-*-http.ts` 与 `session-dispatcher-launch` 改调本模块，**禁止**再内联重复解析块。
+- `active-run-store.ts`：泛型 `userData/*-active-runs.json` 读写 SSOT；读盘容错不抛、写盘失败仅 `pushUiLog` WARN；`listRecoverableActiveRuns` 排除 `userStopped===true`；各引擎 `*-run-persistence.ts` 封装路径与 `isValid`，**禁止**四份复制读写逻辑。
+- `run-resume-notify.ts`：`notifyResumeFailure` 四引擎 recover 共用；文案与 `stop_progress: true` 对称 Cursor S7；**禁止**各引擎 recover 内联重复 IM 实现。
+- `agent-run-recover-orchestrator.ts`：`recoverAllActiveRuns` 顺序调用四引擎 `recover*ActiveRuns`；单引擎 throw 不阻断 init；汇总日志 `[recover] recoverAllActiveRuns 完成`；**禁止**在 `daemon-manager` 直接调用单引擎 recover（init 挂接 orchestrator 唯一入口）。
 
 ## 编码规矩
 
