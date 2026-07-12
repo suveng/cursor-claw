@@ -10,7 +10,8 @@ import {
   resolveContextLimitForSession,
 } from "../cursor-sdk/context-usage"
 import { buildPrompt } from "../shared/agent-launcher"
-import { acquireRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
+import { releaseRunGuard, enterGuardWithLifecycle } from "../shared/agent-run-guard"
+import { createRunLifecycle } from "../shared/run-lifecycle"
 import {
   CODEX_SESSIONS, CODEX_PENDING_LAUNCHES, CODEX_FAILED_COOLDOWNS,
 } from "./agent-codex-session-registry"
@@ -134,7 +135,7 @@ export async function launchCodexAgent(opts: CodexLaunchOptions): Promise<{ ok: 
   if (CODEX_PENDING_LAUNCHES.has(sessionKey)) return { ok: false, error: "会话正在启动中" }
   CODEX_PENDING_LAUNCHES.add(sessionKey)
 
-  let guard: ReturnType<typeof acquireRunGuard> | undefined
+  let guard: ReturnType<typeof enterGuardWithLifecycle> | undefined
   let session: CodexSessionAgent | undefined
 
   try {
@@ -142,9 +143,6 @@ export async function launchCodexAgent(opts: CodexLaunchOptions): Promise<{ ok: 
     if (session?.pendingDispatch) {
       return dispatchToCodexAgent(sessionKey, taskMessage ?? "", meta?.messageIds)
     }
-
-    guard = acquireRunGuard(sessionKey)
-    if (!guard.acquired) return { ok: false, error: `会话 ${sessionKey} 正在执行中（guard=${guard.holder}）` }
 
     const modelId = model?.trim() || CODEX_DEFAULT_MODEL_ID
     const limitProxy = { modelId, apiKey: apiKey.trim(), contextLimitTokens: undefined as number | undefined }
@@ -182,6 +180,11 @@ export async function launchCodexAgent(opts: CodexLaunchOptions): Promise<{ ok: 
         model: model?.trim() || undefined,
       })
     }
+
+    // S8：busy 经 guard 内 notifyGuardBusy 发一次 IM，对称 Cursor T8
+    const lifecycle = createRunLifecycle(session)
+    guard = enterGuardWithLifecycle(session, lifecycle)
+    if (!guard.acquired) return { ok: false, error: "agent busy" }
 
     session.runGuardToken = guard.token
     session.inboundMessageIds = meta?.messageIds
@@ -228,10 +231,11 @@ export async function dispatchToCodexAgent(
     session.inboundMessageIds = messageIds
     maybeRotateCodexSessionContext(session)
 
-    const guard = acquireRunGuard(sessionKey)
+    const lifecycle = createRunLifecycle(session)
+    const guard = enterGuardWithLifecycle(session, lifecycle)
     if (!guard.acquired) {
       session.pendingDispatch = false
-      return { ok: false, error: `会话 ${sessionKey} guard 获取失败` }
+      return { ok: false, error: "agent busy|retry_after=1500" }
     }
     session.runGuardToken = guard.token
     session.runStartedAt = Date.now()

@@ -75,8 +75,10 @@ export function createRunLifecycle(session: RunLifecycleSessionSlice): RunLifecy
       })
     },
 
+    /** S7 续接：清零终态闩并回到 guarding，供主进程重启 recover 后复用 */
     resume(): void {
-      // S7 续接 stub：二～三期完善 errorNotified 重置与阶段恢复
+      session.errorNotified = false
+      session.runFinalizing = false
       setPhase("guarding")
     },
   }

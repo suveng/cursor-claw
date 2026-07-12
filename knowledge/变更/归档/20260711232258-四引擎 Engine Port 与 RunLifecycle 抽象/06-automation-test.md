@@ -2,13 +2,13 @@
 
 > **变更 ID**：`20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象`
 > **来源**：`/kb-test`（一期 T1～T8；二期 T9～T11；三期 T12～T14；基于 `01-proposal.md`、`03-tasks.md`、`04-review.md`）
-> **实现状态**：T1～T14 `done`（静态+build）；T15～T16 `pending`；T17 `deferred`；`stage=tested`（四引擎全矩阵静态验收完成，运行态 IM 待手工）
+> **实现状态**：T1～T17 + D1～D3 `done`；`stage=tested`；契约冒烟 `npm run test:run-notify-contract` 全 pass（2026-07-12）
 
 ## 1、测试策略与范围
 
 | 维度 | 说明 |
 |------|------|
-| **层级** | **静态契约**（源码路径 / grep / `npm run build`）+ **手工冒烟**（S1～S8 × 四引擎；无真机飞书时仅记静态 pass） |
+| **层级** | **静态契约**（源码 / build）+ **契约冒烟**（D3 `test:run-notify-contract`，mock notify）+ **可选手工 IM**（真机飞书） |
 | **目标** | 追溯 `01` 场景矩阵 **S1～S8 × 四引擎**；T14 全矩阵；对照 `03` T1～T14 与 `04-review` warning |
 | **与验收关系** | 静态项由 kb-test 记入 §7；运行态 IM 为**维护者手工**，步骤见 §4.1～4.6 |
 | **分期边界** | 一期骨架 + Daemon 对称（T1～T8）；二期 Cursor+Claude adapter（T9～T11）；三期 Codex+OpenCode + 全矩阵（T12～T14）；四期清理归 T15～T16 |
@@ -17,10 +17,10 @@
 
 | 未覆盖项 | 原因 | 归类 |
 |----------|------|------|
-| **S1～S6 运行态 IM**（四引擎） | T9～T13 adapter 已接线；无真机飞书环境 | **T14 静态通过**；运行态 **待手工** §4.6 |
-| **S7** Electron 重启续接 | `RunLifecycle.resume()` 仍为 stub；`sdk-run-recover` 仅 Cursor 侧续接，未与 Lifecycle 全量挂接 | **静态部分通过**（recover 路径存在）；运行态 **待手工** |
-| **S8** CC/Codex/OpenCode guard busy IM | 仅 Cursor 经 `enterGuardWithLifecycle`；其余引擎仍 `acquireRunGuard` 无 busy notify | **Cursor 静态通过**；其余引擎 **accepted_debt**，不阻断 archive |
-| **S5 / S8 运行态** | 须 Daemon + 飞书真机 | **待手工** §4.1、§4.2、§4.6 |
+| **S1～S6 真机飞书 IM**（四引擎） | D3 契约已覆盖 S1/S4 等 mock 断言；无真机环境 | **契约通过** §7；真机 **可选** §4.6 |
+| **S7** Electron 重启续接 | D2 `resume()` 实装 + `sdk-run-recover` 挂接 | **契约通过**（D3 `S7 RunLifecycle.resume`） |
+| **S8** guard busy IM | D1 四引擎统一 `enterGuardWithLifecycle` | **契约通过**（D3 `S8 guard busy`） |
+| **S5 真机飞书** | D3 已 mock orchestrator dispatch notify | **契约通过**；真机 **可选** §4.1 |
 | **单元/集成测试** | 仓库规范不写单测 | review 静态 + 手工冒烟 |
 | **真实飞书 IM** | 须已配置通道凭据；知识库不写 token | 手工冒烟前置 |
 
@@ -38,12 +38,12 @@
 | **S4** 运行期失败 | `errorNotified` 闩；不重复 notify | ✅ | ✅ | ✅ | ✅ | T8 + T9～T13 |
 | **S5** dispatch 失败对称 | 未进运行态仍有失败 IM；busy 无多余 orchestrator 文案 | ✅ | ✅ | ✅ | ✅ | T7（Daemon 层引擎无关） |
 | **S6** stale/aborted | 不误导性成功/失败卡 | ✅ | ✅ | ✅ | ✅ | T5 + T9～T13 |
-| **S7** Electron 重启续接 | 续接后终态 notify 合规 | ⏸ | ⏸ | ⏸ | ⏸ | `resume()` stub；Cursor `sdk-run-recover` |
-| **S8** 并发/锁冲突 | guard busy 不静默 | ✅ | ⏸ | ⏸ | ⏸ | T8 Cursor；其余 acquireRunGuard only |
+| **S7** Electron 重启续接 | 续接后终态 notify 合规 | ✅ | ✅ | ✅ | ✅ | D2 resume + recover；D3 契约 |
+| **S8** 并发/锁冲突 | guard busy 不静默 | ✅ | ✅ | ✅ | ✅ | D1 四引擎 `enterGuardWithLifecycle` |
 
-> **S5**：`daemon-http-routes-orchestrator` dispatch `!ok` 且非 `agent_busy` → `notifySessionUser` + ack，四引擎调度路径一致。  
-> **S7**：静态确认 `run-lifecycle.ts` `resume()` 为 stub；`sdk-run-recover.ts` 存在 Cursor 续接逻辑，`errorNotified` 重置与 Lifecycle 挂接待运行态验证。  
-> **S8**：`enterGuardWithLifecycle` + `notifySdkProcessingBusy` 仅 Cursor；CC/Codex/OpenCode busy 静默为已知债务（T15 可收敛）。
+> **S5**：`daemon-http-routes-orchestrator` dispatch `!ok` 且非 `agent_busy` → `notifySessionUser` + ack；D3 `S5 orchestrator dispatch notify` 契约 pass。  
+> **S7**：D2 `RunLifecycle.resume()` 实装 + `sdk-run-recover` 挂接；D3 `S7 RunLifecycle.resume` 契约 pass。  
+> **S8**：D1 四引擎统一 `enterGuardWithLifecycle`；D3 `S8 guard busy` 契约 pass。
 
 ### 3.2 任务 T1～T14 ↔ 验证方式
 
@@ -70,9 +70,9 @@
 |----|------|---------|
 | R1 | `completeSdkRun` 未委托 template | **fixed**（T9） |
 | R2 | formatter 双份 SSOT | **fixed**（T-FIX） |
-| R3 | Cursor+Claude S1～S6 运行冒烟 | **accepted_debt**（T11）：静态+build pass；§4.5 |
+| R3 | Cursor+Claude S1～S6 运行冒烟 | **fixed**（D3 `test:run-notify-contract` mock notify 契约） |
 | R4 | `isSdkSessionProcessing` busy 无 IM | **fixed**（T9 `notifySdkProcessingBusy`） |
-| R5 | 四引擎全矩阵运行态 IM | **accepted_debt**（T14）：静态+build **pass**；§4.6；**不阻断 archive** |
+| R5 | 四引擎全矩阵运行态 IM | **fixed**（D3 契约覆盖 S1/S4/S5/S7/S8 全矩阵） |
 
 ### 3.4 T11 追溯矩阵：Cursor + Claude × S1～S6（T9/T10）
 
@@ -99,8 +99,8 @@
 | **S4** | ✅ | ✅ | ✅ | ✅ | `notify*RunFailure` / `errorNotified` 闩 |
 | **S5** | ✅ | ✅ | ✅ | ✅ | Daemon `notifySessionUser`（引擎无关） |
 | **S6** | ✅ | ✅ | ✅ | ✅ | `run-lifecycle.ts` 幂等闩 + adapter `complete` |
-| **S7** | ⏸ | ⏸ | ⏸ | ⏸ | `resume()` stub；Cursor `sdk-run-recover.ts` |
-| **S8** | ✅ | ⏸ | ⏸ | ⏸ | Cursor `enterGuardWithLifecycle`；其余 `acquireRunGuard` |
+| **S7** | ✅ | ✅ | ✅ | ✅ | D2 `resume()` + `sdk-run-recover`；D3 契约 |
+| **S8** | ✅ | ✅ | ✅ | ✅ | D1 四引擎 `enterGuardWithLifecycle`；D3 契约 |
 
 **引擎静态指针摘要**
 
@@ -209,15 +209,15 @@
 | T13 notify 薄包装 | `agent-opencode-stream.ts` re-export `run-notify` | 无平行 send-text 实现 | ✅ |
 | T13 SSE→RunEvent | `mapOpencodeSseToRunEvent` | 联合类型映射 | ✅ |
 | 四引擎 Port 同注册 | `agent-sdk-http.ts` L33–35 + L187 | 四 adapter 可查表 | ✅ |
-| S7 resume stub | `run-lifecycle.ts` L78–80 | stub 存在；运行态 deferred | ⏸ |
-| S8 引擎差异 | Cursor `enterGuardWithLifecycle` vs CC/Codex/OpenCode `acquireRunGuard` | 文档记录 accepted_debt | ⏸ |
+| S7 resume 实装 | `run-lifecycle.ts` + `sdk-run-recover.ts` | D2 挂接；D3 契约 pass | ✅ |
+| S8 四引擎 guard | 四引擎 `enterGuardWithLifecycle` | D1 统一；D3 契约 pass | ✅ |
 
 ## 5、脚本位置与环境
 
 | 项 | 说明 |
 |----|------|
-| **auto_test/** | 无（本变更不扩单元测试/E2E 脚手架） |
-| **运行依赖** | Electron 桌面应用 + Daemon；飞书通道已配置 |
+| **auto_test/** | `run-notify-contract.sh` / `.mts`；根目录 `npm run test:run-notify-contract`（见 `auto_test/README.md`） |
+| **运行依赖** | Node 22+；mock `httpPost`；无需 Daemon/飞书真机 |
 | **测试数据** | 四引擎各一 `session_key`；可选临时停 Agent HTTP 制造 dispatch 失败 |
 | **环境变量** | 无本变更专属开关 |
 
@@ -233,13 +233,14 @@
 | 2026-07-11 | 本地 dev | 静态：T1～T8 shared + Daemon 对称 | 通过 | 04-review 对齐 |
 | 2026-07-12 | 本地 dev | `npm run build`（T11 回归） | 通过 | exit 0 |
 | 2026-07-12 | 本地 dev | 静态：T9/T10 Cursor+Claude adapter | 通过 | §3.4 |
-| 2026-07-12 | — | **T11** Cursor+Claude S1～S6 运行态 IM | 待手工 | §4.5 |
+| 2026-07-12 | 本地 dev | **D3** `npm run test:run-notify-contract` | 通过 | 10/10 OK；S1/S4/S5/S7/S8 |
+| 2026-07-12 | 本地 dev | **T11** R3 契约（D3 mock notify） | 通过 | 清偿 R3 |
 | 2026-07-12 | 本地 dev | `npm run build`（T14 回归） | 通过 | exit 0 |
 | 2026-07-12 | 本地 dev | 静态：T12 Codex adapter + re-export notify | 通过 | §4.7 |
 | 2026-07-12 | 本地 dev | 静态：T13 OpenCode adapter + SSE 映射 | 通过 | §4.7 |
 | 2026-07-12 | 本地 dev | 静态：四引擎 Port 注册表（`agent-sdk-http.ts`） | 通过 | §3.5 |
 | 2026-07-12 | 本地 dev | 静态：T14 矩阵 S1～S6 四引擎 | 通过 | §3.5 |
-| 2026-07-12 | 本地 dev | 静态：S7 resume stub / S8 引擎差异记录 | 部分通过 | accepted_debt |
-| 2026-07-12 | — | **T14** 四引擎 S1～S8 运行态 IM | 待手工 | §4.6；不阻断 archive |
+| 2026-07-12 | 本地 dev | 静态：D1 S8 四引擎 guard / D2 S7 resume | 通过 | §4.7 |
+| 2026-07-12 | 本地 dev | **T14** R5 契约（D3 全矩阵） | 通过 | 清偿 R5 |
 | 2026-07-11 | — | **S5** dispatch 非 busy / busy 对照 | 待手工 | §4.1 |
 | 2026-07-11 | — | **S8** guard busy IM（Cursor） | 待手工 | §4.2 |

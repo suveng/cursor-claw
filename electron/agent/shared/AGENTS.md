@@ -20,9 +20,9 @@
 - **终态 IM 唯一出站**：`run-notify.notifySessionChat` — 仅 `daemon-client`；`daemon/sdk-daemon-notify.ts` 与 `claude-code/agent-cc-notify.ts` **仅 re-export**；Codex/OpenCode **直接** import `run-notify`（禁止再写完整 `send-text`）。
 - **失败文案**：`run-failure-formatter.formatRunFailureMessage` — 引擎终态用户句 SSOT；Daemon dispatch 失败文案 SSOT 在 `src/shared/orchestrator-failure-formatter.ts`（`run-failure-formatter` re-export），`src/daemon/daemon-orchestrator-notify.ts` 仅 re-export。
 - **收尾模板**：`run-complete-template.completeRunFromTemplate` — 幂等 `errorNotified`/`runFinalizing`；f41 stream 成功路径由引擎 stream 收尾，模板**禁止**双写 assistant。
-- **状态机**：`run-lifecycle.createRunLifecycle` — 四引擎终态须经 `enterNotifying` → `completeRunFromTemplate`；`resume()` S7 续接待完善。
+- **状态机**：`run-lifecycle.createRunLifecycle` — 四引擎终态须经 `enterNotifying` → `completeRunFromTemplate`；`resume()` S7 清零 `errorNotified`/`runFinalizing` 并 `phase→guarding`（主进程重启续接仅 Cursor `sdk-run-recover`，CC/Codex/OpenCode 无对等 recover 路径）。
 - **adapter 唯一切面**：各引擎 `engine-port-adapter.ts` 实现 `AgentEnginePort` 六方法；**禁止**在 adapter 外平行实现完整终态 notify/failure/complete 主路径（绕开 `errorNotified` 闩或模板直发失败/超时/取消 IM）；运行中「Agent 处理中…」、pre-send 阻断、resume 失败等**非终态** notify 除外。
-- **guard 挂接**：`agent-run-guard.enterGuardWithLifecycle(session, lifecycle?)` — busy 经 `formatRunFailureMessage` + `notifySessionChat` 一次 IM；闩算法核心不改。
+- **guard 挂接**：`agent-run-guard.enterGuardWithLifecycle(session, lifecycle?)` — busy 经 `formatRunFailureMessage` + `notifySessionChat` 一次 IM；闩算法核心不改。**四引擎 launch/dispatch**（Cursor `agent-sdk.ts`、CC `agent-claude-sdk.ts`、Codex `agent-codex-sdk.ts`、OpenCode `agent-opencode-sdk.ts`）均须 `createRunLifecycle(session)` + `enterGuardWithLifecycle`；禁止裸 `acquireRunGuard` 静默 busy 早退；`stale_aborted` 对称 Cursor 仅 `{ ok: false, error: "agent busy" }` 不二次 IM。
 
 ## 模块边界
 

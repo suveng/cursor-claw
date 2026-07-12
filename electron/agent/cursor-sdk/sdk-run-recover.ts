@@ -4,12 +4,13 @@
 import { Agent } from "@cursor/sdk"
 import { ZERO_CONTEXT_USAGE, resolveContextLimitForSession } from "./context-usage"
 import { type ChatType } from "../shared/agent-launcher"
-import { acquireRunGuard, completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
+import { completeRunGuard, enterGuardWithLifecycle, releaseRunGuard } from "../shared/agent-run-guard"
 import { loadInlineMcpServersForSdk } from "../../mcp/loaders/mcp-sdk-loader"
 import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loaders/plugin-sdk-bootstrap"
 import { clearActiveSdkRun, listRecoverableSdkRuns } from "./sdk-run-persistence"
 import { notifySessionChat } from "../../daemon/sdk-daemon-notify"
 import { startSdkRun } from "./sdk-run-lifecycle"
+import { getOrCreateSdkRunLifecycle } from "./sdk-run-port-lifecycle"
 import {
   broadcastSdkSessionStatus,
   f41Eligible,
@@ -120,12 +121,16 @@ export async function recoverSdkActiveRuns(): Promise<RecoverSummary> {
       sdkSessions.set(sessionKey, session)
       broadcastSdkSessionStatus()
 
-      const guard = acquireRunGuard(sessionKey)
+      // S7：续接前重置 Lifecycle 闩与阶段，与 launch/dispatch 对称走 enterGuardWithLifecycle
+      const lifecycle = getOrCreateSdkRunLifecycle(session)
+      lifecycle.resume()
+      const guard = enterGuardWithLifecycle(session, lifecycle)
       if (!guard.acquired) {
         try { agent.close() } catch { /* best-effort */ }
         sdkSessions.delete(sessionKey)
         broadcastSdkSessionStatus()
-        pushUiLog("SDK", "WARN", `[recover] sessionKey=${sessionKey} result=skipped reason=run_guard_busy`)
+        const skipReason = guard.result === "stale_aborted" ? "stale_aborted" : "run_guard_busy"
+        pushUiLog("SDK", "WARN", `[recover] sessionKey=${sessionKey} result=skipped reason=${skipReason}`)
         summary.skipped += 1
         continue
       }

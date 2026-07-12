@@ -10,6 +10,8 @@
 - **终态 IM 唯一出站**：`run-notify.notifySessionChat`；SDK/CC re-export，Codex/OpenCode 直接 import。
 - **失败文案**：`formatRunFailureMessage` 引擎终态 SSOT；Daemon dispatch 文案 SSOT `src/shared/orchestrator-failure-formatter.ts`（electron re-export）。
 - **收尾模板**：`completeRunFromTemplate` — 幂等闩、f41 成功路径禁止双写 assistant、失败挂 `archiveAgentFailureLogs`。
+- **guard busy（S8）**：四引擎须 `enterGuardWithLifecycle`；busy→`notifyGuardBusy`（`session_abnormal`，`stop_progress`）一次 IM；`stale_aborted` 不二次 notify。
+- **续接（S7）**：`RunLifecycle.resume()` 清零 `errorNotified`/`runFinalizing`→`guarding`；`sdk-run-recover` 续接前调用。
 - **pre-send（SDK 专有）**：`lastPreSend*` 快照；ratio≥100% 且未轮转 → `context_blocked`。
 
 ## 三、服务端规则
@@ -26,7 +28,7 @@
 | `stale_aborted` | 会话过期/中止 |
 | `session_abnormal` | busy/异常 |
 
-**errorNotified 契约**：`notifying` 入口检查；失败/超时/取消仅一次 IM；`abortController.aborted` 跳过 failure notify；`watchdogTimedOut` 与 complete 去重。
+**errorNotified 契约**：`notifying` 入口检查；失败/超时/取消仅一次 IM；`aborted` 静默；`watchdogTimedOut` 与 complete 去重；S7 `resume()` 重置闩。
 
 **Daemon dispatch 对称**：`daemon-http-routes-orchestrator` 在 `!ok` 且非 `agent_busy` 时 `notifySessionUser`+`stop_progress: true`，与 launch 失败同类语义。
 
@@ -60,7 +62,7 @@ SDK pre-send 分支见 §二；`context_blocked` 走 `notifyPreSendContextFailur
 
 ## 七、非功能与可观测
 
-日志：`dispatch_failed`、`agent_failed`、`[compression] pre-send`；归档 `failureArchiveDone` 幂等；`run-notify` 仅依赖 `daemon-client` 防环引。
+日志：`dispatch_failed`、`agent_failed`、`[compression] pre-send`；归档幂等；`npm run test:run-notify-contract` 断言 S1/S4/S5/S7/S8。
 
 ## 八、推送
 
@@ -68,9 +70,9 @@ SDK pre-send 分支见 §二；`context_blocked` 走 `notifyPreSendContextFailur
 
 ## 九、已知限制与 TODO
 
-`RunLifecycle.resume()` S7 续接 `errorNotified` 重置待完善；运行态 IM 矩阵 R3/R5 accepted_debt 待手工点验。
+SDK pre-send 边界见 §二；CC project scope 门控见 07。
 
 ## 十、变更记录
 
-- 2026-07-12：四引擎统一 RunFailureReason/errorNotified/notify 契约（archive 20260711232258）。
+- 2026-07-12：四引擎终态契约 + D1～D3（S8 busy IM、S7 resume、契约冒烟）（archive 20260711232258）。
 - 2026-07-05：SDK pre-send 保护、context_blocked（archive 20260705230806）。

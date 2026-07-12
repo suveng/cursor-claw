@@ -43,7 +43,7 @@ sequenceDiagram
 
 ## 七、非功能与可观测
 
-RunGuard+watchdog；SSE 未知 WARN；`opencode-failure-messages` 委托 `formatRunFailureMessage`；失败归档经模板。
+RunGuard+`enterGuardWithLifecycle`+watchdog（S8 busy→`notifyGuardBusy` 一次 IM）；SSE 未知 WARN；`opencode-failure-messages` 委托 `formatRunFailureMessage`；失败归档经模板。
 
 ## 八、推送
 
@@ -51,7 +51,7 @@ RunGuard+watchdog；SSE 未知 WARN；`opencode-failure-messages` 委托 `format
 
 ## 九、已知限制与 TODO
 
-`presentationOrderingEligible` 未接入；外部探活依赖 `config.get`；运行态 IM 全矩阵待手工（accepted_debt R5）。
+`presentationOrderingEligible` 未接入；外部探活依赖 `config.get`；无主进程 recover 对等路径。
 
 ## 十、变更记录
 

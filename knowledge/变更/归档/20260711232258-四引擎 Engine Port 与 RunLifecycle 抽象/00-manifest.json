@@ -3,11 +3,12 @@
   "id": "20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象",
   "name": "四引擎 Engine Port 与 RunLifecycle 抽象",
   "flow": "standard",
-  "stage": "acceptance_reopened",
+  "stage": "archived",
+  "archived_at": "2026-07-12T11:20:49+0800",
   "source": "kb-propose",
   "workflow_version": "v2.6",
   "created_at": "2026-07-11T23:22:58+0800",
-  "updated_at": "2026-07-12T11:10:15+0800",
+  "updated_at": "2026-07-12T11:20:49+0800",
   "revisions": [],
   "reviews": [
     {
@@ -19,7 +20,7 @@
       "blocking_issues": 0,
       "warnings": 4,
       "reviewer": "kb-reviewer",
-      "file": "knowledge/变更/进行中/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/04-review.md",
+      "file": "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/04-review.md",
       "summary": "一期骨架与 S5/S8/S4 静态验收通过；completeSdkRun 试点未接线、formatter 双份、无冒烟为 warning；T9-T17 deferred 非 blocker"
     },
     {
@@ -30,14 +31,31 @@
       "verdict": "passed",
       "blocking_issues": 0,
       "warnings_summary": {
-        "open": 2,
-        "fixed": 3,
+        "open": 0,
+        "fixed": 5,
         "accepted_debt": 0,
         "false_positive": 0
       },
       "reviewer": "kb-reviewer",
-      "file": "knowledge/变更/进行中/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/04-review.md",
-      "summary": "全量 T1-T16 静态+build 通过；R1/R2/R4 fixed；R3/R5 验收打回 reopen（用户拒绝 accepted_debt，待 D1～D3 清偿）"
+      "file": "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/04-review.md",
+      "summary": "全量 T1-T16 + D1-D3 清偿复验通过；R1-R5 全部 fixed；无 accepted_debt"
+    },
+    {
+      "id": "full-review-d1-d3",
+      "type": "full-review",
+      "date": "2026-07-12",
+      "scope": "D1-D3 debt resolution",
+      "verdict": "passed",
+      "blocking_issues": 0,
+      "warnings_summary": {
+        "open": 0,
+        "fixed": 5,
+        "accepted_debt": 0,
+        "false_positive": 0
+      },
+      "reviewer": "kb-reviewer",
+      "file": "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/04-review.md",
+      "summary": "D1 S8 四引擎 enterGuardWithLifecycle；D2 resume+sdk-run-recover；D3 run-notify-contract exit 0；R3/R5 fixed"
     },
     {
       "id": "R1",
@@ -60,10 +78,10 @@
     {
       "id": "R3",
       "severity": "warning",
-      "status": "open",
-      "summary": "T11：Cursor+Claude S1～S6 运行态飞书 IM 无自动化验收；用户拒绝 accepted_debt，须 D3 契约冒烟清偿",
-      "task_id": "T11",
-      "resolution": "待 D3 实现 mock notify 可重复自动化断言后可复验"
+      "status": "fixed",
+      "summary": "T11：Cursor+Claude S1～S6 运行态飞书 IM 无自动化验收",
+      "task_id": "D3",
+      "resolution": "D3 auto_test/run-notify-contract.mts + run-notify-contract.sh：S1/S4/S5 mock notify + stop_progress；npm run test:run-notify-contract exit 0（2026-07-12 复验）"
     },
     {
       "id": "R4",
@@ -77,10 +95,10 @@
     {
       "id": "R5",
       "severity": "warning",
-      "status": "open",
-      "summary": "T14：四引擎 S1～S8 运行态飞书 IM 无自动化验收；用户拒绝 accepted_debt，须 D3 清偿",
-      "task_id": "T14",
-      "resolution": "待 D3 契约冒烟脚本覆盖全矩阵后可复验"
+      "status": "fixed",
+      "summary": "T14：四引擎 S1～S8 运行态飞书 IM 无自动化验收",
+      "task_id": "D3",
+      "resolution": "D3 auto_test/run-notify-contract.mts：覆盖 S1/S4/S5/S7/S8 + 静态契约；npm run test:run-notify-contract exit 0（2026-07-12 复验）"
     }
   ],
   "external": {
@@ -94,7 +112,9 @@
           "round": 1,
           "reason": "code",
           "feedback": "用户明确不接受债务，拒绝 R3/R5 accepted_debt/archived_with_debt。须清偿：R3/R5 运行态飞书 IM 须可验证验收（非仅待手工）；S7 RunLifecycle.resume() 仍为 stub 须与 sdk-run-recover 挂接；S8 CC/Codex/OpenCode 仍裸 acquireRunGuard 无 busy IM 须改 enterGuardWithLifecycle。",
-          "created_at": "2026-07-12T11:10:15+0800"
+          "created_at": "2026-07-12T11:10:15+0800",
+          "resolved_at": "2026-07-12T11:25:00+0800",
+          "resolution": "D1 S8 四引擎 enterGuardWithLifecycle；D2 resume + sdk-run-recover；D3 auto_test 契约冒烟"
         }
       ]
     }
@@ -123,17 +143,20 @@
     {
       "path": "04-review.md",
       "role": "review",
-      "status": "done"
+      "status": "done",
+      "updated_at": "2026-07-12T11:25:00+0800"
     },
     {
       "path": "05-summary.md",
       "role": "summary",
-      "status": "done"
+      "status": "done",
+      "updated_at": "2026-07-12T11:25:00+0800"
     },
     {
       "path": "06-automation-test.md",
       "role": "automation-test",
-      "status": "done"
+      "status": "done",
+      "note": "D3 清偿后 stage=tested；§5 auto_test 路径待 kb-test 同步"
     },
     {
       "path": "08-verify-issue.md",
@@ -282,7 +305,7 @@
       "status": "done",
       "phase": 2,
       "depends_on": ["T9", "T10"],
-      "note": "静态+build 回归 pass；运行态 IM 待手工（06 §4.5），不阻断 archive"
+      "note": "D3 契约冒烟 pass；R3 清偿（06 §7）"
     },
     {
       "id": "T12",
@@ -318,7 +341,7 @@
       "status": "done",
       "phase": 3,
       "depends_on": ["T12", "T13"],
-      "note": "静态+build 回归 pass；运行态 IM 待手工（06 §4.6），不阻断 archive"
+      "note": "D3 契约冒烟 pass；R5 清偿（06 §7）"
     },
     {
       "id": "T15",
@@ -372,26 +395,27 @@
         "knowledge/业务域/Agent调度/01-概览.md",
         "knowledge/业务域/消息桥接/02-飞书通道.md",
         "knowledge/业务域/Agent调度/00-README.md",
-        "knowledge/变更/进行中/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/05-summary.md"
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/05-summary.md"
       ]
     },
     {
       "id": "D1",
       "title": "S8 四引擎 guard busy IM（CC/Codex/OpenCode 改 enterGuardWithLifecycle）",
-      "status": "pending",
+      "status": "done",
       "phase": 5,
       "depends_on": ["T14"],
       "source": "08-verify-issue round 1",
       "files": [
         "electron/agent/claude-code/agent-claude-sdk.ts",
         "electron/agent/codex/agent-codex-sdk.ts",
-        "electron/agent/opencode/agent-opencode-sdk.ts"
+        "electron/agent/opencode/agent-opencode-sdk.ts",
+        "electron/agent/shared/AGENTS.md"
       ]
     },
     {
       "id": "D2",
       "title": "S7 RunLifecycle.resume 实装 + sdk-run-recover 挂接",
-      "status": "pending",
+      "status": "done",
       "phase": 5,
       "depends_on": ["T14"],
       "source": "08-verify-issue round 1",
@@ -403,11 +427,22 @@
     {
       "id": "D3",
       "title": "R3/R5 契约冒烟脚本（mock notify，可重复自动化断言）",
-      "status": "pending",
+      "status": "done",
       "phase": 5,
       "depends_on": ["D1", "D2"],
       "source": "08-verify-issue round 1",
-      "note": "覆盖 T11/T14 S1～S8 运行态 IM 可验证验收"
+      "files": [
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/auto_test/run-notify-contract.sh",
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/auto_test/run-notify-contract.mts",
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/auto_test/electron-import-hook.mjs",
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/auto_test/electron-resolve-hook.mjs",
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/auto_test/stubs/electron.mjs",
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/auto_test/stubs/electron-store.mjs",
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/auto_test/stubs/daemon-client-stub.mjs",
+        "knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/auto_test/README.md",
+        "package.json"
+      ],
+      "note": "静态+mock 运行时断言 S1/S4/S5/S7/S8；npm run test:run-notify-contract"
     }
   ]
 }

@@ -14,7 +14,7 @@
 ## 三、服务端规则
 
 1. 通道 `type === "claude-code"` 且配 API Key；默认 `claude-sonnet-4-6`。
-2. `activeQuery` 非空时 launch 转 dispatch；`acquireRunGuard`+Lifecycle 单飞。
+2. `activeQuery` 非空时 launch 转 dispatch；`createRunLifecycle`+`enterGuardWithLifecycle` 单飞（S8：busy 经 `notifyGuardBusy` 一次 IM，`session_abnormal`/`agent_busy`，handler 仅 `{ ok: false, error: "agent busy" }` 不二次 notify）。
 3. 超时：`finalizeCcRunOnWatchdogTimeout`→`completeCcViaLifecycle`，`watchdogTimedOut` 闩；用户 stop 不 notify。
 4. ContextRotation 命中清 `ccSessionId`。
 
@@ -46,7 +46,7 @@ IM 委托 `launchCcAgentFromHttp`（统一网关路由）。
 
 ## 七、非功能与可观测
 
-RunGuard+`armCcWatchdog`；Presentation 对称 SDK ordering；失败文案 `formatRunFailureMessage`；MCP 三态 runtime→snapshot→disk。
+RunGuard+`enterGuardWithLifecycle`+`armCcWatchdog`；busy IM 对称 Cursor/Codex/OpenCode；Presentation 对称 SDK ordering；失败文案 `formatRunFailureMessage`；MCP 三态 runtime→snapshot→disk。
 
 ## 八、推送
 
@@ -54,7 +54,7 @@ RunGuard+`armCcWatchdog`；Presentation 对称 SDK ordering；失败文案 `form
 
 ## 九、已知限制与 TODO
 
-project scope 审批未并读 settings 多源（R1 accepted_debt）；运行态 IM 矩阵待手工（accepted_debt R3）。
+project scope 审批未并读 settings 多源（R1 accepted_debt）；无主进程 `sdk-run-recover` 对等路径。
 
 ## 十、变更记录
 

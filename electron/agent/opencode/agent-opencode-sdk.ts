@@ -5,7 +5,8 @@ import { reportSessionAgentPhase } from "../../daemon/daemon-client"
 import { pushUiLog } from "../../app/ui-logger"
 import { ZERO_CONTEXT_USAGE, resolveContextLimitForSession } from "../cursor-sdk/context-usage"
 import { buildPrompt } from "../shared/agent-launcher"
-import { acquireRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
+import { releaseRunGuard, enterGuardWithLifecycle } from "../shared/agent-run-guard"
+import { createRunLifecycle } from "../shared/run-lifecycle"
 import {
   OPENCODE_SESSIONS, OPENCODE_PENDING_LAUNCHES, OPENCODE_FAILED_COOLDOWNS,
 } from "./agent-opencode-session-registry"
@@ -178,17 +179,19 @@ export async function launchOpencodeAgent(opts: OpencodeLaunchOptions): Promise<
   if (OPENCODE_PENDING_LAUNCHES.has(opts.sessionKey)) return { ok: false, error: "会话正在启动中" }
   OPENCODE_PENDING_LAUNCHES.add(opts.sessionKey)
 
-  let guard: ReturnType<typeof acquireRunGuard> | undefined
+  let guard: ReturnType<typeof enterGuardWithLifecycle> | undefined
   let session: OpencodeSessionAgent | undefined
   try {
     session = OPENCODE_SESSIONS.get(opts.sessionKey)
     if (session?.pendingDispatch) return dispatchToOpencodeAgent(opts.sessionKey, opts.taskMessage ?? "", opts.meta?.messageIds)
 
-    guard = acquireRunGuard(opts.sessionKey)
-    if (!guard.acquired) return { ok: false, error: `会话 ${opts.sessionKey} 正在执行中` }
-
     session = buildSession(opts, session)
     if (!OPENCODE_SESSIONS.has(opts.sessionKey)) OPENCODE_SESSIONS.set(opts.sessionKey, session)
+
+    // S8：busy 经 guard 内 notifyGuardBusy 发一次 IM，对称 Cursor T8
+    const lifecycle = createRunLifecycle(session)
+    guard = enterGuardWithLifecycle(session, lifecycle)
+    if (!guard.acquired) return { ok: false, error: "agent busy" }
     session.runGuardToken = guard.token
     session.inboundMessageIds = opts.meta?.messageIds
     session.runStartedAt = Date.now()
@@ -228,8 +231,12 @@ export async function dispatchToOpencodeAgent(sessionKey: string, taskText: stri
     session.inboundMessageIds = messageIds
     resolveOpencodeContextLimit(sessionKey, session.model, session.apiKey)
     maybeRotateOpencodeSessionContext(session)
-    const guard = acquireRunGuard(sessionKey)
-    if (!guard.acquired) { session.pendingDispatch = false; return { ok: false, error: `会话 ${sessionKey} guard 获取失败` } }
+    const lifecycle = createRunLifecycle(session)
+    const guard = enterGuardWithLifecycle(session, lifecycle)
+    if (!guard.acquired) {
+      session.pendingDispatch = false
+      return { ok: false, error: "agent busy|retry_after=1500" }
+    }
     session.runGuardToken = guard.token
     session.runStartedAt = Date.now()
 

@@ -8,7 +8,7 @@
 
 - **Engine Port**：`engine-port-adapter.ts` 注册 `sdk`；`agent-sdk-http.ts` 查 `getEnginePort` 委托 launch/dispatch；`sdk-run-port-lifecycle.ts` 缓存 Lifecycle、`applySdkStreamRunEvent`、`completeSdkRunViaPort`。
 - **RunLifecycle**：`guarding→streaming→watching→completing→notifying`；`streamRunEvents` 终态经 `RunEvent` 路由，**禁止** adapter 外平行完整终态 notify。
-- **API/MCP/续接**：长驻+二次 send；`sdk-active-runs.json` 续接；冷启动并行见 `electron/agent/cursor-sdk/AGENTS.md`。
+- **API/MCP/续接（S7）**：长驻+二次 send；`sdk-run-recover.recoverSdkActiveRuns` 于 init 挂接：`Agent.resume`→`getOrCreateSdkRunLifecycle().resume()`（清零 `errorNotified`/`runFinalizing`、`phase→guarding`）→`enterGuardWithLifecycle`→`startSdkRun`；失败 `notifyResumeFailure` 一次 IM。CC/Codex/OpenCode 无主进程 recover 对等路径。
 - **呈现/ordering/watchdog**：Rev2 end-only、飞书 f41、tool 分级、watchdog 门控见 AGENTS.md。
 
 ## 三、服务端规则
@@ -47,7 +47,7 @@ sequenceDiagram
 
 ## 七、非功能与可观测
 
-RunGuard+`enterGuardWithLifecycle`；busy 经 `notifySdkProcessingBusy`；400ms 节流；`[sdk_warmup]` 可检索；失败归档经 `completeRunFromTemplate` 挂接 `archiveAgentFailureLogs`。
+RunGuard+`enterGuardWithLifecycle`（guard busy→`notifyGuardBusy`/`session_abnormal`）；`isSdkSessionProcessing` 早退另经 `notifySdkProcessingBusy`；400ms 节流；`[sdk_warmup]`/`[recover]` 可检索；契约冒烟 `npm run test:run-notify-contract`（S1/S4/S5/S7/S8）。
 
 ## 八、推送
 
@@ -55,7 +55,7 @@ RunGuard+`enterGuardWithLifecycle`；busy 经 `notifySdkProcessingBusy`；400ms 
 
 ## 九、已知限制与 TODO
 
-`RunLifecycle.resume()` S7 续接阶段重置待完善；运行态 IM 矩阵待手工点验（accepted_debt R3）。
+S7 仅 Cursor 主进程重启 recover；CC/Codex/OpenCode 续接为 SDK 内 sessionId，不经 `sdk-run-recover`。
 
 ## 十、变更记录
 

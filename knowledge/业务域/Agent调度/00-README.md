@@ -48,6 +48,7 @@
 | Session MCP | `electron/session/session-mcp-status.ts` |
 | 跨引擎 Port/Lifecycle | `electron/agent/shared/run-lifecycle*.ts`、`agent-engine-port.ts`、`run-notify.ts`、`run-failure-formatter.ts`、`run-complete-template.ts` |
 | Daemon dispatch notify | `src/daemon/daemon-orchestrator-notify.ts`、`src/shared/orchestrator-failure-formatter.ts` |
+| 契约冒烟 | `npm run test:run-notify-contract`（变更 auto_test，mock 终态 IM） |
 | 跨引擎 | `electron/agent/shared/agent-launcher.ts`、`electron/agent/shared/crash-log-archiver.ts`、`electron/agent/shared/agent-run-guard.ts` |
 | HTTP | `electron/agent/cursor-sdk/agent-sdk-http.ts`（统一网关）、`electron/agent/claude-code/agent-cc-http.ts`（cc）、`electron/agent/codex/agent-codex-http.ts`（codex）、`electron/agent/opencode/agent-opencode-http.ts`（opencode） |
 | 配置 | `electron/config/config-store.ts`（`newOpencodeResourceId`/`isOpencodeResourceId`） |

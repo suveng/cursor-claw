@@ -43,7 +43,7 @@ sequenceDiagram
 
 ## 七、非功能与可观测
 
-RunGuard+`armCodexWatchdog`；事件未知类型 WARN；apiKey 脱敏 `maskCodexApiKey`；失败归档经 `completeRunFromTemplate`。
+RunGuard+`enterGuardWithLifecycle`+`armCodexWatchdog`（S8 busy→`notifyGuardBusy` 一次 IM）；事件未知类型 WARN；apiKey 脱敏 `maskCodexApiKey`；失败归档经 `completeRunFromTemplate`。
 
 ## 八、推送
 
@@ -51,7 +51,7 @@ RunGuard+`armCodexWatchdog`；事件未知类型 WARN；apiKey 脱敏 `maskCodex
 
 ## 九、已知限制与 TODO
 
-Dashboard MCP 占位；须本机 Codex CLI。运行态 IM 全矩阵待手工（accepted_debt R5）。
+Dashboard MCP 占位；须本机 Codex CLI；无主进程 recover 对等路径。
 
 ## 十、变更记录
 

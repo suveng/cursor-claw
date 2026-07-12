@@ -13,7 +13,8 @@ import {
   resolveDisplayContextTokens,
 } from "../cursor-sdk/context-usage"
 import { type ChatType, buildPrompt } from "../shared/agent-launcher"
-import { acquireRunGuard, completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
+import { completeRunGuard, releaseRunGuard, enterGuardWithLifecycle } from "../shared/agent-run-guard"
+import { createRunLifecycle } from "../shared/run-lifecycle"
 import { maybeRotateContext } from "../cursor-sdk/context-rotation-lite"
 
 import type { CcSessionAgent } from "./agent-cc-types"
@@ -87,7 +88,7 @@ export async function launchClaudeCodeAgent(opts: import("./agent-cc-types").Cla
   if (CC_PENDING_LAUNCHES.has(sessionKey)) return { ok: false, error: "会话正在启动中" }
   CC_PENDING_LAUNCHES.add(sessionKey)
 
-  let guard: ReturnType<typeof acquireRunGuard> | undefined
+  let guard: ReturnType<typeof enterGuardWithLifecycle> | undefined
   let session: CcSessionAgent | undefined
 
   try {
@@ -100,9 +101,6 @@ export async function launchClaudeCodeAgent(opts: import("./agent-cc-types").Cla
       CC_PENDING_LAUNCHES.delete(sessionKey)
       return { ok: false, error: "会话已有 dispatch 进行中" }
     }
-
-    guard = acquireRunGuard(sessionKey)
-    if (!guard.acquired) return { ok: false, error: `会话 ${sessionKey} 正在执行中（guard=${guard.holder}）` }
 
     const limitProxy = { modelId: model?.trim() || "claude-sonnet-4-6", apiKey: apiKey.trim(), contextLimitTokens: undefined as number | undefined }
     void resolveContextLimitForSession(limitProxy).then(() => {
@@ -135,6 +133,11 @@ export async function launchClaudeCodeAgent(opts: import("./agent-cc-types").Cla
         model: model?.trim() || undefined,
       })
     }
+
+    // S8：busy 经 guard 内 notifyGuardBusy 发一次 IM，对称 Cursor T8
+    const lifecycle = createRunLifecycle(session)
+    guard = enterGuardWithLifecycle(session, lifecycle)
+    if (!guard.acquired) return { ok: false, error: "agent busy" }
 
     session.runGuardToken = guard.token
     session.inboundMessageIds = meta?.messageIds
@@ -179,10 +182,11 @@ export async function dispatchToClaudeCodeAgent(
     resetCcRunPresentationState(session)
     session.inboundMessageIds = messageIds
 
-    const guard = acquireRunGuard(sessionKey)
+    const lifecycle = createRunLifecycle(session)
+    const guard = enterGuardWithLifecycle(session, lifecycle)
     if (!guard.acquired) {
       session.pendingDispatch = false
-      return { ok: false, error: `会话 ${sessionKey} guard 获取失败` }
+      return { ok: false, error: "agent busy|retry_after=1500" }
     }
     session.runGuardToken = guard.token
     session.runStartedAt = Date.now()
