@@ -1,0 +1,5 @@
+{
+  "version": "1.14.7",
+  "date": "2026-07-12",
+  "changes": ["修复 Daemon 在 Electron 重启时 stderr 断管导致的 EPIPE 日志风暴"]
+}

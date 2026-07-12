@@ -1,0 +1,133 @@
+{
+  "name": "Daemon EPIPE日志风暴加固",
+  "flow": "lite",
+  "stage": "reviewed",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "updated_at": "2026-07-12T22:03:00+08:00",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "统一 EPIPE 判定；stderr error 监听与断管后仅写文件；uncaught/unhandled 与裸 stderr.write 加固",
+      "status": "completed",
+      "files": [
+        "src/shared/is-broken-pipe-error.ts",
+        "src/daemon/daemon-logging.ts",
+        "src/daemon/daemon.ts",
+        "src/daemon-entry.ts",
+        "src/daemon/daemon-session-routing-persist.ts",
+        "src/shared/AGENTS.md",
+        "package.json",
+        "changelog/1.14.7.json",
+        "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/00-manifest.json",
+        "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/01-proposal.md",
+        "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/05-summary.md"
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "info",
+      "status": "false_positive",
+      "file": "src/workflow/server-workflow.ts",
+      "summary": "workflow_resume 裸 stderr.write 未加固；module-load stderr.on('error') + uncaught EPIPE 早退已消除递归风暴，不构成 P1 回归",
+      "resolution": "记入 04-review §7 可选债务；非阻断 archive"
+    }
+  ],
+  "revisions": [],
+  "files": [
+    {
+      "path": "src/shared/is-broken-pipe-error.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-logging.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon-entry.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-session-routing-persist.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "src/shared/AGENTS.md",
+      "kind": "agents",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.14.7.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "planned"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/00-manifest.json",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/01-proposal.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/05-summary.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/04-review.md",
+      "kind": "change_doc",
+      "source": "review",
+      "status": "changed"
+    }
+  ],
+  "external": {
+    "task_type": "Bug",
+    "priority": "P1",
+    "acceptance": {
+      "rounds": [
+        {
+          "round": 1,
+          "reason": "code",
+          "feedback": "daemon.log 约 3600 条 write EPIPE 未捕获异常风暴（21:55:31）；commit 8a3055e 已加 try/catch 与 uncaughtException EPIPE 早退，App bundle 21:45 重建后仍复现，疑为未重启旧 Daemon 子进程且防御不完整",
+          "created_at": "2026-07-12T21:55:31+08:00"
+        }
+      ]
+    }
+  }
+}

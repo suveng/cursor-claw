@@ -1,6 +1,7 @@
 /** 会话路由映射磁盘持久化：{APP_DATA_DIR}/session-routing.json；原子写；debounce 500ms */
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { isBrokenPipeError } from "../shared/is-broken-pipe-error.js";
 
 /** 加载结果：成功含 prune 计数，失败含错误文案（不抛未捕获异常） */
 export type LoadResult = { ok: true; pruned: number } | { ok: false; error: string };
@@ -58,8 +59,18 @@ function resolveRoutingPath(): string | null {
   return path.join(appDataDir, ROUTING_FILE);
 }
 
+/** 安全写 stderr；断管 EPIPE 静默吞掉，避免 uncaughtException 风暴 */
+function safeStderrWrite(line: string): void {
+  try {
+    process.stderr.write(line);
+  } catch (err) {
+    if (isBrokenPipeError(err)) return;
+    /* ignore 其他写 stderr 失败 */
+  }
+}
+
 function warnPersist(message: string): void {
-  process.stderr.write(`[session-routing] WARN ${message}\n`);
+  safeStderrWrite(`[session-routing] WARN ${message}\n`);
 }
 
 function formatErr(e: unknown): string {
@@ -281,7 +292,7 @@ export function startSessionRoutingPruneTimer(
     const pruned = pruneExpiredEntries(active, fallback);
     if (pruned > 0) {
       scheduleSessionRoutingPersist(active, fallback);
-      process.stderr.write(`[session-routing] INFO session_routing_pruned: ${pruned}\n`);
+      safeStderrWrite(`[session-routing] INFO session_routing_pruned: ${pruned}\n`);
     }
   };
   setInterval(sweep, PRUNE_INTERVAL_MS).unref();

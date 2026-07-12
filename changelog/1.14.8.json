@@ -1,0 +1,9 @@
+{
+  "version": "1.14.8",
+  "date": "2026-07-12",
+  "changes": [
+    "修复主应用完全退出后 Daemon 子进程残留（孤儿进程）问题",
+    "完全退出时统一回收 Daemon 并清除 lock 文件，接管模式下也能正确终止外部 Daemon",
+    "Electron 被强杀时 Daemon 会在数秒内自行退出并清理 lock"
+  ]
+}

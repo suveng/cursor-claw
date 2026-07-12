@@ -12,6 +12,9 @@
 
 - **Daemon 桥接**：IM `POST /api/agent/launch|dispatch` 由 Daemon `forwardElectronAgentApi` 转发至 Electron `agent-sdk-http` 统一网关；与本地 `session-dispatcher.launchAgent` 同路径。
 - `daemon-manager.ts`：Daemon 子进程生命周期、IPC 注册枢纽、工作流/任务/通道汇聚；poll 斜杠执行委托 `scheduling/command-executor`；**不拆分**（历史行数超限属已知）。init 后 `void recoverAllActiveRuns()`（`agent/shared/agent-run-recover-orchestrator`），**禁止**直接调用单引擎 recover。
+- `daemon-process-kill.ts`：统一终止 SSOT（`POST /shutdown` → SIGTERM → SIGKILL → `removeLockFile`）；`stopDaemon` 走 async `killDaemonByLockOrProcess`，`cleanupDaemonManager`（will-quit）走 sync `killDaemonByLockOrProcessSync`；**禁止**在 manager 内另写杀进程逻辑。
+- **完全退出 vs 托盘常驻**：`cleanupDaemonManager` 仅在 `will-quit`（`isQuitting=true`）调用，须杀 Daemon（含接管模式 `managedExternalDaemonPid`）；关窗/托盘最小化 **不**调 cleanup，Daemon 继续运行。
+- **spawn stdio**：`startDaemon` spawn 时 stdin 须 `pipe`（非 `ignore`），供 Daemon `daemon-parent-watch` 检测 Electron 退出。
 - poll `messageId` 去重：`setCommandPollSkipChecker` 注入；`dual` 时 `startStatusPolling` 每 tick `syncDaemonSlashExecutedIds`（`GET /commands/executed-ids`）后 poll；**claim 前**须 `shouldSkipDaemonSlashCommand` 调 `GET /commands/skip-check`（批量缓存为快速路径）；skip-check 失败保守跳过；`daemon`/`electron` 清除 checker。
 - `daemon-client.ts`：`httpPost` / `httpGet` / 锁文件 / 会话同步（`syncActiveSession`、`setSessionFallback` 等）；各引擎经此通知 Daemon，避免与 `session/session-dispatcher` 循环 import。
 - `sdk-daemon-notify.ts`：SDK 会话 IM notify 薄 re-export（→ `agent/shared/run-notify.ts`）。

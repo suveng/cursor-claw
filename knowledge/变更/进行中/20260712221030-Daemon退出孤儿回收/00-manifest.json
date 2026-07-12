@@ -1,0 +1,126 @@
+{
+  "name": "Daemon退出孤儿回收",
+  "flow": "lite",
+  "stage": "applied",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "updated_at": "2026-07-12T22:06:00+08:00",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "Electron 统一杀进程（lock.pid + /shutdown）；Daemon 父进程/stdin 监护自退出",
+      "status": "completed",
+      "files": [
+        "electron/daemon/daemon-process-kill.ts",
+        "electron/daemon/daemon-manager.ts",
+        "electron/daemon/daemon-client.ts",
+        "src/daemon/daemon-parent-watch.ts",
+        "src/daemon/daemon.ts",
+        "electron/daemon/AGENTS.md",
+        "package.json",
+        "changelog/1.14.8.json",
+        "knowledge/工程平台/Daemon守护进程/03-进程模型与部署.md",
+        "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+        "knowledge/变更/进行中/20260712221030-Daemon退出孤儿回收/00-manifest.json",
+        "knowledge/变更/进行中/20260712221030-Daemon退出孤儿回收/01-proposal.md",
+        "knowledge/变更/进行中/20260712221030-Daemon退出孤儿回收/05-summary.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "electron/daemon/daemon-process-kill.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/daemon/daemon-client.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon-parent-watch.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "electron/daemon/AGENTS.md",
+      "kind": "agents",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "package.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "changelog/1.14.8.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/03-进程模型与部署.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "planned"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "planned"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712221030-Daemon退出孤儿回收/00-manifest.json",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712221030-Daemon退出孤儿回收/01-proposal.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260712221030-Daemon退出孤儿回收/05-summary.md",
+      "kind": "change_doc",
+      "source": "lite",
+      "status": "changed"
+    }
+  ],
+  "external": {
+    "task_type": "Bug",
+    "priority": "P1",
+    "acceptance": {
+      "rounds": [
+        {
+          "round": 1,
+          "reason": "code",
+          "feedback": "主应用退出后 Daemon 子进程残留（孤儿进程）；cleanupDaemonManager 仅 kill spawn 子进程、接管模式 daemonProcess=null 时不杀、Daemon 无父进程死亡检测",
+          "created_at": "2026-07-12T22:10:30+08:00"
+        }
+      ]
+    }
+  }
+}

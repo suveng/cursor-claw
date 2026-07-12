@@ -22,6 +22,11 @@ export function readLockFile(): LockInfo | null {
   }
 }
 
+/** 删除 daemon.lock.json（幂等） */
+export function removeLockFile(): void {
+  try { fs.unlinkSync(getLockFilePath()) } catch { /* ignore */ }
+}
+
 export function httpGet(url: string, timeoutMs = 3000): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const req = http.get(url, { timeout: timeoutMs }, (res) => {

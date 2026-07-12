@@ -5,6 +5,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { localTimestamp } from "../bridge/lark-core.js";
+import { isBrokenPipeError } from "../shared/is-broken-pipe-error.js";
 
 /** 日志写入 API（注入给各子模块 deps） */
 export type DaemonLogFn = (level: string, ...args: unknown[]) => void;
@@ -16,11 +17,29 @@ export interface DaemonLogger {
   logFilePath: string;
 }
 
+/** stderr 管道已断（Electron 重启/读者关闭）；后续 log 跳过 stderr 写 */
+let stderrBroken = false;
+/** 是否已注册 process.stderr error 监听（createDaemonLogger 内一次性） */
+let stderrErrorHooked = false;
+
+/** 标记 stderr 断管，供 uncaught handler 与 write 失败路径调用 */
+export function markDaemonStderrBroken(): void {
+  stderrBroken = true;
+}
+
 /**
  * 创建 Daemon 日志器。
  * 路径：DAEMON_LOG_PATH → APP_DATA_DIR/daemon.log → cwd/daemon.log。
  */
 export function createDaemonLogger(): DaemonLogger {
+  // 异步 EPIPE 走 'error' 事件，sync try/catch 捕不到
+  if (!stderrErrorHooked) {
+    stderrErrorHooked = true;
+    process.stderr.on("error", (err) => {
+      if (isBrokenPipeError(err)) markDaemonStderrBroken();
+    });
+  }
+
   const appDataDir = process.env.APP_DATA_DIR || "";
   // 子进程由 Electron 注入 DAEMON_LOG_PATH；独立运行时兜底至 APP_DATA_DIR/daemon.log
   const logFilePath =
@@ -61,11 +80,14 @@ export function createDaemonLogger(): DaemonLogger {
     const ts = localTimestamp();
     const msg = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
     const line = `${ts} [Daemon] ${level} ${escapeLogContentSingleLine(msg)}\n`;
-    // stderr 管道断开（Electron 重启/多实例）会 EPIPE；须吞掉以免 uncaughtException 递归打日志
-    try {
-      process.stderr.write(line);
-    } catch {
-      /* ignore EPIPE 等写 stderr 失败 */
+    // 断管后跳过 stderr，避免每次 log 触发新高频 uncaughtException
+    if (!stderrBroken) {
+      try {
+        process.stderr.write(line);
+      } catch (err) {
+        if (isBrokenPipeError(err)) markDaemonStderrBroken();
+        /* ignore 其他写 stderr 失败 */
+      }
     }
     try {
       ensureLogDir();

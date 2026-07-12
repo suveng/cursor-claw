@@ -11,6 +11,7 @@
 | `tool-presentation.ts` | 工具名归一化、Shell/Task 字段解析、里程碑文案 `formatToolMilestoneText` 与截断常量 | bridge/lark-core、electron、daemon |
 | `sdk-tool-presentation-tier.ts` | 归一化后工具名 → notify/silent 分级 SSOT | electron cursor-sdk、claude-code |
 | `format-unknown-error.ts` | `formatUnknownError` 未知 rejection/exception 诊断格式化 SSOT | electron `main.ts`、daemon 全局 handler、cursor-sdk `sdk-async-guard` |
+| `is-broken-pipe-error.ts` | `isBrokenPipeError` 断管/EPIPE 系统错误判定 SSOT | daemon `daemon-logging`、`daemon.ts`、`daemon-session-routing-persist` |
 | `orchestrator-failure-formatter.ts` | `formatOrchestratorFailure` launch/dispatch 调度失败 IM 文案 SSOT | daemon `daemon-orchestrator-notify`、electron `run-failure-formatter`（re-export） |
 | `constants.ts` | `LOCK_FILE_NAME` 等进程级常量 | daemon-entry |
 | `feishu-addons.ts` | 扫码增量 scopes/events SSOT（`FEISHU_MENU_*`）与菜单 event_key 映射 | renderer Settings、registerApp addons |

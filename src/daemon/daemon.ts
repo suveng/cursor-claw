@@ -13,7 +13,8 @@ import { fallbackSessionMap } from "./daemon-session-routing.js";
 import {
   loadSessionRoutingInto, scheduleSessionRoutingPersist, startSessionRoutingPruneTimer,
 } from "./daemon-session-routing-persist.js";
-import { createDaemonLogger } from "./daemon-logging.js";
+import { createDaemonLogger, markDaemonStderrBroken } from "./daemon-logging.js";
+import { isBrokenPipeError } from "../shared/is-broken-pipe-error.js";
 import { createQueueController } from "./daemon-queue.js";
 import {
   createChannelRegistry, replyViaResolvedChannel, type ChannelRuntime,
@@ -26,6 +27,7 @@ import {
   clearFileQueue as clearFileQueueImpl, createLockHelpers, startMediaCacheCleanup,
   startChannelsHttpAndScheduler,
 } from "./daemon-bootstrap.js";
+import { startDaemonParentWatch } from "./daemon-parent-watch.js";
 import type { PresentationHandlerApi } from "./daemon-presentation-handlers.js";
 import type { SlashExecutorDeps } from "./daemon-slash-executor.js";
 
@@ -154,28 +156,44 @@ export async function daemonMain(): Promise<void> {
     `通道(${CHANNEL_CONFIGS.length}): ${CHANNEL_CONFIGS.map((c) => `${c.name}[${c.type}]`).join(" + ")}`,
     `日志文件: ${LOG_FILE_PATH}`,
   ]) log("INFO", line);
+  // 父进程监护：Electron 强杀时 stdin 断管 / ppid 消失后自退出
+  startDaemonParentWatch({
+    log,
+    removeLockFile,
+    stopScheduledTasks: stopDaemonScheduledTasks,
+  });
   const cleanup = () => { stopDaemonScheduledTasks(); removeLockFile(); process.exit(0); };
   process.on("SIGINT", cleanup); process.on("SIGTERM", cleanup); process.on("exit", removeLockFile);
-  // EPIPE：stderr 读者已关闭时写日志会再次抛错，须跳过以免无限递归刷屏
-  let loggingUncaught = false;
+  // EPIPE：stderr 断管时写日志会再次抛错；深度计数防 finally 过早清零导致重入
+  let loggingUncaughtDepth = 0;
   process.on("uncaughtException", (err) => {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    if (code === "EPIPE" || loggingUncaught) return;
-    loggingUncaught = true;
+    if (isBrokenPipeError(err)) {
+      markDaemonStderrBroken();
+      return;
+    }
+    if (loggingUncaughtDepth > 0) return;
+    loggingUncaughtDepth++;
     try {
       log("ERROR", `未捕获异常: ${formatUnknownError(err, { includeRegistrationHint: true })}`);
+    } catch {
+      /* 写日志失败不向外抛，避免二次 uncaught */
     } finally {
-      loggingUncaught = false;
+      loggingUncaughtDepth--;
     }
   });
   process.on("unhandledRejection", (reason, promise) => {
-    const code = (reason as NodeJS.ErrnoException)?.code;
-    if (code === "EPIPE" || loggingUncaught) return;
-    loggingUncaught = true;
+    if (isBrokenPipeError(reason)) {
+      markDaemonStderrBroken();
+      return;
+    }
+    if (loggingUncaughtDepth > 0) return;
+    loggingUncaughtDepth++;
     try {
       log("ERROR", `未处理的 Promise 拒绝: ${formatUnknownError(reason, { includeRegistrationHint: true })}${promise ? ` | promise=${Object.prototype.toString.call(promise)}` : ""}`);
+    } catch {
+      /* 写日志失败不向外抛 */
     } finally {
-      loggingUncaught = false;
+      loggingUncaughtDepth--;
     }
   });
   initQueue(); startMediaCacheCleanup(log);

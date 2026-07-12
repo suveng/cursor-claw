@@ -2,7 +2,7 @@
 
 ## 一、能力范围
 
-Electron 主进程：窗口/托盘、IPC、Daemon spawn、MCP/Rules/Skills、飞书/微信绑定、Agent 失败归档；不负责 Daemon HTTP 路由。
+Electron 主进程：窗口/托盘、IPC、Daemon spawn/**生命周期清理**、MCP/Rules/Skills、飞书/微信绑定、Agent 失败归档；不负责 Daemon HTTP 路由。
 
 ## 二、设计决策与取舍
 
@@ -10,6 +10,8 @@ Electron 主进程：窗口/托盘、IPC、Daemon spawn、MCP/Rules/Skills、飞
 - contextIsolation + preload `electronAPI`；Daemon `ELECTRON_RUN_AS_NODE` spawn；`--profile=` 隔离 userData。
 - IPC 分文件注册；Rules/Skills/MCP 经 IPC 读写 `.cursor/`。
 - **斜杠 handler**：`scheduling/command-handler.ts` 薄 re-export；实现 `command-handler-{model,task,mcp,workflow,shared}.ts`（均 ≤300）。
+- **完全退出 vs 托盘常驻**：`isQuitting=false` 时关窗/最小化到托盘 Daemon 继续；`isQuitting=true`（Cmd+Q、托盘「退出」、`before-quit`）→ `will-quit` → `cleanupDaemonManager`。
+- **统一杀进程 SSOT**：`daemon/daemon-process-kill.ts` 供 `stopDaemon`（异步）与 `cleanupDaemonManager`（同步）复用，避免两套实现漂移。
 
 ## 三、服务端规则
 
@@ -18,6 +20,8 @@ Electron 主进程：窗口/托盘、IPC、Daemon spawn、MCP/Rules/Skills、飞
 ## 四、客户端流程
 
 Renderer→preload→主进程→Daemon；`daemon:status-update` 回推。关闭：ask/minimize/quit。打包 `loadFile`；dev `loadURL`+fallback（`main-window.ts`）。
+
+**Daemon 退出语义**：关窗 hide/minimize 不杀 Daemon；完全退出 `app.on("will-quit")` 调 `cleanupDaemonManager`。接管模式（`daemonProcess=null`）记 `managedExternalDaemonPid`，退出时仍读 lock.pid 杀进程。spawn `stdio` 含 stdin `pipe` 供 Daemon parent watch。
 
 | Tab | IPC | 落盘 |
 |-----|-----|------|
@@ -47,6 +51,8 @@ Daemon HTTP：`POST /shutdown`、`POST /enqueue`、`GET /api/active-sessions`。
 
 `broadcastLog`/`daemon:log`；MCP 探测缓存 15s/30s。全局异常经 `formatUnknownError`（禁内联 `instanceof Error`）。失败归档 `crash-log-archiver`（`crashAnalysisDir` 时写 logBuffer±30）。
 
+`cleanupDaemonManager`：`daemonShouldRun=false`、停轮询与 Agent 后调 `killDaemonByLockOrProcessSync`（读 lock → `POST /shutdown` → SIGTERM 1s → SIGKILL → `removeLockFile`），不依赖 `daemonProcess` 非空。`stopDaemon` IPC/Dashboard/`/restart` 走异步 `killDaemonByLockOrProcess`，行为与现网一致。
+
 ## 八、推送
 
 `daemon:status-update`/`bind:result` 等。
@@ -57,5 +63,6 @@ Daemon HTTP：`POST /shutdown`、`POST /enqueue`、`GET /api/active-sessions`。
 
 ## 十、变更记录
 
+2026-07-12：`daemon-process-kill` SSOT；`cleanupDaemonManager` 覆盖接管模式；will-quit vs 托盘常驻语义（变更 20260712221030）。
 2026-07-12：§二 `command-handler` 按族拆分（archive 20260712170649）。
 2026-07-04～06-27：`formatUnknownError`、Skills IPC、目录语义、mcp-status、kb-sync。

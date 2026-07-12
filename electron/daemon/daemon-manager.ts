@@ -41,7 +41,10 @@ import {
 } from "../mcp/mcp-manager"
 import { FileCommand, reportCommandResult } from "../scheduling/command-handler"
 import { executeFileCommand } from "../scheduling/command-executor"
-import { readLockFile, getLockFilePath, httpGet, httpPost, syncActiveSession, getCurrentActiveSession, enqueueToMainSession, setSessionFallback } from "./daemon-client"
+import { readLockFile, httpGet, httpPost, syncActiveSession, getCurrentActiveSession, enqueueToMainSession, setSessionFallback, removeLockFile } from "./daemon-client"
+import {
+  killDaemonByLockOrProcess, killDaemonByLockOrProcessSync, cleanupStaleDaemonLock,
+} from "./daemon-process-kill"
 import {
   isSessionAgentRunning, stopSessionAgent, stopAllSessionAgents,
   launchSessionAgent, launchIndependentAgent,
@@ -147,6 +150,8 @@ export interface DaemonStatus {
 }
 
 let daemonProcess: ChildProcess | null = null
+/** 接管模式：Daemon 非本进程 spawn 时记录 lock.pid，完全退出时须杀 */
+let managedExternalDaemonPid: number | null = null
 let statusInterval: NodeJS.Timeout | null = null
 let cachedPort: number | null = null
 /** 本次由本应用启动成功时 Daemon 所绑定的工作目录（用于目录切换后的状态判断） */
@@ -568,15 +573,28 @@ export async function startDaemon(): Promise<{ ok: boolean; error?: string }> {
 
   ensureCliConfig()
 
+  // 残留 lock（health 失败或 pid 已死）清理，避免误判「已在运行」
+  await cleanupStaleDaemonLock(async (port) => {
+    try {
+      const health = await httpGet(`http://127.0.0.1:${port}/health`) as Record<string, unknown>
+      return health.status === "ok"
+    } catch {
+      return false
+    }
+  })
+
   const existingStatus = await getDaemonStatus()
   if (existingStatus.running) {
     if (daemonProcess) {
+      managedExternalDaemonPid = null
       startStatusPolling()
       return { ok: true }
     }
+    // 外部 Daemon 已在运行：记录 pid 供完全退出时回收
+    const takeoverLock = readLockFile()
+    if (takeoverLock?.pid) managedExternalDaemonPid = takeoverLock.pid
     try {
-      const lock = readLockFile()
-      const portToShutdown = lock?.port ?? cachedPort
+      const portToShutdown = takeoverLock?.port ?? cachedPort
       if (portToShutdown) {
         await httpPost(`http://127.0.0.1:${portToShutdown}/shutdown`, {})
         await new Promise((r) => setTimeout(r, 1500))
@@ -585,7 +603,7 @@ export async function startDaemon(): Promise<{ ok: boolean; error?: string }> {
   }
 
   // 强制清理旧 lock，确保 waitForLockFile 不会读到残留数据
-  try { fs.unlinkSync(getLockFilePath()) } catch { /* ok if absent */ }
+  removeLockFile()
 
   const entryPath = getDaemonEntryPath()
   if (!fs.existsSync(entryPath)) {
@@ -619,7 +637,8 @@ export async function startDaemon(): Promise<{ ok: boolean; error?: string }> {
     let daemonStderrBuf = ""
 
     daemonProcess = spawn(process.execPath, [entryPath], {
-      stdio: ["ignore", "pipe", "pipe"],
+      // stdin 须 pipe，供 Daemon 侧 parent watch 检测 Electron 退出
+      stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
       env: { ...env, ELECTRON_RUN_AS_NODE: "1" },
     })
@@ -731,6 +750,7 @@ export async function startDaemon(): Promise<{ ok: boolean; error?: string }> {
     daemonProcess.on("exit", (code) => {
       earlyExit = code
       daemonProcess = null
+      managedExternalDaemonPid = null
       cachedPort = null
       setDaemonPort(null)
       activeDaemonWorkspaceDir = null
@@ -754,6 +774,7 @@ export async function startDaemon(): Promise<{ ok: boolean; error?: string }> {
     cachedPort = lock.port
     setDaemonPort(lock.port)
     activeDaemonWorkspaceDir = config.workspaceDir.trim() || null
+    managedExternalDaemonPid = null
     daemonShouldRun = true
     lastDaemonStartAt = Date.now()
     startStatusPolling()
@@ -774,21 +795,14 @@ export async function stopDaemon(): Promise<void> {
   stopAgent()
   clearLogBuffer()
 
-  if (cachedPort) {
-    try {
-      await httpPost(`http://127.0.0.1:${cachedPort}/shutdown`, {})
-      await new Promise((r) => setTimeout(r, 500))
-    } catch { /* ignore */ }
-  }
+  await killDaemonByLockOrProcess({
+    cachedPort,
+    spawnProcess: daemonProcess,
+    externalPid: managedExternalDaemonPid,
+  })
 
-  if (daemonProcess && !daemonProcess.killed) {
-    try { daemonProcess.kill("SIGTERM") } catch { /* ignore */ }
-    await new Promise((r) => setTimeout(r, 1000))
-    if (daemonProcess && !daemonProcess.killed) {
-      try { daemonProcess.kill("SIGKILL") } catch { /* ignore */ }
-    }
-  }
   daemonProcess = null
+  managedExternalDaemonPid = null
   cachedPort = null
   setDaemonPort(null)
   activeDaemonWorkspaceDir = null
@@ -1209,6 +1223,11 @@ async function autoStartDaemonOnLaunch(): Promise<void> {
   if (status.running) {
     daemonShouldRun = true
     lastDaemonStartAt = Date.now()
+    // 接管模式：记录 lock.pid，完全退出时 cleanupDaemonManager 可杀
+    if (!daemonProcess) {
+      const lock = readLockFile()
+      if (lock?.pid) managedExternalDaemonPid = lock.pid
+    }
     startStatusPolling()
     return
   }
@@ -1593,10 +1612,14 @@ export function cleanupDaemonManager(): void {
   if (daemonRestartTimer) { clearTimeout(daemonRestartTimer); daemonRestartTimer = null }
   stopStatusPolling()
   stopAgent()
-  if (daemonProcess) {
-    try { daemonProcess.kill() } catch { /* ignore */ }
-    daemonProcess = null
-  }
+  // will-quit 同步尽力杀：含接管模式 lock.pid，不依赖 daemonProcess 非空
+  killDaemonByLockOrProcessSync({
+    cachedPort,
+    spawnProcess: daemonProcess,
+    externalPid: managedExternalDaemonPid,
+  })
+  daemonProcess = null
+  managedExternalDaemonPid = null
   cachedPort = null
   setDaemonPort(null)
   activeDaemonWorkspaceDir = null

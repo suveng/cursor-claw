@@ -2,6 +2,10 @@
 import { daemonMain } from "./daemon/daemon.js";
 
 daemonMain().catch((e) => {
-  process.stderr.write(`[Daemon] 启动失败: ${e}\n`);
+  try {
+    process.stderr.write(`[Daemon] 启动失败: ${e}\n`);
+  } catch {
+    /* 断管等写 stderr 失败时静默 */
+  }
   process.exit(1);
 });
