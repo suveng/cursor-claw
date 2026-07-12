@@ -26,7 +26,7 @@
 | 飞书子模块 | `lark-types` / `lark-utils` / `lark-sender-{stream,outbound,merge,progress,help,parse,connection}.ts` |
 | 通道类型 | `src/shared/channel-types.ts` |
 | 微信客户端 | `src/bridge/wechat/` |
-| 微信管理 | `src/bridge/wechat-manager.ts` |
+| 微信管理 | `src/bridge/wechat-manager.ts`（门面；typing 见 `wechat-progress-typing.ts`） |
 | 文件队列 | `file-queue.ts`（入口）+ `file-queue-*.ts` 子模块（`AGENTS.md`） |
 | Daemon 薄组装 | `src/daemon/daemon.ts`（`daemonMain` ≤200） |
 | Daemon 队列/合并 | `daemon-queue.ts`（`createQueueController`）、`daemon-queue-types.ts`、`daemon-queue-merge*.ts` |

@@ -142,6 +142,7 @@ export function wireDaemonSubmodules(deps: DaemonWireDeps): DaemonWireResult {
     setActiveSession: deps.setActiveSession,
     resolveChannelRuntime: deps.resolveChannelRuntime as any,
     isMergeDispatchAllowed: deps.isMergeDispatchAllowed,
+    stopSessionProgress: (sk) => stopProgressRef.fn(sk),
   });
   deps.scheduleAgentDispatchRef.current = orchestratorApi.scheduleAgentDispatch;
   wireSessionRoutingPersist(deps.activeSessionMap);

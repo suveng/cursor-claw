@@ -4,6 +4,7 @@
 import { reportSessionAgentPhase } from "../../daemon/daemon-client"
 import { resolveSessionChatName } from "../shared/agent-launcher"
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
+import { stopSessionChatProgress } from "../shared/run-notify"
 import { clearOpencodeStreamPostTimer, broadcastOpencodeSessionStatus } from "./agent-opencode-stream"
 import { markOpencodeRunUserStopped } from "./opencode-run-persistence"
 import { closeAllEmbeddedOpencodeServers } from "./agent-opencode-utils"
@@ -56,6 +57,8 @@ export function stopOpencodeSession(sessionKey: string): void {
   s.pendingDispatch = false
   OPENCODE_SESSIONS.delete(sessionKey)
   OPENCODE_PENDING_LAUNCHES.delete(sessionKey)
+  // 用户取消不发 IM，但须停 typing
+  stopSessionChatProgress(sessionKey)
   void reportSessionAgentPhase(sessionKey, "idle")
   broadcastOpencodeSessionStatus([...OPENCODE_SESSIONS.values()])
 }

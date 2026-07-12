@@ -18,6 +18,7 @@
 - **类型 SSOT**：`run-lifecycle-types.ts` — `RunPhase`、`RunEvent`、`RunFailureReason`、`AgentEnginePort`、`RunLifecycleSessionSlice`；各引擎 session 全量类型**禁止** import 进 shared 终态模块。
 - **Port 注册表**：`agent-engine-port.ts` — `registerEnginePort` / `getEnginePort`；四引擎 `engine-port-adapter.ts` 于 `cursor-sdk/agent-sdk-http.ts` `ensureAgentSdkHttpServer` 注册（`sdk` / `claude-code` / `codex` / `opencode`）；launch/dispatch 经查表，未注册走 legacy handler。
 - **终态 IM 唯一出站**：`run-notify.notifySessionChat` — 仅 `daemon-client`；`daemon/sdk-daemon-notify.ts` 与 `claude-code/agent-cc-notify.ts` **仅 re-export**；Codex/OpenCode **直接** import `run-notify`（禁止再写完整 `send-text`）。
+- **仅停进度**：`run-notify.stopSessionChatProgress` — 无 IM 文案的用户取消路径调用；POST `/api/send-text` 仅 `stop_progress`（无 text）；四引擎 `stop*Session` 须调用，**禁止**只 abort 不停 typing。
 - **失败文案**：`run-failure-formatter.formatRunFailureMessage` — 引擎终态用户句 SSOT；Daemon dispatch 失败文案 SSOT 在 `src/shared/orchestrator-failure-formatter.ts`（`run-failure-formatter` re-export），`src/daemon/daemon-orchestrator-notify.ts` 仅 re-export。
 - **收尾模板**：`run-complete-template.completeRunFromTemplate` — 幂等 `errorNotified`/`runFinalizing`；f41 stream 成功路径由引擎 stream 收尾，模板**禁止**双写 assistant。
 - **状态机**：`run-lifecycle.createRunLifecycle` — 四引擎终态须经 `enterNotifying` → `completeRunFromTemplate`；`resume()` S7 清零 `errorNotified`/`runFinalizing` 并 `phase→guarding`（主进程重启续接经各引擎 `*-run-recover.ts` + `agent-run-recover-orchestrator`）。

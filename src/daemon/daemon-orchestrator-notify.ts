@@ -9,6 +9,8 @@ export interface OrchestratorNotifyDeps {
   httpJson: <T = unknown>(url: string, body?: unknown, timeoutMs?: number) => Promise<T>
   localDaemonUrl: (p: string) => string
   log: (level: string, ...args: unknown[]) => void
+  /** HTTP 失败时仍须停进度（避免残留 typing） */
+  stopSessionProgress?: (sessionKey: string) => void
 }
 
 /** 工厂：注入 daemon HTTP 依赖，供 orchestrator 与 HTTP 路由共用 */
@@ -29,6 +31,8 @@ export function createOrchestratorNotify(deps: OrchestratorNotifyDeps) {
         "WARN",
         `notifySessionUser 失败 session=${sessionKey}: ${e instanceof Error ? e.message : e}`,
       )
+      // send-text 未达达时本地补停，与 stop_progress 语义对齐
+      if (stopProgress) deps.stopSessionProgress?.(sessionKey)
     }
   }
 

@@ -27,6 +27,7 @@
 
 - 路径在 `src/renderer/pages/`，非本目录；由 `Settings.tsx` 按 `tab` 挂载，props 传入 state / setter / save 回调。
 - `SettingsGeneralTab.tsx` / `SettingsProxyTab.tsx` / `SettingsTasksTab.tsx` / `SettingsSetupTab.tsx` / `SettingsAboutTab.tsx`：各 Tab 字段与保存语义落在对应文件；新增字段优先扩现有 Tab，勿把 JSX 再塞回壳。
+- `SettingsSetupTab` 能力对照等静态说明：同文件内 section 即可，**禁止**新建「帮助中心」服务或跨文件文案抽象（仅重复句时才抽同文件常量）。
 - 通道 / Agent / Rules / Skills / MCP / Workflows Tab 仍挂本目录既有面板（`ChannelPanel`、`AgentPanel`、Shell 系、`WorkflowPanel`）。
 
 ## 通道面板与编辑弹窗
@@ -34,6 +35,7 @@
 - `ChannelPanel.tsx`：通道列表壳（打开/关闭编辑）；≤300；勿把表单再内联回列表。
 - `ChannelEditModal.tsx`：编辑弹窗主表单；具名导出 `ChannelEditModal`。
 - `ChannelEditWechat.tsx` / `ChannelEditAccess.tsx`：微信扫码/凭据块、访问控制与高级项；由 Modal 组合。
+- 微信群策略/显示名辅助说明：写在对应控件下方 inline（`text-[11px]`），**禁止**另建帮助框架组件；文案与 gate 语义对齐即可。
 - `channel-panel-helpers.ts`：`emptyChannel` / `newLocalChannelId` / `isDefaultChannelName` 等纯辅助；禁止塞 React 组件。
 
 ## Dashboard 主页拆分（`pages/Dashboard*.tsx`）

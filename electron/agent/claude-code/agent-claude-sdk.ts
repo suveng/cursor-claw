@@ -24,6 +24,7 @@ import {
 } from "./agent-cc-utils"
 import { buildQueryOptions } from "./cc-query-options"
 import { notifySessionChat, clearStreamPostTimer, broadcastCcSessionStatus, completeCcRun } from "./agent-cc-stream"
+import { stopSessionChatProgress } from "../shared/run-notify"
 import { armCcWatchdog, streamCcSdkMessages } from "./agent-cc-events"
 import { registerCcLaunchHandler, registerCcDispatchHandler } from "./agent-cc-http"
 import { PLATFORM_RUN_LIMIT_MS } from "../cursor-sdk/finalize-sdk-run"
@@ -229,6 +230,8 @@ export function stopClaudeCodeSession(sessionKey: string): void {
   s.activeQuery = null
   s.pendingDispatch = false
   CC_SESSIONS.delete(sessionKey)
+  // 用户取消不发 IM，但须停 typing
+  stopSessionChatProgress(sessionKey)
   void reportSessionAgentPhase(sessionKey, "idle")
   broadcastCcSessionStatus([...CC_SESSIONS.values()])
 }

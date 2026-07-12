@@ -1,0 +1,319 @@
+{
+  "change_id": "20260712170556",
+  "id": "20260712170556-微信通道体验对齐",
+  "name": "微信通道体验对齐",
+  "title": "微信通道体验对齐",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T17:05:56+0800",
+  "updated_at": "2026-07-12T19:00:25+0800",
+  "archived_at": "2026-07-12T19:00:25+0800",
+  "depends_on": [
+    "20260712145946-微信通道入队与进度对齐"
+  ],
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/01-概览.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/03-微信通道.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/03-渲染端界面.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/ChannelEditWechat.tsx",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/SettingsSetupTab.tsx",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/AGENTS.md",
+      "role": "agents",
+      "kind": "docs",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-handlers.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-stream.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-send.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-orchestrator-notify.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-orchestrator.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-wire.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-ordering-release.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "role": "agents",
+      "kind": "docs",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/wechat-manager.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/wechat-progress-typing.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/wechat-manager-types.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/AGENTS.md",
+      "role": "agents",
+      "kind": "docs",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/shared/run-notify.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-claude-sdk.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/agent-codex-session-registry.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-session-registry.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/shared/AGENTS.md",
+      "role": "agents",
+      "kind": "docs",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "ChannelEditWechat 群模式文案",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/renderer/components/ChannelEditWechat.tsx"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "SettingsSetupTab 主次通道能力对照",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/renderer/pages/SettingsSetupTab.tsx"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "终态 stopSessionProgress 审计补漏",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/daemon/daemon-presentation-handlers.ts",
+        "src/daemon/daemon-presentation-stream.ts",
+        "src/daemon/daemon-http-routes-send.ts",
+        "src/daemon/daemon-queue.ts",
+        "src/daemon/daemon-orchestrator-notify.ts",
+        "src/daemon/daemon-orchestrator.ts",
+        "src/daemon/daemon-wire.ts",
+        "src/daemon/daemon-presentation-ordering-release.ts",
+        "electron/agent/shared/run-notify.ts",
+        "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+        "electron/agent/claude-code/agent-claude-sdk.ts",
+        "electron/agent/codex/agent-codex-session-registry.ts",
+        "electron/agent/opencode/agent-opencode-session-registry.ts"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "长任务 typing 可感知与续期可观测",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/bridge/wechat-manager.ts"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "飞书回归与收尾自检",
+      "status": "done",
+      "depends_on": ["T1", "T2", "T3", "T4"],
+      "files": [
+        "src/daemon/AGENTS.md",
+        "src/bridge/AGENTS.md",
+        "src/renderer/components/AGENTS.md",
+        "electron/agent/shared/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T-FIX-01",
+      "title": "拆分 wechat-manager typing 进度簇（R1）",
+      "status": "done",
+      "depends_on": ["T4", "T5"],
+      "files": [
+        "src/bridge/wechat-manager.ts",
+        "src/bridge/wechat-progress-typing.ts",
+        "src/bridge/wechat-manager-types.ts",
+        "src/bridge/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T-FIX-02",
+      "title": "finishFinal ack-or-stop 终态必停（R2）",
+      "status": "done",
+      "depends_on": ["T3"],
+      "files": [
+        "src/daemon/daemon-presentation-stream.ts",
+        "src/daemon/daemon-presentation-ordering-release.ts",
+        "src/daemon/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "severity": "error",
+      "status": "fixed",
+      "file": "src/bridge/wechat-manager.ts",
+      "summary": "已拆出 wechat-progress-typing + types；门面 296 行 ≤300；禁止 debt",
+      "task_id": "T-FIX-01",
+      "resolution": "复评核实：manager 296 / typing 132 / types 31；对外 API 委托不变；daemon 不直引子模块"
+    },
+    {
+      "id": "R2",
+      "severity": "warning",
+      "status": "fixed",
+      "file": "src/daemon/daemon-presentation-stream.ts",
+      "summary": "finishFinal ack 后无条件 stopSessionProgress，与 send-image/file 双调对齐",
+      "task_id": "T-FIX-02",
+      "resolution": "复评核实：stream 与 ordering-release 均 ack 后无条件 stop；AGENTS 完成路径规矩已更新"
+    }
+  ],
+  "revisions": [],
+  "external": {
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / integrations.notifications 配置",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "figma_note": "文案/设置辅助说明视为无新视觉，无需设计图；沿用 ChannelPanel / ChannelEditWechat / SettingsSetupTab 既有辅助文本区",
+    "task_type": "功能",
+    "priority": "P1"
+  }
+}

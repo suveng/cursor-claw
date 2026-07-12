@@ -73,6 +73,7 @@ export default function ChannelEditWechat({ draft, set }: Props) {
           )}
         </div>
       )}
+      {/* 群策略与显示名：文案对齐 gate 语义，不改字段/判定 */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs text-gray-500">群聊入队策略</label>
@@ -84,6 +85,11 @@ export default function ChannelEditWechat({ draft, set }: Props) {
             <option value="mention_required">群聊须 @ 机器人</option>
             <option value="all">群聊全量入队</option>
           </select>
+          <p className="mt-1 text-[11px] leading-relaxed text-gray-600">
+            「须 @」：群消息正文需出现 @ 机器人才入队；协议无 mention 元数据，依赖正文启发式，可能误判。
+            「全量」：适合小群或成员无稳定 @ 习惯时，群消息均入队。
+            未入队可在 Daemon 日志检索 <code className="text-gray-500">wechat_group_skip</code>。
+          </p>
         </div>
         <div>
           <label className="mb-1 block text-xs text-gray-500">机器人显示名（@ 匹配，可选）</label>
@@ -94,6 +100,9 @@ export default function ChannelEditWechat({ draft, set }: Props) {
             placeholder={draft.name || "默认用通道名称"}
             className={inputCls}
           />
+          <p className="mt-1 text-[11px] leading-relaxed text-gray-600">
+            参与群聊 @ 正文匹配（可选）。留空时用通道名称；填写后用户 @ 该显示名即可触发入队。
+          </p>
         </div>
       </div>
     </div>

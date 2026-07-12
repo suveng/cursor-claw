@@ -113,13 +113,12 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
   function stopSessionProgress(sessionKey: string): void {
     const state = deps.sessionProgressMap.get(sessionKey);
     if (!state) return;
-    if (state.typingActive) {
-      const ch = deps.resolveChannel(sessionKey);
-      if (ch.type === "wechat") {
-        (ch.rt.wechat as { stopProgressTyping?: (chatId: string) => Promise<void> }).stopProgressTyping?.(ch.chatId).catch((e: unknown) => {
-          deps.log("WARN", `stopProgressTyping 失败: ${e instanceof Error ? e.message : e}`);
-        });
-      }
+    const ch = deps.resolveChannel(sessionKey);
+    // 微信：不依赖 typingActive 布尔，避免标志不同步导致残留续期 timer
+    if (ch.type === "wechat") {
+      (ch.rt.wechat as { stopProgressTyping?: (chatId: string) => Promise<void> }).stopProgressTyping?.(ch.chatId).catch((e: unknown) => {
+        deps.log("WARN", `stopProgressTyping 失败: ${e instanceof Error ? e.message : e}`);
+      });
     }
     clearMilestoneState(state);
     deps.sessionProgressMap.delete(sessionKey);

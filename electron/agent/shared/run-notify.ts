@@ -43,3 +43,22 @@ export async function notifySessionChat(
     )
   }
 }
+
+/**
+ * 用户取消等无 IM 文案场景：仅停会话进度（typing），不发正文。
+ * Daemon `/api/send-text` 允许 empty text + stop_progress。
+ */
+export function stopSessionChatProgress(sessionKey: string): void {
+  const lock = readLockFile()
+  if (!lock?.port) return
+  void httpPost(
+    `http://127.0.0.1:${lock.port}/api/send-text`,
+    { session_key: sessionKey, stop_progress: true },
+    5000,
+  ).catch((e: unknown) => {
+    broadcastLog(
+      `[Run Notify] 停进度失败 (${sessionKey}): ${e instanceof Error ? e.message : String(e)}`,
+      "WARN",
+    )
+  })
+}

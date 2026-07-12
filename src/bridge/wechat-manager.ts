@@ -4,36 +4,23 @@ import * as path from "node:path";
 import { WeChatClient, normalizeAccountId } from "./wechat/index.js";
 import type { WeixinMessage, MessageItem } from "./wechat/index.js";
 import { MEDIA_CACHE_DIR } from "./lark-core.js";
+import { WeChatProgressTyping } from "./wechat-progress-typing.js";
+import type {
+  WeChatIncomingMessage,
+  WeChatManagerOptions,
+  WeChatSendOptions,
+  WeChatSendResult,
+  WeChatStatus,
+} from "./wechat-manager-types.js";
 
-export interface WeChatIncomingMessage {
-  text: string;
-  messageId: string;
-  chatId: string;
-  chatType: "p2p" | "group";
-  senderOpenId: string;
-  senderName?: string;
-}
-
-export interface WeChatManagerOptions {
-  dataDir: string;
-  log: (level: string, ...args: unknown[]) => void;
-  onMessage: (msg: WeChatIncomingMessage) => void;
-  onQrCode?: (dataUrl: string) => void;
-  onStatusChange?: (status: WeChatStatus) => void;
-}
-
-export type WeChatStatus = "disconnected" | "qr_pending" | "logging_in" | "connected" | "error";
-
-export interface WeChatSendOptions {
-  /** 默认 true：不绑定 typing 生命周期，由 daemon 进度状态机驱动 */
-  skipTyping?: boolean;
-}
-
-/** 微信出站结果；outboundId 形如 wxc_<clientId>，供 daemon trackMessageSession */
-export interface WeChatSendResult {
-  ok: boolean;
-  outboundId?: string;
-}
+// 域外仍经本文件消费类型
+export type {
+  WeChatIncomingMessage,
+  WeChatManagerOptions,
+  WeChatSendOptions,
+  WeChatSendResult,
+  WeChatStatus,
+} from "./wechat-manager-types.js";
 
 export class WeChatManager extends EventEmitter {
   private client: WeChatClient | null = null;
@@ -43,12 +30,10 @@ export class WeChatManager extends EventEmitter {
   private opts: WeChatManagerOptions;
   private selfAccountId = "";
   private recentMsgHashes = new Set<string>();
-  private typingTickets = new Map<string, string>();
-  /** 进度 typing 续期定时器（每 4s 刷新 ticket，直至 stopProgressTyping） */
-  private typingRefreshTimers = new Map<string, NodeJS.Timeout>();
+  /** typing / 进度续期（ticket + 4s timer） */
+  private readonly typing: WeChatProgressTyping;
   private static readonly DEDUP_WINDOW = 60_000;
-  /** iLink typing 约 5s 消失，提前 4s 续期 */
-  private static readonly TYPING_REFRESH_MS = 4000;
+  private static readonly MEDIA_DIR = MEDIA_CACHE_DIR;
 
   constructor(opts: WeChatManagerOptions) {
     super();
@@ -56,6 +41,11 @@ export class WeChatManager extends EventEmitter {
     this.syncBufPath = path.join(opts.dataDir, "wechat-sync.txt");
     this.ctxTokensPath = path.join(opts.dataDir, "wechat-ctx-tokens.json");
     if (!fs.existsSync(opts.dataDir)) fs.mkdirSync(opts.dataDir, { recursive: true });
+    this.typing = new WeChatProgressTyping({
+      getClient: () => this.client,
+      getStatus: () => this.status,
+      log: (level, ...args) => this.opts.log(level, ...args),
+    });
   }
 
   getStatus(): WeChatStatus {
@@ -155,6 +145,7 @@ export class WeChatManager extends EventEmitter {
   }
 
   async stop(): Promise<void> {
+    this.typing.clearAll();
     if (this.client) {
       try { this.client.stop(); } catch { /* ignore */ }
       this.client = null;
@@ -171,9 +162,9 @@ export class WeChatManager extends EventEmitter {
     const skipTyping = opts?.skipTyping !== false;
     try {
       const normalized = text.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
-      if (!skipTyping) await this.ensureTyping(toUserName);
+      if (!skipTyping) await this.typing.ensure(toUserName);
       const clientId = await this.client.sendText(toUserName, normalized);
-      if (!skipTyping) await this.cancelTyping(toUserName);
+      if (!skipTyping) await this.typing.cancel(toUserName);
       return { ok: true, outboundId: `wxc_${clientId}` };
     } catch (err: any) {
       this.opts.log("ERROR", `[WeChat] 发送文本失败: ${err?.message ?? err}`);
@@ -188,9 +179,9 @@ export class WeChatManager extends EventEmitter {
     }
     const skipTyping = opts?.skipTyping !== false;
     try {
-      if (!skipTyping) await this.ensureTyping(toUserName);
+      if (!skipTyping) await this.typing.ensure(toUserName);
       const clientId = await this.client.sendMedia(toUserName, filePath);
-      if (!skipTyping) await this.cancelTyping(toUserName);
+      if (!skipTyping) await this.typing.cancel(toUserName);
       return { ok: true, outboundId: clientId ? `wxc_${clientId}` : undefined };
     } catch (err: any) {
       this.opts.log("ERROR", `[WeChat] 发送媒体失败: ${err?.message ?? err}`);
@@ -200,95 +191,13 @@ export class WeChatManager extends EventEmitter {
 
   /** 开启会话级进行中指示（由 daemon 进度状态机调用） */
   async startProgressTyping(userId: string): Promise<void> {
-    if (!this.client || this.status !== "connected") {
-      this.opts.log("WARN", "[WeChat] startProgressTyping: 未连接");
-      return;
-    }
-    this.clearTypingRefreshTimer(userId);
-    await this.startTypingForUser(userId);
-    const timer = setInterval(() => {
-      void this.refreshProgressTyping(userId);
-    }, WeChatManager.TYPING_REFRESH_MS);
-    this.typingRefreshTimers.set(userId, timer);
+    return this.typing.startProgress(userId);
   }
 
   /** 停止进行中指示并清理 ticket（由 daemon 进度状态机调用） */
   async stopProgressTyping(userId: string): Promise<void> {
-    if (!this.client || this.status !== "connected") {
-      this.clearTypingRefreshTimer(userId);
-      this.opts.log("WARN", "[WeChat] stopProgressTyping: 未连接");
-      return;
-    }
-    this.clearTypingRefreshTimer(userId);
-    await this.cancelTyping(userId);
+    return this.typing.stopProgress(userId);
   }
-
-  /** 清除续期定时器（重复 stop 安全） */
-  private clearTypingRefreshTimer(userId: string): void {
-    const timer = this.typingRefreshTimers.get(userId);
-    if (!timer) return;
-    clearInterval(timer);
-    this.typingRefreshTimers.delete(userId);
-  }
-
-  /** 周期续期 typing ticket（失败 WARN 不阻断主路径） */
-  private async refreshProgressTyping(userId: string): Promise<void> {
-    if (!this.client || this.status !== "connected") return;
-    try {
-      const ticket = await this.client.getTypingTicket(userId);
-      if (!ticket) return;
-      this.typingTickets.set(userId, ticket);
-      await this.client.sendTyping(userId, ticket, "typing");
-      this.opts.log("INFO", `[WeChat] wechat_typing_refresh user=${userId}`);
-    } catch (err: any) {
-      this.opts.log("WARN", `[WeChat] wechat_typing_refresh 失败: ${err?.message ?? err}`);
-    }
-  }
-
-  /** 确保发送前有 typing 状态：有缓存 ticket 直接用，没有则重新获取并 typing */
-  private async ensureTyping(userId: string): Promise<void> {
-    if (!this.client) return;
-    const cached = this.typingTickets.get(userId);
-    if (cached) return; // 已有 ticket 则跳过重复获取
-    try {
-      const ticket = await this.client.getTypingTicket(userId);
-      if (ticket) {
-        this.typingTickets.set(userId, ticket);
-        await this.client.sendTyping(userId, ticket, "typing");
-      }
-    } catch (err: any) {
-      this.opts.log("WARN", `[WeChat] ensureTyping 失败: ${err?.message ?? err}`);
-    }
-  }
-
-  /** 取消 typing 状态并清除缓存 */
-  private async cancelTyping(userId: string): Promise<void> {
-    if (!this.client) return;
-    const ticket = this.typingTickets.get(userId);
-    if (!ticket) return;
-    this.typingTickets.delete(userId);
-    try {
-      await this.client.sendTyping(userId, ticket, "cancel");
-    } catch (err: any) {
-      this.opts.log("WARN", `[WeChat] cancelTyping 失败: ${err?.message ?? err}`);
-    }
-  }
-
-  /** 获取 ticket 并发送 typing 状态 */
-  private async startTypingForUser(userId: string): Promise<void> {
-    if (!this.client) return;
-    try {
-      const ticket = await this.client.getTypingTicket(userId);
-      if (ticket) {
-        this.typingTickets.set(userId, ticket);
-        await this.client.sendTyping(userId, ticket, "typing");
-      }
-    } catch (err: any) {
-      this.opts.log("WARN", `[WeChat] startTyping 失败: ${err?.message ?? err}`);
-    }
-  }
-
-  private static readonly MEDIA_DIR = MEDIA_CACHE_DIR;
 
   private handleMessage(msg: WeixinMessage): void {
     this.opts.log("DEBUG", `[WeChat] RAW msg: mid=${msg.message_id} type=${msg.message_type} state=${msg.message_state} from=${msg.from_user_id} to=${msg.to_user_id} client_id=${msg.client_id}`);

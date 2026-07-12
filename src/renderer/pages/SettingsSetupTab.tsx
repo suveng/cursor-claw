@@ -29,6 +29,43 @@ export default function SettingsSetupTab({ firstFeishuAppId, onNavigateTab }: Pr
                 </div>
               </section>
 
+              {/* 主/次通道能力对照：口径对齐知识库概览 §九，静态文案不持久化 */}
+              <section className="space-y-2">
+                <h3 className="text-sm font-medium text-gray-300">主/次通道能力</h3>
+                <p className="text-xs text-gray-600">
+                  飞书为主通道、微信为次通道：形态可不同，边界须透明。微信一期无合并卡与自定义菜单，也不假装 CardKit。
+                </p>
+                <div className="rounded-lg border border-gray-800 overflow-hidden">
+                  <div className="grid grid-cols-3 gap-2 bg-gray-800/50 px-3 py-2 text-xs font-medium text-gray-400">
+                    <span>能力</span>
+                    <span>飞书（主）</span>
+                    <span>微信（次）</span>
+                  </div>
+                  <div className="divide-y divide-gray-800 text-xs">
+                    <div className="grid grid-cols-3 gap-2 px-3 py-2">
+                      <span className="text-gray-400">群聊过滤</span>
+                      <span className="text-gray-300">协议 @</span>
+                      <span className="text-gray-300">正文 @ 启发式；可配置全量入队</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 px-3 py-2">
+                      <span className="text-gray-400">进行中</span>
+                      <span className="text-gray-300">Get 表情 + CardKit</span>
+                      <span className="text-gray-300">typing（约 4s 续期）</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 px-3 py-2">
+                      <span className="text-gray-400">出站 track</span>
+                      <span className="text-gray-300">open_message_id</span>
+                      <span className="text-gray-300 font-mono">wxc_&lt;clientId&gt;</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 px-3 py-2">
+                      <span className="text-gray-400">合并 / 菜单</span>
+                      <span className="text-gray-300">有</span>
+                      <span className="text-amber-400/90">微信一期无</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
               <section className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium text-gray-300">基础权限</h3>

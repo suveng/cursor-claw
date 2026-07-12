@@ -5,6 +5,7 @@
 import { reportSessionAgentPhase } from "../../daemon/daemon-client"
 import { resolveSessionChatName } from "../shared/agent-launcher"
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
+import { stopSessionChatProgress } from "../shared/run-notify"
 import { clearCodexStreamPostTimer, broadcastCodexSessionStatus } from "./agent-codex-stream"
 import { markCodexRunUserStopped } from "./codex-run-persistence"
 import type { CodexSessionAgent } from "./agent-codex-types"
@@ -61,6 +62,8 @@ export function stopCodexSession(sessionKey: string): void {
   s.pendingDispatch = false
   CODEX_SESSIONS.delete(sessionKey)
   CODEX_PENDING_LAUNCHES.delete(sessionKey)
+  // 用户取消不发 IM，但须停 typing
+  stopSessionChatProgress(sessionKey)
   void reportSessionAgentPhase(sessionKey, "idle")
   broadcastCodexSessionStatus([...CODEX_SESSIONS.values()])
 }

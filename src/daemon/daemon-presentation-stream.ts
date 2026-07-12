@@ -144,10 +144,21 @@ async function handleStreamText(body: {
   const title = extractWorkspaceTitle(session_key);
   let outId = outIdHint;
 
+  /** final：成功可 ack；终态必停（与 send-image/file 双调对齐；ack 空集早退时仍 stop） */
+  const finishFinal = (mode: "ack-or-stop" | "stop-only" = "ack-or-stop"): void => {
+    if (!final) return;
+    if (mode === "ack-or-stop" && message_id) ackOnReply(message_id, session_key);
+    // stop 幂等：ackOnReply 已 stop 时无 state 早退；空集漏 stop 由此兜底
+    stopSessionProgress(session_key);
+  };
+
   if (isFirst) {
     if (ch.type === "wechat") {
       const result = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
-      if (!result.ok) return { ok: false, error: "微信发送失败" };
+      if (!result.ok) {
+        finishFinal("stop-only");
+        return { ok: false, error: "微信发送失败" };
+      }
       outId = result.outboundId ?? `wx_stream_${sid}`;
       if (result.outboundId) trackMessageSession(result.outboundId, session_key);
       state.streamPatchMode = false;
@@ -164,7 +175,10 @@ async function handleStreamText(body: {
       } else {
         outId = await ch.rt.sender!.sendStreamMessage(text, ch.chatId, title);
       }
-      if (!outId) return { ok: false, error: "飞书发送失败" };
+      if (!outId) {
+        finishFinal("stop-only");
+        return { ok: false, error: "飞书发送失败" };
+      }
       state.streamPatchMode = true;
       state.outboundMessageId = outId;
       trackMessageSession(outId, session_key);
@@ -175,7 +189,10 @@ async function handleStreamText(body: {
     }
   } else {
     outId = outId ?? state.outboundMessageId;
-    if (!outId) return { ok: false, error: "missing outbound_message_id" };
+    if (!outId) {
+      finishFinal("stop-only");
+      return { ok: false, error: "missing outbound_message_id" };
+    }
 
     if (ch.type === "feishu" && state.streamPatchMode !== false) {
       const patched = await ch.rt.sender!.updateMessageContent(outId, text, title);
@@ -194,13 +211,7 @@ async function handleStreamText(body: {
   }
 
   sessionLastReplyAt.set(session_key, Date.now());
-  if (final) {
-    if (message_id) {
-      ackOnReply(message_id, session_key);
-    } else {
-      stopSessionProgress(session_key);
-    }
-  }
+  finishFinal("ack-or-stop");
   return { ok: true, stream_id: sid, outbound_message_id: outId };
 }
 

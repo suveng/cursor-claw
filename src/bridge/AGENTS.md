@@ -65,12 +65,24 @@
 
 ## 微信客户端（wechat-manager.ts + wechat/）
 
+- **对外入口**：域外仅 `import "../bridge/wechat-manager.js"`；类型可由门面 re-export；**禁止** daemon 直引 `wechat-progress-typing` / `wechat-manager-types`。
+- **子模块职责**（域内互引 `./wechat-*.js`，均 ≤300）：
+
+| 文件 | 职责 |
+|------|------|
+| `wechat-manager.ts` | 门面：连接/出站/入站；委托 typing |
+| `wechat-manager-types.ts` | 对外类型（Incoming/Options/SendResult/Status） |
+| `wechat-progress-typing.ts` | ticket + 4s 续期 timer；`start/stopProgress` / `ensure` / `cancel` |
+| `wechat/` | 协议与客户端实现；域外不直引 |
+
 - **群聊入队门控**：daemon `initWeChatChannel` 在 `pushMessage` 前调用 `wechat-group-enqueue-gate.ts` 纯函数；策略字段 `wechatGroupEnqueueMode`（默认 `mention_required`）。
-- **typing 续期**：`startProgressTyping` 立即 typing + 每 4s `wechat_typing_refresh` 续 ticket；`stopProgressTyping` 须 `clearInterval` 防泄漏。
+- **typing 续期**：`startProgressTyping` → `WeChatProgressTyping.startProgress`；立即 typing + 每 4s `wechat_typing_refresh`；`stopProgressTyping` / `stop()` 须清 timer 防泄漏。
 - **出站 track**：`sendText`/`sendMedia` 返回 `{ ok, outboundId? }`，`outboundId` 前缀 `wxc_`（iLink `clientId` 等价物）；daemon `trackMessageSession` 消费。
-- **typing 指示**：`startProgressTyping` / `stopProgressTyping` 由 daemon `sessionProgressMap` 驱动；最终回复与流式分段须 `{ skipTyping: true }`，**禁止**在 `sendText` 内 cancelTyping。
+- **typing 指示**：由 daemon `sessionProgressMap` 驱动；最终回复与流式分段须 `{ skipTyping: true }`，**禁止**在 `sendText` 内 cancelTyping。
+- **续期可观测**：`wechat_typing_refresh` 成功 INFO；无 ticket / 抛错均 WARN（不阻断主路径）。
 - **出站**：`sendText`、分段流式、图片/文件发送；与飞书 CardKit 路径互斥，由 daemon 按通道分流。
 - **子树**：`wechat/` 为协议与客户端实现；域外仅经 `wechat-manager.ts` 暴露，不直接 import 子模块。
+- **单文件行数**：门面与 `wechat-*.ts` 均 ≤300；typing 增量落入 `wechat-progress-typing.ts`。
 
 ## 入队进度与 Get 表情（bridge  primitives）
 

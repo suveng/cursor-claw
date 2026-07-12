@@ -26,44 +26,50 @@ export async function tryHandleSendRoute(
   if (method === "POST" && pathname === "/api/send-text") {
     const body = JSON.parse(await deps.readBody(req));
     const { text, message_id, session_key, stop_progress } = body as {
-      text: string; message_id?: string; session_key?: string; stop_progress?: boolean;
+      text?: string; message_id?: string; session_key?: string; stop_progress?: boolean;
     };
-    if (!text) { deps.json(res, { ok: false, error: "text is required" }, 400); return true; }
+    const hasText = typeof text === "string" && text.length > 0;
+    // 允许仅 stop_progress（用户取消等无 IM 文案）；有文案则照常发送
+    if (!hasText && !stop_progress) {
+      deps.json(res, { ok: false, error: "text is required" }, 400);
+      return true;
+    }
 
-    const ch = deps.resolveChannel(session_key);
-    if (ch.type === "error") { deps.json(res, { ok: false, error: ch.message }, 400); return true; }
-    let sendOk = false;
+    let sendOk = !hasText;
     let sentMsgId: string | undefined;
-    if (ch.type === "wechat") {
-      const rt = ch.rt as SendChannelRt;
-      const result = await rt.wechat!.sendText(ch.chatId!, text, { skipTyping: true });
-      sendOk = result.ok;
-      sentMsgId = result.outboundId;
-      if (sentMsgId && session_key) deps.trackMessageSession(sentMsgId, session_key);
-      deps.json(res, { ok: sendOk, message_id: sentMsgId });
-    } else {
-      const rt = ch.rt as SendChannelRt;
-      const sender = rt.sender!;
-      const title = deps.extractWorkspaceTitle(session_key);
-      let sentMsgId: string | undefined;
-      if (message_id) {
-        sentMsgId = await sender.sendMessage(text, message_id, undefined, title);
-        if (!sentMsgId) {
-          deps.log("INFO", `回复退避: message_id=${message_id} → ${ch.chatId ? `chat_id=${ch.chatId}` : "默认发送"}`);
-          sentMsgId = await sender.sendMessage(text, undefined, ch.chatId, title);
-        }
+    if (hasText) {
+      const ch = deps.resolveChannel(session_key);
+      if (ch.type === "error") { deps.json(res, { ok: false, error: ch.message }, 400); return true; }
+      if (ch.type === "wechat") {
+        const rt = ch.rt as SendChannelRt;
+        const result = await rt.wechat!.sendText(ch.chatId!, text!, { skipTyping: true });
+        sendOk = result.ok;
+        sentMsgId = result.outboundId;
+        if (sentMsgId && session_key) deps.trackMessageSession(sentMsgId, session_key);
       } else {
-        sentMsgId = await sender.sendMessage(text, undefined, ch.chatId, title);
+        const rt = ch.rt as SendChannelRt;
+        const sender = rt.sender!;
+        const title = deps.extractWorkspaceTitle(session_key);
+        if (message_id) {
+          sentMsgId = await sender.sendMessage(text!, message_id, undefined, title);
+          if (!sentMsgId) {
+            deps.log("INFO", `回复退避: message_id=${message_id} → ${ch.chatId ? `chat_id=${ch.chatId}` : "默认发送"}`);
+            sentMsgId = await sender.sendMessage(text!, undefined, ch.chatId, title);
+          }
+        } else {
+          sentMsgId = await sender.sendMessage(text!, undefined, ch.chatId, title);
+        }
+        if (sentMsgId && session_key) deps.trackMessageSession(sentMsgId, session_key);
+        sendOk = !!sentMsgId;
       }
-      if (sentMsgId && session_key) deps.trackMessageSession(sentMsgId, session_key);
-      sendOk = !!sentMsgId;
-      deps.json(res, { ok: sendOk, message_id: sentMsgId });
     }
+    deps.json(res, { ok: sendOk, message_id: sentMsgId });
     if (sendOk) {
-      if (session_key) deps.sessionLastReplyAt.set(session_key, Date.now());
+      if (session_key && hasText) deps.sessionLastReplyAt.set(session_key, Date.now());
       deps.ackOnReply(message_id, session_key);
-      if (stop_progress && session_key) deps.stopSessionProgress(session_key);
     }
+    // 终态停进度与发送成败解耦：请求 stop 则必停，避免出站失败残留 typing
+    if (stop_progress && session_key) deps.stopSessionProgress(session_key);
     return true;
   }
 

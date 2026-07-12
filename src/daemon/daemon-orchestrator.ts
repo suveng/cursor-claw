@@ -53,6 +53,8 @@ export interface OrchestratorDeps {
     sessionKey: string,
   ) => { rt: OrchestratorChannelRuntime; chatId: string } | null;
   isMergeDispatchAllowed: (sessionKey: string) => boolean;
+  /** notify HTTP 失败时本地补停 typing（经 stopProgressRef 晚绑定） */
+  stopSessionProgress?: (sessionKey: string) => void;
 }
 
 export interface OrchestratorApi {
@@ -83,6 +85,8 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     httpJson: deps.httpJson,
     localDaemonUrl: deps.localDaemonUrl,
     log: deps.log,
+    // 经 wire 注入；notify HTTP 失败时仍停 typing
+    stopSessionProgress: (sk) => deps.stopSessionProgress?.(sk),
   });
   const sessionAgentPhaseMap = new Map<string, AgentPhase>();
   // scheduleAgentDispatch 由 dispatch 工厂赋值；retry 闭包延后调用

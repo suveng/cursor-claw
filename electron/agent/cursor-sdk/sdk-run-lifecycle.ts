@@ -6,7 +6,7 @@ import { reportSessionAgentPhase } from "../../daemon/daemon-client"
 import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import { cancelRunAndWait } from "./finalize-sdk-run"
 import { clearActiveSdkRun, markSdkRunUserStopped } from "./sdk-run-persistence"
-import { notifySessionChat } from "../../daemon/sdk-daemon-notify"
+import { notifySessionChat, stopSessionChatProgress } from "../shared/run-notify"
 import { completeSdkFailureViaTemplate } from "./sdk-run-finalize"
 import { persistActiveRunSnapshot, clearPersistThrottle } from "./sdk-run-persist"
 import { resetStreamPostChain } from "./sdk-run-presentation"
@@ -86,6 +86,8 @@ export function stopSdkSession(sessionKey: string): void {
   }
   s.agent.close()
   sdkSessions.delete(sessionKey)
+  // 用户取消不发 IM，但须停 typing（R4 终态必停）
+  stopSessionChatProgress(sessionKey)
   void reportSessionAgentPhase(sessionKey, "idle")
   broadcastSdkSessionStatus()
 }

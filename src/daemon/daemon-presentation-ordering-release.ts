@@ -36,11 +36,20 @@ export function createOrderingReleaseApi(releaseDeps: OrderingReleaseDeps) {
       const now = Date.now();
       let outId: string | undefined;
 
+      /** final：成功可 ack；终态必停（与 send-image/file 双调对齐；ack 空集早退时仍 stop） */
+      const finishFinal = (mode: "ack-or-stop" | "stop-only" = "ack-or-stop"): void => {
+        if (!opts?.final) return;
+        if (mode === "ack-or-stop" && opts.message_id) deps.ackOnReply(opts.message_id, sessionKey);
+        // stop 幂等：ackOnReply 已 stop 时无 state 早退；空集漏 stop 由此兜底
+        deps.stopSessionProgress(sessionKey);
+      };
+
       if (ch.type === "wechat") {
         const result = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
         if (!result.ok) {
           state.assistantCardReleased = false;
           deps.logPresentationFailed(sessionKey, "assistant", "微信发送失败");
+          finishFinal("stop-only");
           return;
         }
         outId = result.outboundId ?? `wx_stream_${sid}`;
@@ -60,6 +69,7 @@ export function createOrderingReleaseApi(releaseDeps: OrderingReleaseDeps) {
         if (!outId) {
           state.assistantCardReleased = false;
           deps.logPresentationFailed(sessionKey, "assistant", "飞书 send 失败");
+          finishFinal("stop-only");
           return;
         }
         state.streamPatchMode = true;
@@ -71,16 +81,11 @@ export function createOrderingReleaseApi(releaseDeps: OrderingReleaseDeps) {
       }
 
       deps.sessionLastReplyAt.set(sessionKey, now);
-
-      if (opts?.final) {
-        if (opts.message_id) {
-          deps.ackOnReply(opts.message_id, sessionKey);
-        } else {
-          deps.stopSessionProgress(sessionKey);
-        }
-      }
+      finishFinal("ack-or-stop");
     } catch (e) {
       state.assistantCardReleased = false;
+      // final 抛错仅停进度，不 ack
+      if (opts?.final) deps.stopSessionProgress(sessionKey);
       throw e;
     }
   }

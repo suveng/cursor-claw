@@ -121,7 +121,9 @@
 - **停止**：统一经 `stopSessionProgress(sessionKey)` — 微信 `stopProgressTyping`（清续期 timer），并 `delete` Map 条目防泄漏。
 - **微信群聊 gate**：`initWeChatChannel` 群聊入队前调用 `wechat-group-enqueue-gate.ts`；跳过打 `wechat_group_skip` INFO；私聊/斜杠/首条绑定不经 gate。
 - **微信出站 track**：`POST /api/send-text` 微信成功须 `trackMessageSession`，`message_id` 以 `wxc_` 开头；调用方判 `sendText` 返回 `.ok` 而非 boolean。
-- **完成路径须 stop**：带 `message_id` 的最终回复经 `ackOnReply`（已含 stop）；异常 notify 经 `/api/send-text` 传 `stop_progress: true`；`/api/stream-text` 的 `final: true`（可选 `message_id` 触发 ack）；`/api/send-image|send-file` 成功且带 `message_id` 时经 `ackOnReply`。三态进度文案（「正在启动」「Agent 处理中…」）走 send-text **不带** `message_id`/`stop_progress`，**不** stop。
+- **完成路径须 stop**：带 `message_id` 的最终回复经 `ackOnReply`（acked 非空时含 stop）；**但** `ackOnReply` 在 `acked.length===0` 早退且不 stop。因此 `/api/stream-text` 与 `ordering-release` 的 `finishFinal("ack-or-stop")` 成功路径须 **ack 后再无条件** `stopSessionProgress`（与 send-image/file 双调对齐；stop 幂等）。异常 notify 经 `/api/send-text` 传 `stop_progress: true`。三态进度文案（「正在启动」「Agent 处理中…」）走 send-text **不带** `message_id`/`stop_progress`，**不** stop。
+- **`stop_progress` 与发送解耦**：`/api/send-text` 只要请求带 `stop_progress` 即调用 `stopSessionProgress`（不依赖 `sendOk`）；允许无 `text` 仅 stop（用户取消停 typing）。`stream-text`/`ordering-release` 的 `final` 出站失败亦须 stop。`notifySessionUser` HTTP 失败时经注入的 `stopSessionProgress` 本地补停。
+- **微信 stop**：`stopSessionProgress` 对微信通道直接调 `stopProgressTyping`，不依赖 `typingActive` 布尔（防标志不同步残留 timer）。
 - **poll Get 去重**：`sessionGetReactedIds` 按 inbound `messageId` 记录已打 Get；入队确认与 orchestrator claim 均写入，`idsNeedingPollGetReaction` 按 id 过滤，不依赖 `sessionProgressMap` 生命周期。
 - **勿在 sendText 内 cancelTyping**：最终回复与流式分段用 `{ skipTyping: true }`；进行中指示仅由进度状态机 stop。
 
