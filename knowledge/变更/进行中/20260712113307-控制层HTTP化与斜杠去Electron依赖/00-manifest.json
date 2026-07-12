@@ -3,12 +3,11 @@
   "id": "20260712113307-控制层HTTP化与斜杠去Electron依赖",
   "name": "控制层HTTP化与斜杠去Electron依赖",
   "flow": "standard",
-  "stage": "archived_with_debt",
+  "stage": "applied",
   "source": "kb-propose",
   "workflow_version": "v2.6",
   "created_at": "2026-07-12T11:33:07+0800",
-  "updated_at": "2026-07-12T12:25:58+0800",
-  "archived_at": "2026-07-12T12:25:58+0800",
+  "updated_at": "2026-07-12T12:49:29+0800",
   "files": [
     {
       "path": "00-manifest.json",
