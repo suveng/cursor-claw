@@ -2,7 +2,6 @@
  * OpenCode 流式推送与 presentation 出站（仿 agent-codex-stream）。
  */
 import { readLockFile, httpPost } from "../../daemon/daemon-client"
-import { isFeishuProcessPresentationSuppressed as feishuSuppressesProcessKind } from "../../../src/shared/feishu-presentation-gate"
 import { pushUiLog, broadcastSessionStatus } from "../../app/ui-logger"
 import { appendContextFooter, formatContextFooter, resolveDisplayContextTokens, resetContextUsagePeak } from "../cursor-sdk/context-usage"
 import { resolveSessionChatName } from "../shared/agent-launcher"
@@ -12,7 +11,7 @@ import {
 } from "../shared/feishu-plain-assistant-reply"
 import { maybeRotateContext } from "../cursor-sdk/context-rotation-lite"
 import type { OpencodeSessionAgent } from "./agent-opencode-types"
-import { resolveSessionChannelType } from "./agent-opencode-utils"
+import { presentationOrderingEligible, resolveSessionChannelType } from "./agent-opencode-utils"
 
 const LOG_FLUSH_LEN = 400
 const STREAM_POST_INTERVAL_MS = 400
@@ -62,12 +61,12 @@ export function appendOpencodeLog(session: OpencodeSessionAgent, kind: "thinking
   agg.buf += delta
   if (agg.buf.length >= LOG_FLUSH_LEN) flushOpencodeLog(session)
 }
+/** 出站 presentation-event；飞书里程碑抑制由 Daemon 处理，Electron 侧始终 POST */
 export async function postOpencodePresentationEvent(
   session: OpencodeSessionAgent,
   event: Omit<import("./agent-sdk").PresentationEvent, "session_key">,
-  resolveChannelType: (sessionKey: string) => string | undefined,
+  _resolveChannelType: (sessionKey: string) => string | undefined,
 ): Promise<void> {
-  if (feishuSuppressesProcessKind(resolveChannelType(session.sessionKey), event.kind)) return
   const lock = readLockFile()
   if (!lock?.port) return
   const payload = { session_key: session.sessionKey, ...event }
@@ -113,6 +112,38 @@ export function clearOpencodeStreamPostTimer(session: OpencodeSessionAgent): voi
   }
 }
 
+/** ordering 且已见过程、尚无 outbound 时 defer assistant 非 final 出站 */
+function shouldDeferOpencodeAssistantPost(session: OpencodeSessionAgent): boolean {
+  if (!presentationOrderingEligible(session)) return false
+  if (session.outboundMessageId) return false
+  return !!(session.presentationDeferStream || session.seenProcessEvent)
+}
+
+/** Rev2 end-only：含过程 Run 仅 Run 收尾 final 出站 */
+function shouldEndOnlyOpencodeAssistantDefer(session: OpencodeSessionAgent): boolean {
+  if (!presentationOrderingEligible(session)) return false
+  if (session.outboundMessageId) return false
+  return !!(session.seenProcessEvent || session.presentationDeferStream)
+}
+
+/** 纯对话 preamble：ordering 开启但尚未见过程事件 */
+function isAwaitingFirstOpencodeProcessEvent(session: OpencodeSessionAgent): boolean {
+  return presentationOrderingEligible(session)
+    && !session.outboundMessageId
+    && !session.seenProcessEvent
+}
+
+/** 首包 POST 前短窗等待 tool/thinking，与 STREAM_POST_INTERVAL 对齐 */
+function scheduleOpencodePreambleRelease(session: OpencodeSessionAgent): void {
+  if (!session.f41Stream) return
+  clearOpencodeStreamPostTimer(session)
+  session.streamPostTimer = setTimeout(() => {
+    session.streamPostTimer = undefined
+    if (shouldDeferOpencodeAssistantPost(session)) return
+    scheduleOpencodeStreamPost(session, false)
+  }, STREAM_POST_INTERVAL_MS)
+}
+
 async function doFlushOpencodeStreamPost(session: OpencodeSessionAgent, final: boolean): Promise<void> {
   clearOpencodeStreamPostTimer(session)
   if (!session.f41Stream) return
@@ -140,6 +171,9 @@ async function doFlushOpencodeStreamPost(session: OpencodeSessionAgent, final: b
     if (final) session.streamLastPostAt = Date.now()
     return
   }
+  if (!final && shouldDeferOpencodeAssistantPost(session)) return
+  // Rev2 end-only：含过程 Run 仅 Run 收尾 flushOpencodeStreamPost(true) 出站
+  if (!final && shouldEndOnlyOpencodeAssistantDefer(session)) return
   if (final) {
     const footer = formatContextFooter(
       session.contextUsage,
@@ -191,6 +225,11 @@ export function appendOpencodeStreamDelta(session: OpencodeSessionAgent, delta: 
   if (isFeishuPlainAssistantReply(session.f41Stream, resolveSessionChannelType(session.sessionKey))) {
     return
   }
+  if (shouldDeferOpencodeAssistantPost(session)) return
+  if (isAwaitingFirstOpencodeProcessEvent(session)) {
+    scheduleOpencodePreambleRelease(session)
+    return
+  }
   scheduleOpencodeStreamPost(session, false)
 }
 
@@ -203,9 +242,15 @@ export function closeOpencodeThinkingIfOpen(
   void postOpencodePresentationEvent(session, { kind: "thinking", final: true }, resolveChannelType)
 }
 
+/**
+ * 过程事件可见时置 ordering 闩（seenProcessEvent / presentationDeferStream）。
+ * 对称 Cursor markProcessEventSeen；飞书里程碑降级在 Daemon 侧，不在此早退。
+ */
 export function markOpencodeProcessEventSeen(session: OpencodeSessionAgent): void {
+  if (!presentationOrderingEligible(session)) return
   clearOpencodeStreamPostTimer(session)
   session.seenProcessEvent = true
+  session.presentationDeferStream = true
 }
 
 /** 上下文轮转：清空 opencodeSessionId 以便下次 session.create */

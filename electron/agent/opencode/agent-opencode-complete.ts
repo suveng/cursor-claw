@@ -9,6 +9,7 @@ import type { OpencodeSessionAgent } from "./agent-opencode-types"
 import {
   flushOpencodeLog,
   flushOpencodeStreamPost,
+  clearOpencodeStreamPostTimer,
   maybeRotateOpencodeSessionContext,
   broadcastOpencodeSessionStatus,
 } from "./agent-opencode-stream"
@@ -61,6 +62,8 @@ export async function completeOpencodeRun(
   flushOpencodeLog(session)
   session.thinkingOpen = false
 
+  // Rev2 end-only：含过程 defer 场景下 flushOpencodeStreamPost(true) 为唯一 assistant IM 出站（禁止 mid-run release）
+  clearOpencodeStreamPostTimer(session)
   if (session.f41Stream && (session.streamBuffer.trim() || session.outboundMessageId)) {
     await flushOpencodeStreamPost(session, true)
   } else if (session.streamBuffer.trim()) {
@@ -70,6 +73,8 @@ export async function completeOpencodeRun(
       assistantText: appendContextFooter(session.streamBuffer, footer),
     })
   }
+  // 收尾后丢弃 in-flight 链，避免下一 Run 串到旧 POST（对称 resetStreamPostChain）
+  session.streamPostChain = undefined
 
   const isWatchdogTimeout = session.watchdogTimedOut === true
   const isError = session.lastStatus?.status === "ERROR" || (exitCode !== null && exitCode !== 0)

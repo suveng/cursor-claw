@@ -1,0 +1,158 @@
+{
+  "change_id": "20260712113320",
+  "id": "20260712113320-OpenCode展示排序接入",
+  "name": "OpenCode展示排序接入",
+  "flow": "standard",
+  "stage": "archived_with_debt",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T11:33:20+0800",
+  "updated_at": "2026-07-12T13:01:30+0800",
+  "archived_at": "2026-07-12T13:01:30+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "status": "done",
+      "note": "archived_with_debt（T5-D1 accepted_debt）"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation-test",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-stream.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-events.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-complete.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/agent-opencode-utils.ts",
+      "role": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/AGENTS.md",
+      "role": "agents",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/09-OpenCodeSDK执行引擎.md",
+      "role": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/02-飞书通道.md",
+      "role": "knowledge",
+      "status": "done"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none"
+  },
+  "reviews": [
+    {
+      "id": "T5-D1",
+      "severity": "debt",
+      "status": "accepted_debt",
+      "file": "06-automation-test.md",
+      "summary": "T5 M1–M6 运行时验收未执行：PRESENTATION_ORDERING 回滚/defer、飞书 OpenCode 多 tool、与 Cursor 并排、tool 分级、presentation_order_violation 日志、四引擎 Port smoke",
+      "task_id": "T5",
+      "resolution": "T1–T4 静态验收与 04-review 已通过；E2E 待用户手工；不阻断步骤 5 文档准备；archive 建议 archived_with_debt",
+      "source": "04-review.md §7 / 06-automation-test.md §2/§7"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "过程闩对齐与 presentation-event 飞书早退移除",
+      "status": "done",
+      "files": [
+        "electron/agent/opencode/agent-opencode-stream.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "SSE tool 分支接入 resolveSdkToolPresentationTier",
+      "status": "done",
+      "files": [
+        "electron/agent/opencode/agent-opencode-events.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T3",
+      "title": "OpenCode defer/end-only 流式出站链",
+      "status": "done",
+      "files": [
+        "electron/agent/opencode/agent-opencode-stream.ts"
+      ],
+      "depends_on": ["T1"]
+    },
+    {
+      "id": "T4",
+      "title": "Run 收尾 final flush 与 presentation 状态重置一致性",
+      "status": "done",
+      "files": [
+        "electron/agent/opencode/agent-opencode-complete.ts",
+        "electron/agent/opencode/agent-opencode-utils.ts"
+      ],
+      "depends_on": ["T2", "T3"]
+    },
+    {
+      "id": "T5",
+      "title": "手工验收与四引擎 Port 回归",
+      "status": "pending",
+      "files": [],
+      "depends_on": ["T4"],
+      "evidence": "静态验收通过；M1-M6 运行时待手工；见 06-automation-test.md"
+    }
+  ]
+}

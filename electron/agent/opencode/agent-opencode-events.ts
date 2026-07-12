@@ -2,6 +2,7 @@
  * OpenCode SSE 事件 → PresentationEvent 映射（仿 agent-codex-events）。
  */
 import type { Part } from "@opencode-ai/sdk"
+import { resolveSdkToolPresentationTier } from "../../../src/shared/sdk-tool-presentation-tier.js"
 import { pushUiLog } from "../../app/ui-logger"
 import { updateContextUsageDisplay } from "../cursor-sdk/context-usage"
 import { formatOpencodeFailureMessage, sanitizeOpencodeSensitiveText } from "./opencode-failure-messages"
@@ -50,17 +51,24 @@ function handlePartUpdated(
     const toolName = part.tool || "tool"
     const st = part.state?.status
     if (st === "running" || st === "pending") {
-      flushOpencodeLog(session)
-      closeOpencodeThinkingIfOpen(session, resolveChannelType)
+      const tier = resolveSdkToolPresentationTier(toolName)
       session.lastTool = { name: toolName, status: "running" }
-      markOpencodeProcessEventSeen(session)
-      session.toolPresentationOutboundIds?.delete(toolName)
-      void postOpencodePresentationEvent(session, {
-        kind: "tool",
-        tool_name: toolName,
-        tool_status: "started",
-        final: false,
-      }, resolveChannelType)
+      if (tier === "notify") {
+        // notify 级：置过程闩并 POST presentation-event（对称 Cursor/CC）
+        flushOpencodeLog(session)
+        closeOpencodeThinkingIfOpen(session, resolveChannelType)
+        markOpencodeProcessEventSeen(session)
+        session.toolPresentationOutboundIds?.delete(toolName)
+        void postOpencodePresentationEvent(session, {
+          kind: "tool",
+          tool_name: toolName,
+          tool_status: "started",
+          final: false,
+        }, resolveChannelType)
+      } else {
+        // silent 级：仅 UI 日志与 lastTool，不触发 ordering 过程闩
+        pushUiLog("OpenCode", "INFO", `[${session.sessionKey}] [tool] ${toolName}: running`)
+      }
       return
     }
     if (st === "completed" || st === "error") {

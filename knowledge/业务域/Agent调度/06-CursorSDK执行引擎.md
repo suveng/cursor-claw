@@ -9,7 +9,7 @@
 - **Engine Port**：`engine-port-adapter.ts` 注册 `sdk`；`agent-sdk-http.ts` 查 `getEnginePort` 委托 launch/dispatch；`sdk-run-port-lifecycle.ts` 缓存 Lifecycle、`applySdkStreamRunEvent`、`completeSdkRunViaPort`。
 - **RunLifecycle**：`guarding→streaming→watching→completing→notifying`；`streamRunEvents` 终态经 `RunEvent` 路由，**禁止** adapter 外平行完整终态 notify。
 - **API/MCP/续接（S7）**：长驻+二次 send；`sdk-run-recover.recoverSdkActiveRuns` 于 init 挂接：`Agent.resume`→`getOrCreateSdkRunLifecycle().resume()`（清零 `errorNotified`/`runFinalizing`、`phase→guarding`）→`enterGuardWithLifecycle`→`startSdkRun`；失败 `notifyResumeFailure` 一次 IM。CC/Codex/OpenCode 无主进程 recover 对等路径。
-- **呈现/ordering/watchdog**：Rev2 end-only、飞书 f41、tool 分级、watchdog 门控见 AGENTS.md。
+- **呈现/ordering/watchdog**：Rev2 end-only、飞书 f41、tool 分级、watchdog 门控见 AGENTS.md；OpenCode 已对齐（见 [09](./09-OpenCodeSDK执行引擎.md) §二）。
 
 ## 三、服务端规则
 
