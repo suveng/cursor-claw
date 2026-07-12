@@ -1,0 +1,10 @@
+{
+  "change_id": "20260702120154",
+  "name": "渲染端与Daemon目录语义对齐",
+  "dirname": "20260702120154-渲染端与Daemon目录语义对齐",
+  "stage": "archived",
+  "summary": "# 渲染端与 Daemon 目录语义对齐 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-07-02T12:28:54+0800"
+}

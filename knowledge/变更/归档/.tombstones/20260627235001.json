@@ -1,0 +1,10 @@
+{
+  "change_id": "20260627235001",
+  "name": "MCP授权状态读取修复",
+  "dirname": "20260627235001-MCP授权状态读取修复",
+  "stage": "archived",
+  "summary": "# MCP 授权与 SDK 内联修复 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.439Z",
+  "retention_days": 3,
+  "archived_at": null
+}

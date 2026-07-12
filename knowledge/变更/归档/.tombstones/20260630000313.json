@@ -1,0 +1,10 @@
+{
+  "change_id": "20260630000313",
+  "name": "CC-spawn-verbose参数修复",
+  "dirname": "20260630000313-CC-spawn-verbose参数修复",
+  "stage": "archived",
+  "summary": "# CC spawn --verbose 参数修复 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-30T17:05:00+08:00"
+}

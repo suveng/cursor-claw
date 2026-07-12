@@ -1,0 +1,10 @@
+{
+  "change_id": "20260628163004",
+  "name": "SDK MCP stdio 相对路径支持",
+  "dirname": "20260628163004-SDK MCP stdio 相对路径支持",
+  "stage": "archived",
+  "summary": "# SDK MCP stdio 相对路径支持 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.439Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-28T16:46:13+08:00"
+}

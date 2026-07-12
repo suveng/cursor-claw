@@ -1,0 +1,10 @@
+{
+  "change_id": "20260630100827",
+  "name": "CC路径watchdog超时对称收尾与用户通知",
+  "dirname": "20260630100827-CC路径watchdog超时对称收尾与用户通知",
+  "stage": "archived_with_debt",
+  "summary": "# CC 路径 watchdog 超时对称收尾与用户通知 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-30T10:49:50+0800"
+}

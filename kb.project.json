@@ -39,5 +39,8 @@
     "envPath": ".cursor/hooks/feishu.env"
   },
   "scriptsDir": ".cursor/kb/scripts",
-  "manifestSchema": ".kb/kb-manifest.schema.json"
+  "manifestSchema": ".kb/kb-manifest.schema.json",
+  "archivePurge": {
+    "retentionDays": 3
+  }
 }

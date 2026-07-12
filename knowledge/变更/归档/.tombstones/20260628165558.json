@@ -1,0 +1,10 @@
+{
+  "change_id": "20260628165558",
+  "name": "Agent Run 自动压缩",
+  "dirname": "20260628165558-Agent Run 自动压缩",
+  "stage": "archived",
+  "summary": "# Agent Run 自动压缩 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.439Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-28T17:57:25+0800"
+}

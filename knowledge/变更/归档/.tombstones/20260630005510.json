@@ -1,0 +1,10 @@
+{
+  "change_id": "20260630005510",
+  "name": "移除Agent启动工作流提示词",
+  "dirname": "20260630005510-移除Agent启动工作流提示词",
+  "stage": "archived",
+  "summary": "# 移除 Agent 启动工作流提示词 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-30T00:59:30+0800"
+}

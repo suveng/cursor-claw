@@ -1,0 +1,10 @@
+{
+  "change_id": "20260630214839",
+  "name": "修复profile多开黑屏",
+  "dirname": "20260630214839-修复profile多开黑屏",
+  "stage": "archived",
+  "summary": "# 修复 profile 多开黑屏 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-30T22:05:45+08:00"
+}

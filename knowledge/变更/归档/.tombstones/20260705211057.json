@@ -1,0 +1,10 @@
+{
+  "change_id": "20260705211057",
+  "name": "SDK idle超时延长至30分钟",
+  "dirname": "20260705211057-SDK idle超时延长至30分钟",
+  "stage": "archived",
+  "summary": "# SDK idle 超时延长至 30 分钟 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.442Z",
+  "retention_days": 3,
+  "archived_at": "2026-07-05T21:12:53+08:00"
+}

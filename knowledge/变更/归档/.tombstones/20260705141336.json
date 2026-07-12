@@ -1,0 +1,10 @@
+{
+  "change_id": "20260705141336",
+  "name": "Profile可配置Daemon日志",
+  "dirname": "20260705141336-Profile可配置Daemon日志",
+  "stage": "archived",
+  "summary": "# Profile 可配置 Daemon 日志 — 变更总结",
+  "purged_at": "2026-07-12T11:32:20.441Z",
+  "retention_days": 3,
+  "archived_at": "2026-07-05T14:13:36+08:00"
+}

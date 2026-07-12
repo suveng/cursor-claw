@@ -1,0 +1,10 @@
+{
+  "change_id": "20260630140113",
+  "name": "ClaudeAgent-MCP审批门控与启用展示",
+  "dirname": "20260630140113-ClaudeAgent-MCP审批门控与启用展示",
+  "stage": "archived_with_debt",
+  "summary": "# ClaudeAgent MCP 审批门控与启用展示 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-30T16:02+0800"
+}

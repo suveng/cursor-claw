@@ -1,0 +1,10 @@
+{
+  "change_id": "20260628165859",
+  "name": "Agent失败日志崩溃分析归档",
+  "dirname": "20260628165859-Agent失败日志崩溃分析归档",
+  "stage": "archived_with_debt",
+  "summary": "# Agent失败日志崩溃分析归档 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.439Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-28T17:25:52+0800"
+}

@@ -1,0 +1,10 @@
+{
+  "change_id": "20260702143057",
+  "name": "修复打包版Daemon版本读取",
+  "dirname": "20260702143057-修复打包版Daemon版本读取",
+  "stage": "archived",
+  "summary": "# 修复打包版 Daemon 版本读取 — 变更总结",
+  "purged_at": "2026-07-12T11:32:20.441Z",
+  "retention_days": 3,
+  "archived_at": "2026-07-02T15:30:00+0800"
+}

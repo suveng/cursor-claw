@@ -1,0 +1,10 @@
+{
+  "change_id": "20260629232914",
+  "name": "完全移除Cursor CLI依赖",
+  "dirname": "20260629232914-完全移除Cursor CLI依赖",
+  "stage": "archived",
+  "summary": "# 完全移除 Cursor CLI 依赖 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-30T00:11:21+0800"
+}

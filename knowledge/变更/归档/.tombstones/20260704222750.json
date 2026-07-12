@@ -1,0 +1,10 @@
+{
+  "change_id": "20260704222750",
+  "name": "SDK流ETIMEDOUT未处理Promise拒绝修复",
+  "dirname": "20260704222750-SDK-ETIMEDOUT未处理Promise拒绝修复",
+  "stage": "archived",
+  "summary": "# SDK 流 ETIMEDOUT 未处理 Promise 拒绝修复 — 变更总结",
+  "purged_at": "2026-07-12T11:32:20.441Z",
+  "retention_days": 3,
+  "archived_at": null
+}

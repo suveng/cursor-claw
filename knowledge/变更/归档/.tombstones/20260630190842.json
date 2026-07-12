@@ -1,0 +1,10 @@
+{
+  "change_id": "20260630190842",
+  "name": "修复飞书消息正文重复",
+  "dirname": "20260630190842-修复CC SDK飞书消息正文重复",
+  "stage": "archived_with_debt",
+  "summary": "# 修复 CC SDK 飞书消息正文重复 — 变更总结",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-30T20:35:00+08:00"
+}

@@ -1,0 +1,10 @@
+{
+  "change_id": "20260627133646",
+  "name": "macOS本地打包脚本",
+  "dirname": "20260627133646-macOS本地打包脚本",
+  "stage": "archived",
+  "summary": "# macOS 本地打包脚本 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.439Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-27T20:30:00+0800"
+}

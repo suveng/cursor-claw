@@ -1,0 +1,10 @@
+{
+  "change_id": "20260630104251",
+  "name": "MCP展示迁移至Agent详情",
+  "dirname": "20260630104251-MCP展示迁移至Agent详情",
+  "stage": "archived",
+  "summary": "# MCP 展示迁移至 Agent 详情 · 变更摘要",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-30T10:51:23+0800"
+}

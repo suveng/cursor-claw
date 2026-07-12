@@ -1,0 +1,10 @@
+{
+  "change_id": "20260629221500",
+  "name": "修复Anthropic协议APIKey验证忽略自定义BaseURL",
+  "dirname": "20260629221500-修复Anthropic协议APIKey验证忽略自定义BaseURL",
+  "stage": "archived",
+  "summary": "# 修复Anthropic协议APIKey验证忽略自定义BaseURL - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.440Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-29T23:59:00+0800"
+}

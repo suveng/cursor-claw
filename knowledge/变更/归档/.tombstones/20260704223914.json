@@ -1,0 +1,10 @@
+{
+  "change_id": "20260704223914",
+  "name": "SDK飞书Tool开始态与Watchdog误杀修复",
+  "dirname": "20260704223914-SDK飞书Tool开始态与Watchdog误杀修复",
+  "stage": "archived",
+  "summary": "# SDK 飞书 Tool 开始态与 Watchdog 误杀修复 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.441Z",
+  "retention_days": 3,
+  "archived_at": "2026-07-04T23:20:00+0800"
+}

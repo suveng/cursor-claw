@@ -1,0 +1,10 @@
+{
+  "change_id": "20260627212713",
+  "name": "群聊仅展示Shell工具卡片",
+  "dirname": "20260627212713-群聊仅展示Shell工具卡片",
+  "stage": "archived",
+  "summary": "# 群聊仅展示 Shell 工具卡片 - 变更总结",
+  "purged_at": "2026-07-12T11:32:20.439Z",
+  "retention_days": 3,
+  "archived_at": "2026-06-27T21:30:41+0800"
+}
