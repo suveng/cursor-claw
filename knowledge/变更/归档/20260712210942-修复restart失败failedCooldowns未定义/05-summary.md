@@ -11,7 +11,7 @@ depends_on: []
 
 > **hotfix-lite** · 变更 ID：`20260712210942-修复restart失败failedCooldowns未定义`
 > **来源**：kb-lite
-> **阶段**：`applied`（LITE-01 done；待 build 验收与 `/kb-archive`）
+> **阶段**：`archived`（已归档）
 
 ---
 
@@ -64,11 +64,11 @@ hotfix-lite 记录型：**知识库无需更新**。
 
 | # | 项 | 操作 | 状态 |
 |---|-----|------|------|
-| 1 | 重新构建 | 执行 `npm run build`，确认主进程 bundle 成功产出 | ⏳ 待执行 |
-| 2 | bundle 符号检查 | `grep -n 'failedCooldowns' out/main/index.js`：`stopAllSdkSessions` 路径应经 `clearSdkDispatchState`，**不应**出现裸 `failedCooldowns.clear()`（修复前产物在 ~36292 行可见该裸引用） | ⏳ 待执行 |
+| 1 | 重新构建 | 执行 `npm run build`，确认主进程 bundle 成功产出 | ✅ 修复轮 build 已通过 |
+| 2 | bundle 符号检查 | `grep -n 'failedCooldowns' out/main/index.js`：`stopAllSdkSessions` 路径应经 `clearSdkDispatchState`，**不应**出现裸 `failedCooldowns.clear()`（修复前产物在 ~36292 行可见该裸引用） | ✅ 已确认：`stopAllSdkSessions` 调用 `clearSdkDispatchState`（`out/main/index.js` ~36294–36296） |
 | 3 | `/restart` 冒烟 | 应用运行中执行 `/restart`，确认不再报 `failedCooldowns is not defined`，Daemon/SDK 可正常重启 | ⏳ 建议人工 |
 
-## 6、归档待办（`/kb-archive`，归 kb-release）
+## 6、归档说明
 
-- **迁移**：`stage` → `archived`，目录 `mv` 至 `knowledge/变更/归档/`
-- **版本/changelog**：**跳过 bump**（内部 bundle 作用域修复，用户不可见行为变更）
+- [x] **文档阶段**：`05-summary` 已标 `archived`；`00-manifest.json` 的 `stage` 与目录 `mv` 由 kb-release 同轮完成
+- [x] **版本/changelog**：**跳过 bump**（内部 bundle 作用域修复，用户不可见行为变更；见 §1）
