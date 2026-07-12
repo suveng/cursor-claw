@@ -18,6 +18,7 @@ import {
   type LaunchEngineKind,
 } from "../agent/shared/launch-request-resolve"
 import { extractChatId } from "./session-dispatcher-shared"
+import { buildWorkflowSessionKey } from "../../src/workflow/workflow-session-key"
 import { cachedLock } from "./session-dispatcher-lifecycle"
 import { httpPost } from "../daemon/daemon-client"
 
@@ -134,8 +135,11 @@ export async function launchWorkflowAgent(p: {
   instanceId: string; nodeId: string; nodeName: string
   prompt: string; workingDirectory: string
   notifyChatId?: string; model?: string
+  /** 优先使用实例已持久化的 sessionKey（由引擎落盘） */
+  sessionKey?: string
 }): Promise<{ ok: boolean; error?: string }> {
-  const sessionKey = `${p.notifyChatId || "wf"}::wf_${p.instanceId}_${p.nodeId}`
+  const sessionKey = p.sessionKey
+    ?? buildWorkflowSessionKey(p.notifyChatId, p.instanceId, p.nodeId)
   return launchAgent({
     sessionKey, chatType: "workflow",
     chatName: `WF: ${p.nodeName}`,

@@ -1,94 +1,39 @@
-import * as fs from "node:fs"
-import * as path from "node:path"
-import { app } from "electron"
-import type { WorkflowDefinition, WorkflowInstance } from "../../src/workflow/workflow-types"
-import { loadBuiltinWorkflows } from "../../src/workflow/builtin-workflows"
+/**
+ * Electron 工作流存储薄封装：统一委托 src/workflow/workflow-store（SSOT）
+ * 保留本文件 export 名稳定，供 daemon-manager / command-handler 等 import
+ */
+import { app } from "electron";
 import {
-  deleteDefinition as deleteDefinitionFile,
-  getDefinition as getDefinitionFile,
-  listDefinitions as listDefinitionsFiles,
-  saveDefinition as saveDefinitionFile,
-  seedBuiltinDefinitions,
-} from "../../src/workflow/workflow-definition-store"
+  deleteDefinition,
+  deleteInstance,
+  getDefinition,
+  getInstance,
+  listDefinitions,
+  listInstances,
+  saveDefinition,
+  saveInstance,
+  seedBuiltins as storeSeedBuiltins,
+} from "../../src/workflow/workflow-store";
+import { migrateLegacyWorkflowDirIfNeeded } from "../../src/workflow/workflow-path";
 
-function workflowDir(): string {
-  return path.join(app.getPath("userData"), "workflows")
+// Electron 主进程确保 APP_DATA_DIR 与 Daemon 子进程一致
+if (!process.env.APP_DATA_DIR) {
+  process.env.APP_DATA_DIR = app.getPath("userData");
 }
 
-function instancesDir(): string {
-  return path.join(workflowDir(), "instances")
-}
-
-function ensureDir(dir: string): void {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-  }
-}
-
-function readJsonSafe<T>(filePath: string, fallback: T): T {
-  try {
-    if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T
-    }
-  } catch { /* ignore */ }
-  return fallback
-}
-
-function writeJson(filePath: string, data: unknown): void {
-  ensureDir(path.dirname(filePath))
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8")
-}
-
+/** 启动时种子内置定义，并探测遗留双目录迁移 */
 export function seedBuiltins(): void {
-  seedBuiltinDefinitions(workflowDir(), loadBuiltinWorkflows())
+  migrateLegacyWorkflowDirIfNeeded({ legacyUserDataDir: app.getPath("userData") });
+  storeSeedBuiltins();
 }
 
-export function listDefinitions(): WorkflowDefinition[] {
-  return listDefinitionsFiles(workflowDir())
-}
-
-export function getDefinition(id: string): WorkflowDefinition | undefined {
-  return getDefinitionFile(workflowDir(), id)
-}
-
-export function saveDefinition(def: WorkflowDefinition): void {
-  saveDefinitionFile(workflowDir(), def)
-}
-
-export function deleteDefinition(id: string): boolean {
-  return deleteDefinitionFile(workflowDir(), id)
-}
-
-function instancePath(id: string): string {
-  return path.join(instancesDir(), `${id}.json`)
-}
-
-export function listInstances(): WorkflowInstance[] {
-  ensureDir(instancesDir())
-  try {
-    return fs.readdirSync(instancesDir())
-      .filter((f) => f.endsWith(".json"))
-      .map((f) => readJsonSafe<WorkflowInstance | null>(path.join(instancesDir(), f), null))
-      .filter(Boolean) as WorkflowInstance[]
-  } catch {
-    return []
-  }
-}
-
-export function getInstance(id: string): WorkflowInstance | undefined {
-  return readJsonSafe<WorkflowInstance | undefined>(instancePath(id), undefined)
-}
-
-export function saveInstance(inst: WorkflowInstance): void {
-  ensureDir(instancesDir())
-  writeJson(instancePath(inst.id), inst)
-}
-
-export function deleteInstance(id: string): boolean {
-  const fp = instancePath(id)
-  if (!fs.existsSync(fp)) {
-    return false
-  }
-  fs.unlinkSync(fp)
-  return true
-}
+export {
+  listDefinitions,
+  getDefinition,
+  saveDefinition,
+  deleteDefinition,
+  listInstances,
+  getInstance,
+  saveInstance,
+  deleteInstance,
+};

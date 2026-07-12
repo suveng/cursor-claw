@@ -1,9 +1,8 @@
 import { BrowserWindow } from "electron"
 import { getEnabledChannels } from "../config/config-store"
 import { makeChatKey } from "../../src/shared/channel-types"
-import { getDefinition } from "./workflow-file"
+import { getDefinition, getInstance } from "./workflow-file"
 import { createInstance, resumeWorkflow, startWorkflow } from "../../src/workflow/workflow-engine"
-import { getInstance } from "../../src/workflow/workflow-store"
 import { launchWorkflowAgent, notifyWorkflowChat } from "../session/session-dispatcher"
 
 /** workflow_resume 结构化日志（入口/出口各一条，便于 grep） */
@@ -53,6 +52,7 @@ export async function runWorkflowDefinition(
       workingDirectory: fresh.workingDirectory,
       notifyChatId: fresh.notifyChatId,
       model: result.node.model,
+      sessionKey: fresh.sessionKey,
     })
     if (!launchResult.ok) {
       return { ok: false, error: launchResult.error || "Agent 启动失败" }
@@ -93,6 +93,7 @@ export async function resumeWorkflowInstance(
       workingDirectory: fresh.workingDirectory,
       notifyChatId: fresh.notifyChatId,
       model: result.node.model,
+      sessionKey: fresh.sessionKey,
     })
     if (!launchResult.ok) {
       logWorkflowResume(id, false)

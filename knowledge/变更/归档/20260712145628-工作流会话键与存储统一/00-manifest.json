@@ -1,0 +1,233 @@
+{
+  "change_id": "20260712145628",
+  "id": "20260712145628-工作流会话键与存储统一",
+  "name": "工作流会话键与存储统一",
+  "title": "工作流会话键与存储统一",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "parent_change": "20260712113344-工作流恢复入口与信号接口",
+  "created_at": "2026-07-12T14:56:28+0800",
+  "updated_at": "2026-07-12T16:29:11+0800",
+  "archived_at": "2026-07-12T16:29:11+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-path.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-session-key.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-store.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/workflow-engine.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/server-workflow.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/workflow/workflow-file.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/workflow/workflow-runner.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/session/session-dispatcher-launch.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/workflow/AGENTS.md",
+      "kind": "agents",
+      "status": "done"
+    },
+    {
+      "path": "electron/workflow/AGENTS.md",
+      "kind": "agents",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation-test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-workflow-session-storage-contract.mts",
+      "role": "auto_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-workflow-session-storage-contract.sh",
+      "role": "auto_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/工作流/01-概览.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/工作流/02-定义与实例.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/工作流/03-节点执行与流转.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/工作流/04-触发与管理入口.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712113344-工作流恢复入口与信号接口/05-summary.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/04-消息队列与路由.md",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "workflow-path 与 store 懒解析",
+      "status": "done",
+      "files": [
+        "src/workflow/workflow-path.ts",
+        "src/workflow/workflow-store.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "Electron 存储层统一与 runner 混用修复",
+      "status": "done",
+      "files": [
+        "electron/workflow/workflow-file.ts",
+        "electron/workflow/workflow-runner.ts"
+      ],
+      "depends_on": ["T1"]
+    },
+    {
+      "id": "T3",
+      "title": "sessionKey 计算与引擎落盘",
+      "status": "done",
+      "files": [
+        "src/workflow/workflow-session-key.ts",
+        "src/workflow/workflow-engine.ts"
+      ],
+      "depends_on": ["T1"]
+    },
+    {
+      "id": "T4",
+      "title": "launch 链路复用持久 sessionKey",
+      "status": "done",
+      "files": [
+        "electron/session/session-dispatcher-launch.ts",
+        "electron/workflow/workflow-runner.ts",
+        "src/workflow/server-workflow.ts",
+        "electron/daemon/daemon-manager.ts"
+      ],
+      "depends_on": ["T2", "T3"]
+    },
+    {
+      "id": "T5",
+      "title": "遗留双目录一次性迁移",
+      "status": "done",
+      "files": [
+        "src/workflow/workflow-path.ts",
+        "src/workflow/workflow-store.ts"
+      ],
+      "depends_on": ["T2"]
+    },
+    {
+      "id": "T6",
+      "title": "ST-WF 契约验收与 AGENTS 同步",
+      "status": "done",
+      "files": [
+        "auto_test/run-workflow-session-storage-contract.mts",
+        "auto_test/run-workflow-session-storage-contract.sh",
+        "06-automation-test.md",
+        "src/workflow/AGENTS.md",
+        "electron/workflow/AGENTS.md"
+      ],
+      "depends_on": ["T4", "T5"]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "可靠性",
+    "priority": "P1",
+    "parallel_changes": {
+      "no_conflict_with": "20260712145827-多引擎MCP设置实质化"
+    }
+  }
+}

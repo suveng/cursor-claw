@@ -2,11 +2,12 @@
 
 ## 模块边界
 
-- `workflow-file.ts`：定义/实例 CRUD；builtin 种子；`userData/workflows/` 落盘。
-- `workflow-runner.ts`：`runWorkflowDefinition` / `resumeWorkflowInstance` 经 `session/session-dispatcher` 启动 Agent；读 `config-store` 启用通道。
+- `workflow-file.ts`：薄封装，委托 `../../src/workflow/workflow-store`；export 名保持稳定。
+- `workflow-runner.ts`：`runWorkflowDefinition` / `resumeWorkflowInstance`；实例读写**仅**经 `workflow-file`。
 
 ## 编码规矩
 
 - 共享类型从 `../../src/workflow/workflow-types` import。
+- **禁止** Electron 侧直接 import `workflow-store`（经 `workflow-file` 统一）。
 - **禁止**直接调用四引擎 SDK；统一走 `../session/session-dispatcher`。
 - 恢复路径须调用 `resumeWorkflowInstance`，**禁止**在 IPC/斜杠 handler 内直调 `resumeWorkflow` 或 `launchWorkflowAgent`。

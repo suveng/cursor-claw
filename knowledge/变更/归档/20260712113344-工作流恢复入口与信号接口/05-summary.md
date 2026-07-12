@@ -47,7 +47,7 @@
 | 项 | 说明 |
 |----|------|
 | 日志格式双轨 | Electron/斜杠 JSON `workflow_resume`；Daemon/HTTP stderr 前缀（避免污染 stdout 信号行） |
-| Daemon/Electron 工作流存储双路径 | HTTP 读 `APP_DATA_DIR/workflows`，UI 读 `userData/workflows`；与 MCP `run` 一致，非本变更引入 |
+| Daemon/Electron 工作流存储双路径 | HTTP 读 `APP_DATA_DIR/workflows`，UI 读 `userData/workflows`；与 MCP `run` 一致，非本变更引入 | **closed_by: `20260712145628`** — SSOT `APP_DATA_DIR/workflows` + `workflow-file` 委托 `workflow-store` |
 
 ## 4、知识库影响清单
 

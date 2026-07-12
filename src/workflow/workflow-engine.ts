@@ -12,6 +12,7 @@ import {
   saveInstance,
   listInstances,
 } from "./workflow-store.js";
+import { assignInstanceSessionKey } from "./workflow-session-key.js";
 import { randomUUID } from "node:crypto";
 import { readTemplate, renderTemplate } from "./template-utils.js";
 
@@ -203,9 +204,14 @@ export function startWorkflow(instanceId: string): EngineResult {
     startedAt: Date.now(),
   };
   inst.nodeHistory.push(exec);
-  saveInstance(inst);
 
-  const prompt = buildStartPrompt(def, firstNode, inst);
+  // isolated 首节点须落盘 sessionKey，供重启后 resume 复用
+  const toSave = firstNode.isolated
+    ? assignInstanceSessionKey(inst, firstNode.id)
+    : inst;
+  saveInstance(toSave);
+
+  const prompt = buildStartPrompt(def, firstNode, toSave);
   return {
     prompt,
     node: firstNode,
@@ -271,17 +277,19 @@ export function handleNext(instanceId: string, payload: WorkflowNextPayload): En
     startedAt: Date.now(),
   };
   inst.nodeHistory.push(exec);
-  saveInstance(inst);
 
   if (nextNode.isolated) {
+    const withKey = assignInstanceSessionKey(inst, nextNode.id);
+    saveInstance(withKey);
     return {
       isolated: true,
       node: nextNode,
-      prompt: buildNextNodePrompt(def, nextNode, inst),
+      prompt: buildNextNodePrompt(def, nextNode, withKey),
       message: "产物已提交，下一节点将由独立 Agent 处理",
     };
   }
 
+  saveInstance(inst);
   return {
     prompt: buildNextNodePrompt(def, nextNode, inst),
     node: nextNode,
@@ -361,7 +369,6 @@ export function handleReject(instanceId: string, payload: WorkflowRejectPayload)
     startedAt: Date.now(),
   };
   inst.nodeHistory.push(exec);
-  saveInstance(inst);
 
   const prompt = buildRetryPrompt(
     def,
@@ -373,6 +380,8 @@ export function handleReject(instanceId: string, payload: WorkflowRejectPayload)
   );
 
   if (targetNode.isolated) {
+    const withKey = assignInstanceSessionKey(inst, targetNode.id);
+    saveInstance(withKey);
     return {
       isolated: true,
       node: targetNode,
@@ -381,6 +390,7 @@ export function handleReject(instanceId: string, payload: WorkflowRejectPayload)
     };
   }
 
+  saveInstance(inst);
   return { prompt, node: targetNode };
 }
 
@@ -414,10 +424,15 @@ export function resumeWorkflow(instanceId: string): EngineResult {
 
   inst.status = "running";
   inst.updatedAt = Date.now();
-  saveInstance(inst);
+
+  let toSave = inst;
+  if (node.isolated) {
+    toSave = assignInstanceSessionKey(inst, node.id);
+  }
+  saveInstance(toSave);
 
   return {
-    prompt: buildStartPrompt(def, node, inst),
+    prompt: buildStartPrompt(def, node, toSave),
     node,
     isolated: node.isolated ?? false,
   };

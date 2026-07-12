@@ -35,6 +35,7 @@ function emitLaunch(inst: WorkflowInstance, result: EngineResult): void {
     workingDirectory: inst.workingDirectory,
     notifyChatId: inst.notifyChatId,
     model: result.node.model,
+    sessionKey: inst.sessionKey,
   };
   process.stdout.write(`__WF_LAUNCH__:${JSON.stringify(payload)}\n`);
 }

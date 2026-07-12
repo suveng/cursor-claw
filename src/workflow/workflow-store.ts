@@ -9,10 +9,12 @@ import {
   saveDefinition as saveDefinitionFile,
   seedBuiltinDefinitions,
 } from "./workflow-definition-store.js";
-
-const APP_DATA_DIR = process.env.APP_DATA_DIR || "";
-const WORKFLOW_DIR = path.join(APP_DATA_DIR, "workflows");
-const INSTANCES_DIR = path.join(WORKFLOW_DIR, "instances");
+import {
+  logWorkflowStorageRootOnce,
+  migrateLegacyWorkflowDirIfNeeded,
+  resolveInstancesDir,
+  resolveWorkflowRoot,
+} from "./workflow-path.js";
 
 function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) {
@@ -34,47 +36,73 @@ function writeJson(filePath: string, data: unknown): void {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
 }
 
-function seedBuiltins(): void {
-  if (!APP_DATA_DIR) {
-    return;
-  }
-  seedBuiltinDefinitions(WORKFLOW_DIR, loadBuiltinWorkflows());
+/** APP_DATA_DIR 未设置时不写盘（与现网 seed 行为对齐） */
+function canUseStorage(): boolean {
+  return Boolean(process.env.APP_DATA_DIR);
 }
 
-if (APP_DATA_DIR) {
+function beforeStorageIo(): void {
+  if (!canUseStorage()) return;
+  logWorkflowStorageRootOnce();
+  migrateLegacyWorkflowDirIfNeeded();
+}
+
+/** 种子内置工作流定义（Daemon/Electron 启动时显式调用） */
+export function seedBuiltins(): void {
+  if (!canUseStorage()) return;
+  beforeStorageIo();
+  seedBuiltinDefinitions(resolveWorkflowRoot(), loadBuiltinWorkflows());
+}
+
+// Daemon 子进程 env 已注入 APP_DATA_DIR 时，import 即种子
+if (process.env.APP_DATA_DIR) {
   seedBuiltins();
 }
 
 export function listDefinitions(): WorkflowDefinition[] {
-  return listDefinitionsFiles(WORKFLOW_DIR);
+  if (!canUseStorage()) return [];
+  beforeStorageIo();
+  return listDefinitionsFiles(resolveWorkflowRoot());
 }
 
 export function getDefinition(id: string): WorkflowDefinition | undefined {
-  return getDefinitionFile(WORKFLOW_DIR, id);
+  if (!canUseStorage()) return undefined;
+  beforeStorageIo();
+  return getDefinitionFile(resolveWorkflowRoot(), id);
 }
 
 export function saveDefinition(def: WorkflowDefinition): void {
-  saveDefinitionFile(WORKFLOW_DIR, def);
+  if (!canUseStorage()) return;
+  beforeStorageIo();
+  saveDefinitionFile(resolveWorkflowRoot(), def);
 }
 
 export function deleteDefinition(id: string): boolean {
-  return deleteDefinitionFile(WORKFLOW_DIR, id);
+  if (!canUseStorage()) return false;
+  beforeStorageIo();
+  return deleteDefinitionFile(resolveWorkflowRoot(), id);
 }
 
 function instancePath(id: string): string {
-  return path.join(INSTANCES_DIR, `${id}.json`);
+  return path.join(resolveInstancesDir(), `${id}.json`);
 }
 
 export function getInstance(id: string): WorkflowInstance | undefined {
+  if (!canUseStorage()) return undefined;
+  beforeStorageIo();
   return readJsonSafe<WorkflowInstance | undefined>(instancePath(id), undefined);
 }
 
 export function saveInstance(inst: WorkflowInstance): void {
-  ensureDir(INSTANCES_DIR);
+  if (!canUseStorage()) return;
+  beforeStorageIo();
+  ensureDir(resolveInstancesDir());
   writeJson(instancePath(inst.id), inst);
 }
 
 export function deleteInstance(id: string): boolean {
+  if (!canUseStorage()) return false;
+  beforeStorageIo();
   const fp = instancePath(id);
   if (!fs.existsSync(fp)) {
     return false;
@@ -84,11 +112,14 @@ export function deleteInstance(id: string): boolean {
 }
 
 export function listInstances(): WorkflowInstance[] {
-  ensureDir(INSTANCES_DIR);
+  if (!canUseStorage()) return [];
+  beforeStorageIo();
+  const instancesDir = resolveInstancesDir();
+  ensureDir(instancesDir);
   try {
-    return fs.readdirSync(INSTANCES_DIR)
+    return fs.readdirSync(instancesDir)
       .filter((f) => f.endsWith(".json"))
-      .map((f) => readJsonSafe<WorkflowInstance | null>(path.join(INSTANCES_DIR, f), null))
+      .map((f) => readJsonSafe<WorkflowInstance | null>(path.join(instancesDir, f), null))
       .filter(Boolean) as WorkflowInstance[];
   } catch {
     return [];

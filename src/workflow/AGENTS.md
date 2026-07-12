@@ -10,6 +10,8 @@
 - 域内模块互引用用**同目录相对路径** + **`.js` 后缀**（Node16 ESM），例如：
   - `./workflow-types.js`
   - `./workflow-store.js`
+  - `./workflow-path.js`
+  - `./workflow-session-key.js`
   - `./template-utils.js`
 - 禁止域内再写 `./shared/workflow-*` 或 `../shared/template-utils` 等工作流专属路径。
 
@@ -27,7 +29,9 @@
 | `workflow-types.ts` | `WorkflowDefinition`、`WorkflowInstance` 等类型 SSOT |
 | `workflow-parse.ts` | 定义文本解析 |
 | `workflow-definition-store.ts` | 定义持久化 |
-| `workflow-store.ts` | 实例与定义运行时存储 |
+| `workflow-path.ts` | 运行时 `APP_DATA_DIR/workflows` 路径 SSOT、存储根日志、遗留目录迁移 |
+| `workflow-session-key.ts` | `buildWorkflowSessionKey` / `assignInstanceSessionKey` |
+| `workflow-store.ts` | 实例与定义运行时存储（每次 IO 经 `workflow-path` 懒解析） |
 | `workflow-engine.ts` | `createInstance`、`startWorkflow`、`handleNext`/`handleReject` |
 | `server-workflow.ts` | Daemon MCP 工具注册、`resumeWorkflowAndEmit` stdout 信号 SSOT |
 | `builtin-workflows.ts` | 内置工作流加载 |
@@ -41,7 +45,9 @@
 
 ## 存储与解析约定
 
-- 定义与实例路径由 `workflow-store` / `workflow-definition-store` 统一管理；新增字段须同步 `workflow-types.ts` 与 `normalizeWorkflowDefinition`。
+- 路径 SSOT：`workflow-path.ts`（`resolveWorkflowRoot` 等）；`workflow-store` **禁止**模块顶固化 `WORKFLOW_DIR`。
+- 遗留迁移：`migrateLegacyWorkflowDirIfNeeded` 在 store 首次 IO 与 Electron `workflow-file.seedBuiltins` 触发（幂等）。
+- 定义与实例字段须同步 `workflow-types.ts` 与 `normalizeWorkflowDefinition`。
 - 解析失败应返回可读错误，不抛未捕获异常至 MCP 层；`parseWorkflowDefinitionText` 为唯一文本入口。
 
 ## 禁止
