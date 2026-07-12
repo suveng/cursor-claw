@@ -1,4 +1,4 @@
-import { Bird, MessageSquare, ChevronRight, Clock, Trash2, Loader2 } from "lucide-react"
+import { Bird, MessageSquare, Square, Trash2 } from "lucide-react"
 import SessionMcpPanel from "../components/SessionMcpPanel"
 import { CHANNEL_STATUS_TEXT } from "./DashboardStatusCards"
 

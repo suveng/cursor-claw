@@ -156,10 +156,28 @@ export async function daemonMain(): Promise<void> {
   ]) log("INFO", line);
   const cleanup = () => { stopDaemonScheduledTasks(); removeLockFile(); process.exit(0); };
   process.on("SIGINT", cleanup); process.on("SIGTERM", cleanup); process.on("exit", removeLockFile);
-  process.on("uncaughtException", (err) =>
-    log("ERROR", `未捕获异常: ${formatUnknownError(err, { includeRegistrationHint: true })}`));
-  process.on("unhandledRejection", (reason, promise) =>
-    log("ERROR", `未处理的 Promise 拒绝: ${formatUnknownError(reason, { includeRegistrationHint: true })}${promise ? ` | promise=${Object.prototype.toString.call(promise)}` : ""}`));
+  // EPIPE：stderr 读者已关闭时写日志会再次抛错，须跳过以免无限递归刷屏
+  let loggingUncaught = false;
+  process.on("uncaughtException", (err) => {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === "EPIPE" || loggingUncaught) return;
+    loggingUncaught = true;
+    try {
+      log("ERROR", `未捕获异常: ${formatUnknownError(err, { includeRegistrationHint: true })}`);
+    } finally {
+      loggingUncaught = false;
+    }
+  });
+  process.on("unhandledRejection", (reason, promise) => {
+    const code = (reason as NodeJS.ErrnoException)?.code;
+    if (code === "EPIPE" || loggingUncaught) return;
+    loggingUncaught = true;
+    try {
+      log("ERROR", `未处理的 Promise 拒绝: ${formatUnknownError(reason, { includeRegistrationHint: true })}${promise ? ` | promise=${Object.prototype.toString.call(promise)}` : ""}`);
+    } finally {
+      loggingUncaught = false;
+    }
+  });
   initQueue(); startMediaCacheCleanup(log);
   // 冷启动仅重建反向索引：touch:false 禁止 mark/schedule，避免全员续命（R1）
   const routingLoad = loadSessionRoutingInto(

@@ -61,7 +61,12 @@ export function createDaemonLogger(): DaemonLogger {
     const ts = localTimestamp();
     const msg = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
     const line = `${ts} [Daemon] ${level} ${escapeLogContentSingleLine(msg)}\n`;
-    process.stderr.write(line);
+    // stderr 管道断开（Electron 重启/多实例）会 EPIPE；须吞掉以免 uncaughtException 递归打日志
+    try {
+      process.stderr.write(line);
+    } catch {
+      /* ignore EPIPE 等写 stderr 失败 */
+    }
     try {
       ensureLogDir();
       rotateLogIfNeeded();
