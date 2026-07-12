@@ -22,7 +22,8 @@
 
 | 文件 | 职责（批1 保留） |
 |------|------|
-| `daemon-orchestrator.ts` | `createOrchestrator` — dispatch loop、Electron API 转发、claim 门控 |
+| `daemon-orchestrator.ts` | `createOrchestrator` — claim 门控、Electron API 转发、组装 dispatch |
+| `daemon-orchestrator-dispatch.ts` | `createOrchestratorDispatch` — 会话级 in-flight、并行 kickoff、scan 锁 |
 | `daemon-orchestrator-retry.ts` | `createDispatchRetry` — attempt 计数、退避延后、耗尽 ack |
 | `daemon-orchestrator-notify.ts` | `createOrchestratorNotify` — IM 失败通知 |
 | `daemon-presentation-ordering.ts` | `createPresentationOrdering` — 编排入口 |
@@ -80,7 +81,7 @@
 - bridge 域：`../bridge/file-queue.js`、`../bridge/wechat-manager.js`、`../bridge/lark-core.js`
 - workflow 域：`../workflow/server-workflow.js`
 - shared 跨域类型：`../shared/channel-types.js`、`../shared/feishu-presentation-gate.js`、`../shared/tool-presentation.js`、`../shared/constants.js`
-- 域内同目录：`./daemon-orchestrator.js`、`./daemon-logging.js`、`./daemon-queue*.js`、`./daemon-channel*.js`、`./daemon-slash-*.js`、`./daemon-session-*.js`、`./daemon-wire.js`、`./daemon-bootstrap.js`、`./daemon-http-*.js`、`./daemon-presentation-*.js`、`./daemon-merge-*.js`、`./feishu-card-action.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`、`./feishu-event-handlers.js`
+- 域内同目录：`./daemon-orchestrator.js`、`./daemon-orchestrator-dispatch.js`、`./daemon-logging.js`、`./daemon-queue*.js`、`./daemon-channel*.js`、`./daemon-slash-*.js`、`./daemon-session-*.js`、`./daemon-wire.js`、`./daemon-bootstrap.js`、`./daemon-http-*.js`、`./daemon-presentation-*.js`、`./daemon-merge-*.js`、`./feishu-card-action.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`、`./feishu-event-handlers.js`
 
 ## MCP admin HTTP（`/api/mcp`）
 
@@ -109,7 +110,8 @@
 
 - 禁止 barrel `index.ts` 或 re-export shim
 - 枢纽 `daemon.ts` 仅做组装（≤200）；子模块单文件 ≤300 行；超限须再切
-- **未**改调度并发、**未**做日志双写统一、**未**改 file-queue 磁盘语义
+- **未**做日志双写统一、**未**改 file-queue 磁盘语义
+- 调度并发：跨 session 并行、同会话串行（见「Orchestrator 调度」）；禁止再引入跨 await 的全局 `dispatchLoopBusy`
 
 ---
 
@@ -139,14 +141,15 @@
 ## Orchestrator 调度
 
 - **单进程闭环**：IM 入站 → 队列/合并 → `runAgentDispatchLoop` → Electron `POST /api/agent/launch|dispatch` → 展示出站。
+- **并发模型**：**跨 sessionKey 并行 kickoff**（`inFlightSessions` + 短生命周期 scan 锁，不跨 `forwardElectronAgentApi` await）；**同会话串行**（MergeBatch / phase `starting`|`processing` 门控，禁止同会话双 claim）。
 - **触发**：`broadcastQueueEvent` debounce 300ms；`session-agent-phase` → idle 时 `flushReadyMergeBatches`。
-- **门控**：`shouldDeferDispatch` + `sessionAgentPhaseMap` processing；合并 batch 须 `ready` 才 claim。
+- **门控**：`shouldDeferDispatch` + `sessionAgentPhaseMap` 的 `starting`|`processing` 均不可 claim；合并 batch 须 `ready` 才 claim。
 - **SSOT**：`POST /api/agent/launch|dispatch` 在 Daemon 暴露并转发 Electron；`GET /api/poll-message` 返回 404。
 - **HTTP dispatch 失败重试对齐**：`POST /api/agent/dispatch` 失败/busy 与 `dispatchSessionToAgent`（IM launch）**共用** `handleLaunchFailure` / 同一 session `attemptBySession` Map；成功时 `clearDispatchRetryAttempt`，**不**提前 ack。
-- **日志关键字**（运维区分重试中 / busy 待调度 / 已停试）：`dispatch_retry_scheduled`、`dispatch_retry_exhausted`、`agent_busy_requeue`、`dispatch_failed`；SDK Run 错误在 Electron 侧用 `agent_failed`。
+- **日志关键字**（运维区分重试中 / busy 待调度 / 已停试 / 并行 kickoff）：`dispatch_retry_scheduled`、`dispatch_retry_exhausted`、`agent_busy_requeue`、`dispatch_failed`、`dispatch_parallel`；SDK Run 错误在 Electron 侧用 `agent_failed`。
 - **ack 规矩**：HTTP dispatch 失败未耗尽时**禁止** `ackMessages`；耗尽后由 `handleLaunchFailure` ack；成功最终 ack 仍仅 stream final / `ackOnReply`。
 - **失败重入队接线**：`releaseClaimedMessages` 经 `OrchestratorDeps` 由 `daemon.ts` 注入；**禁止**在 orchestrator 内重复实现 rename；退避常数本地声明，**禁止** import Electron `retry-policy`。
-- **拆分模式**：`daemon-orchestrator.ts` 超 300 行时按 notify 同构拆 `daemon-orchestrator-*.ts`（retry 等），经工厂注入，禁止预建通用 Retry 框架。
+- **拆分模式**：`daemon-orchestrator.ts` 超 300 行时按 notify 同构拆 `daemon-orchestrator-*.ts`（dispatch / retry 等），经工厂注入，禁止预建通用调度框架 / worker pool。
 - **busy 重排一致性**：busy 经 `handleLaunchFailure` → `parseBusyRetryDelayMs` + `scheduleDispatchRetry`（reason=busy，日志 `agent_busy_requeue`）；未耗尽勿 ack。
 
 ## 合并预览与 Agent 阶段（daemon 内存）

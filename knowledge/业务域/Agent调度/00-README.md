@@ -36,7 +36,7 @@
 |------|------|
 | 调度 | `electron/session/session-dispatcher.ts`、`electron/agent/cursor-sdk/agent-sdk.ts` |
 | Daemon 薄组装 | `daemon.ts`（`daemonMain`）；接线 `daemon-wire.ts`；队列 `daemon-queue.ts` |
-| Daemon 编排 | `daemon-orchestrator.ts`（dispatch loop / launch|dispatch 转发） |
+| Daemon 编排 | `daemon-orchestrator.ts` + `daemon-orchestrator-dispatch.ts`（跨 session 并行 kickoff / 同会话门控） |
 | Daemon agent HTTP | `daemon-http-routes-orchestrator.ts`（`/api/agent/launch|dispatch`） |
 | 回退/路由持久化 | `daemon-session-routing.ts`、`daemon-session-routing-persist.ts` |
 | Electron Daemon | `electron/daemon/daemon-manager.ts`、`daemon-client.ts` |
@@ -48,8 +48,8 @@
 
 ## 变更记录
 
+- 2026-07-12：多会话并发调度源码锚点含 `daemon-orchestrator-dispatch.ts`（20260712170543）。
 - 2026-07-12：勾销批2 注记；薄组装锚点对齐 queue/wire（archive 20260712170438）。
 - 2026-07-12：`daemon-session-routing-persist`、四引擎 recover、Engine Port/notify（20260712113356 等）。
-- 2026-07-11：Daemon 编排锚点扩散（巨型单体拆分批1）。
-- 2026-07-05～06-29：10 上下文保护、06～09 引擎文档与 Codex/OpenCode/Claude 扩展。
+- 2026-07-11～06-29：编排拆分批1、10 上下文保护、06～09 引擎文档。
 

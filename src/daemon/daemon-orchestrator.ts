@@ -1,12 +1,13 @@
 /**
- * Agent 调度闭环：dispatch loop、Electron API 转发、busy 重排、claim 门控。
- * queue/merge 仍驻 daemon.ts，经 OrchestratorDeps 注入。
+ * Agent 调度闭环：claim 门控、Electron API 转发、busy 重排；loop/in-flight 见 dispatch 子模块。
+ * queue/merge 经 OrchestratorDeps 注入。
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { QueueMessage } from "../bridge/file-queue.js";
 import { resolveLaunchChatName } from "./chat-name-resolve.js";
+import { createOrchestratorDispatch } from "./daemon-orchestrator-dispatch.js";
 import { createOrchestratorNotify } from "./daemon-orchestrator-notify.js";
 import { createDispatchRetry } from "./daemon-orchestrator-retry.js";
 import type { DispatchLaunchFailureOpts, DispatchLaunchFailureResult } from "./daemon-http-routes-types.js";
@@ -84,10 +85,9 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     log: deps.log,
   });
   const sessionAgentPhaseMap = new Map<string, AgentPhase>();
-  let dispatchLoopBusy = false;
-  let dispatchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  // scheduleAgentDispatch 由 dispatch 工厂赋值；retry 闭包延后调用
+  let scheduleAgentDispatch!: (sessionKey?: string) => void;
 
-  // scheduleAgentDispatch 为 function 声明（提升），供 retry 工厂闭包延后调用
   const dispatchRetry = createDispatchRetry({
     log: deps.log,
     releaseClaimedMessages: deps.releaseClaimedMessages,
@@ -180,7 +180,9 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     | { ok: true; text: string; message_ids: string[] }
     | { ok: false } {
     if (deps.shouldDeferDispatch(sessionKey)) return { ok: false };
-    if (getSessionAgentPhase(sessionKey) === "processing") return { ok: false };
+    // starting 与 processing 同挡：claim 成功后立刻 set starting，并发 scan 若仍可 claim 会双 launch
+    const phase = getSessionAgentPhase(sessionKey);
+    if (phase === "starting" || phase === "processing") return { ok: false };
 
     const batch = deps.mergeBatchBySession.get(sessionKey);
     if (batch?.phase === "ready" && deps.isMergeDispatchAllowed(sessionKey)) {
@@ -257,24 +259,13 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     });
   }
 
-  async function runAgentDispatchLoop(): Promise<void> {
-    if (dispatchLoopBusy) return;
-    dispatchLoopBusy = true;
-    try {
-      for (const { sessionKey, chatType, senderOpenId } of deps.getDistinctSessions()) {
-        await dispatchSessionToAgent(sessionKey, chatType, senderOpenId);
-      }
-    } catch (e: unknown) {
-      deps.log("ERROR", `dispatch loop 异常: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      dispatchLoopBusy = false;
-    }
-  }
-
-  function scheduleAgentDispatch(_sessionKey?: string): void {
-    if (dispatchDebounceTimer) clearTimeout(dispatchDebounceTimer);
-    dispatchDebounceTimer = setTimeout(() => void runAgentDispatchLoop(), 300);
-  }
+  const dispatch = createOrchestratorDispatch({
+    log: deps.log,
+    getDistinctSessions: deps.getDistinctSessions,
+    dispatchSessionToAgent,
+  });
+  scheduleAgentDispatch = dispatch.scheduleAgentDispatch;
+  const { runAgentDispatchLoop } = dispatch;
 
   return {
     scheduleAgentDispatch,

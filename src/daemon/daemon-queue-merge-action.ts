@@ -60,7 +60,7 @@ export async function handleMergeBatchAction(
     batch.phase = "cancelled";
     ctx.clearMergeBatchState(sessionKey);
     ctx.broadcastQueueEvent(sessionKey);
-    // ponytail: 单条顺序 dispatch；取消合并后由 orchestrator 按未合并路径领取
+    // ponytail: 取消合并后仍由 orchestrator 按未合并路径领取（跨 session 可并行 kickoff）
     return { ok: true };
   }
 

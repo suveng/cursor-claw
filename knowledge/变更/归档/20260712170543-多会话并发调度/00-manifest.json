@@ -1,0 +1,164 @@
+{
+  "change_id": "20260712170543",
+  "id": "20260712170543-多会话并发调度",
+  "name": "多会话并发调度",
+  "title": "多会话并发调度",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T17:05:43+0800",
+  "updated_at": "2026-07-12T18:37:00+0800",
+  "archived_at": "2026-07-12T18:37:00+0800",
+  "depends_on": [
+    "20260712170438-Daemon批二拆分"
+  ],
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-orchestrator.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-orchestrator-dispatch.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done",
+      "note": "会话级 in-flight + 并行 kickoff + scan 锁"
+    },
+    {
+      "path": "src/daemon/daemon-queue-merge-action.ts",
+      "role": "impl",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "role": "impl",
+      "kind": "doc",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/01-概览.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done",
+      "note": "librarian：调度并发现状与限制"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done",
+      "note": "librarian：dispatch 子文件锚点"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done",
+      "note": "librarian：会话间并行 / 会话内串行"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/02-多会话模型.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done",
+      "note": "librarian：Daemon 调度并发决策"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "claim 门控纳入 starting",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-orchestrator.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "会话级 in-flight 与跨 session 并行 kickoff",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-orchestrator.ts",
+        "src/daemon/daemon-orchestrator-dispatch.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "可观测与 T7 债勾销（AGENTS + ponytail）",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-queue-merge-action.ts",
+        "src/daemon/AGENTS.md"
+      ],
+      "depends_on": [
+        "T2"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "多会话并发与可靠性回归",
+      "status": "done",
+      "files": [],
+      "depends_on": [
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "note": "源码契约回归：S1～S6 + 八·（二）五项；无生产代码回修"
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "external": {
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / integrations.notifications 配置",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "功能",
+    "priority": "P1"
+  }
+}
