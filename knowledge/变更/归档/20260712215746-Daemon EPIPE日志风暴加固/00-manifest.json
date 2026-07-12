@@ -1,10 +1,11 @@
 {
   "name": "Daemon EPIPE日志风暴加固",
   "flow": "lite",
-  "stage": "reviewed",
+  "stage": "archived",
   "source": "kb-lite",
   "workflow_version": "v2.6",
-  "updated_at": "2026-07-12T22:03:00+08:00",
+  "updated_at": "2026-07-12T22:12:21+08:00",
+  "archived_at": "2026-07-12T22:12:21+08:00",
   "tasks": [
     {
       "id": "LITE-01",
@@ -19,9 +20,9 @@
         "src/shared/AGENTS.md",
         "package.json",
         "changelog/1.14.7.json",
-        "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/00-manifest.json",
-        "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/01-proposal.md",
-        "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/05-summary.md"
+        "knowledge/变更/归档/20260712215746-Daemon EPIPE日志风暴加固/00-manifest.json",
+        "knowledge/变更/归档/20260712215746-Daemon EPIPE日志风暴加固/01-proposal.md",
+        "knowledge/变更/归档/20260712215746-Daemon EPIPE日志风暴加固/05-summary.md"
       ]
     }
   ],
@@ -86,33 +87,45 @@
       "status": "changed"
     },
     {
+      "path": "knowledge/工程平台/Daemon守护进程/03-进程模型与部署.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed"
+    },
+    {
       "path": "knowledge/工程平台/Electron桌面应用/02-主进程与IPC.md",
       "kind": "knowledge",
       "source": "archive",
-      "status": "planned"
+      "status": "changed"
     },
     {
-      "path": "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/00-manifest.json",
+      "path": "knowledge/变更/归档/20260712215746-Daemon EPIPE日志风暴加固/00-manifest.json",
       "kind": "change_doc",
       "source": "lite",
       "status": "changed"
     },
     {
-      "path": "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/01-proposal.md",
+      "path": "knowledge/变更/归档/20260712215746-Daemon EPIPE日志风暴加固/01-proposal.md",
       "kind": "change_doc",
       "source": "lite",
       "status": "changed"
     },
     {
-      "path": "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/05-summary.md",
+      "path": "knowledge/变更/归档/20260712215746-Daemon EPIPE日志风暴加固/05-summary.md",
       "kind": "change_doc",
       "source": "lite",
       "status": "changed"
     },
     {
-      "path": "knowledge/变更/进行中/20260712215746-Daemon EPIPE日志风暴加固/04-review.md",
+      "path": "knowledge/变更/归档/20260712215746-Daemon EPIPE日志风暴加固/04-review.md",
       "kind": "change_doc",
       "source": "review",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712215746-Daemon EPIPE日志风暴加固/08-verify-issue.md",
+      "kind": "change_doc",
+      "source": "verify",
       "status": "changed"
     }
   ],
