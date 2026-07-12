@@ -10,7 +10,7 @@
 - **终态出口**：`completeCodexViaLifecycle`/`notifyCodexRunFailure`/`notifyCodexWatchdogTimeout`→shared 模板；运行中 IM 直接 import `run-notify`（无本地 notify 副本）。
 - **失败文案**：`codex-failure-messages.ts` 脱敏+归因提取，用户句委托 `formatRunFailureMessage`。
 - **resume**：`codexSessionId` 来自 `startThread`/`resumeThread`；dispatch 复用 `resolveCodexThread`。
-- **主进程续接（S7）**：`codex-run-recover.recoverCodexActiveRuns` 经 `recoverAllActiveRuns`；读 `codex-active-runs.json`；`RunLifecycle.resume`→`enterGuardWithLifecycle`→`startCodexRun`（`lastTaskMessage`）；CLI 不可用整批 skip；失败 `notifyResumeFailure`。
+- **主进程续接（S7）**：`recoverCodexActiveRuns` 经 `recoverAllActiveRuns`；读 `codex-active-runs.json`；CLI 不可用→`failAllCodexRunsOnCliMissing` 逐条 IM+清盘（**不再**整函数静默早退，父变更 T-FIX-01 已清偿）；guard 前 `probeCodexRecoverTarget`（`codex-run-probe.ts`）→`startCodexRun`；失败经 `classifyResumeFailure`→`notifyResumeFailure`。
 - **MCP**：`codex-mcp-loader` 读 `~/.codex` 与 `{ws}/.codex/config.toml`，project>global。
 
 ## 三、服务端规则
@@ -53,10 +53,11 @@ RunGuard+`enterGuardWithLifecycle`+`armCodexWatchdog`（S8 busy→`notifyGuardBu
 
 ## 九、已知限制与 TODO
 
-Dashboard MCP 占位；须本机 Codex CLI；recover 无 `getRun` 终态探测，依赖 `resumeThread` 语义（待验证）。
+Dashboard MCP 占位；须本机 Codex CLI；`probeCodexRecoverTarget` 用空 prompt 首事件探活（SDK 无只读 thread API）；ponytail 升级路径见 `electron/agent/codex/AGENTS.md`。
 
 ## 十、变更记录
 
+- 2026-07-12：续接终态 hardening — CLI 缺失逐条 notify、`codex-run-probe`、失败分类（archive 20260712145449；清偿父变更 Codex CLI 早退债）。
 - 2026-07-12：主进程续接 `codex-run-recover`+`codex-active-runs.json`（archive 20260712113332）。
 - 2026-07-12：Engine Port + RunLifecycle（archive 20260711232258）。
 - 2026-06-30：Codex 三引擎接入（archive 20260630104714）。

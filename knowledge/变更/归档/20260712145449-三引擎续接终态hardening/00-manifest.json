@@ -1,0 +1,260 @@
+{
+  "change_id": "20260712145449",
+  "id": "20260712145449-三引擎续接终态hardening",
+  "name": "三引擎续接终态hardening",
+  "title": "三引擎续接终态hardening",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T14:54:49+0800",
+  "updated_at": "2026-07-12T16:14:17+08:00",
+  "depends_on": [
+    "20260712113332-非Cursor引擎主进程续接"
+  ],
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/shared/run-resume-notify.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/codex-run-recover.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/codex-run-probe.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-run-recover.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-run-probe.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/opencode-run-recover.ts",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/shared/AGENTS.md",
+      "kind": "config",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/claude-code/AGENTS.md",
+      "kind": "config",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/codex/AGENTS.md",
+      "kind": "config",
+      "status": "done"
+    },
+    {
+      "path": "electron/agent/opencode/AGENTS.md",
+      "kind": "config",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145449-三引擎续接终态hardening/auto_test/run-recover-hardening-contract.sh",
+      "kind": "other",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145449-三引擎续接终态hardening/auto_test/run-recover-hardening-contract.mts",
+      "kind": "other",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/07-ClaudeCodeSDK执行引擎.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/08-CodexSDK执行引擎.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/09-OpenCodeSDK执行引擎.md",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/10-SDK上下文保护与失败归因.md",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "shared 续接失败分类与 notify 扩展",
+      "status": "done",
+      "files": [
+        "electron/agent/shared/run-resume-notify.ts",
+        "electron/agent/cursor-sdk/sdk-run-recover.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "Codex recover 依赖缺失与终态探活",
+      "status": "done",
+      "files": [
+        "electron/agent/codex/codex-run-recover.ts",
+        "electron/agent/codex/codex-run-probe.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "CC recover 续接前等价探活",
+      "status": "done",
+      "files": [
+        "electron/agent/claude-code/cc-run-recover.ts",
+        "electron/agent/claude-code/cc-run-probe.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "OpenCode recover 分类与探活对齐",
+      "status": "done",
+      "files": [
+        "electron/agent/opencode/opencode-run-recover.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "引擎 AGENTS 补充 recover hardening",
+      "status": "done",
+      "files": [
+        "electron/agent/claude-code/AGENTS.md",
+        "electron/agent/codex/AGENTS.md",
+        "electron/agent/opencode/AGENTS.md",
+        "electron/agent/shared/AGENTS.md"
+      ],
+      "depends_on": [
+        "T2",
+        "T3",
+        "T4"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "ST-R 契约与回归验收",
+      "status": "done",
+      "files": [
+        "knowledge/变更/归档/20260712145449-三引擎续接终态hardening/06-automation-test.md",
+        "knowledge/变更/归档/20260712145449-三引擎续接终态hardening/auto_test/run-recover-hardening-contract.sh",
+        "knowledge/变更/归档/20260712145449-三引擎续接终态hardening/auto_test/run-recover-hardening-contract.mts"
+      ],
+      "depends_on": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5"
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R1",
+      "type": "focused-review",
+      "date": "2026-07-12",
+      "scope": "T1-T5",
+      "verdict": "passed",
+      "status": "fixed",
+      "blocking_issues": 0,
+      "warnings": 0,
+      "open_issues": 0,
+      "accepted_debt": 0,
+      "file": "knowledge/变更/归档/20260712145449-三引擎续接终态hardening/04-review.md",
+      "summary": "focused-review 通过：三引擎 probe+分类 notify 对齐 02；父债 Codex CLI 早退已清偿；sdk-run-recover 无业务 diff；tsc 通过；T6 ST-R 留 kb-test",
+      "resolution": "04-review.md §9",
+      "parent_debt_closed": "20260712113332 Codex CLI 静默早退 T-FIX-01"
+    }
+  ],
+  "revisions": [],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "可靠性",
+    "priority": "P1"
+  },
+  "archived_at": "2026-07-12T16:14:17+08:00"
+}

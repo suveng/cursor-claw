@@ -8,7 +8,7 @@ import type { RecoverSummary } from "../cursor-sdk/sdk-session-types"
 import { type ChatType } from "../shared/agent-launcher"
 import { completeRunGuard, enterGuardWithLifecycle, releaseRunGuard } from "../shared/agent-run-guard"
 import { createRunLifecycle } from "../shared/run-lifecycle"
-import { notifyResumeFailure } from "../shared/run-resume-notify"
+import { classifyResumeFailure, notifyResumeFailure } from "../shared/run-resume-notify"
 import { pushUiLog } from "../../app/ui-logger"
 import { appendInlineMcpToOpencodeConfig, readOpencodeMcpServers } from "../../mcp/loaders/opencode-mcp-loader"
 import { OPENCODE_SESSIONS } from "./agent-opencode-session-registry"
@@ -109,10 +109,25 @@ async function validateOpencodeSessionId(client: OpencodeClient, sessionId: stri
 async function probeOpencodeRecoverTarget(record: OpencodeActiveRunRecord): Promise<void> {
   const workspaceDir = record.workspaceDir || process.cwd()
   const inlineConfig = appendInlineMcpToOpencodeConfig({}, readOpencodeMcpServers(workspaceDir), workspaceDir)
-  const bundle = await resolveOpencodeClient(buildProfileFromRecord(record), inlineConfig)
+  let bundle
+  try {
+    bundle = await resolveOpencodeClient(buildProfileFromRecord(record), inlineConfig)
+  } catch (e: unknown) {
+    throw wrapOpencodeProbeError(e)
+  }
   if (!record.opencodeSessionId) return
   const valid = await validateOpencodeSessionId(bundle.client, record.opencodeSessionId)
   if (!valid) throw new Error("OpenCode session 已失效")
+}
+
+/** 将 resolveOpencodeClient 错误包装为可分类消息 */
+function wrapOpencodeProbeError(e: unknown): Error {
+  const detail = e instanceof Error ? e.message : String(e)
+  const code = typeof e === "object" && e != null && "code" in e ? String((e as { code: unknown }).code) : ""
+  if (code === "external_health_failed" || /health|内嵌启动|ECONNREFUSED|ETIMEDOUT/i.test(detail)) {
+    return new Error(`OpenCode 服务暂不可用: ${detail}`)
+  }
+  return e instanceof Error ? e : new Error(detail)
 }
 
 function cleanupFailedOpencodeSession(sessionKey: string): void {
@@ -177,8 +192,8 @@ export async function recoverOpencodeActiveRuns(): Promise<RecoverSummary> {
     } catch (e: unknown) {
       clearOpencodeActiveRun(sessionKey)
       const detail = e instanceof Error ? e.message : String(e)
-      const reason = detail.includes("失效") ? "会话已失效" : "会话恢复失败"
-      await notifyResumeFailure(sessionKey, reason)
+      const { reason, category } = classifyResumeFailure("opencode", detail)
+      await notifyResumeFailure(sessionKey, reason, category)
       pushUiLog("OpenCode", "WARN", `[recover] sessionKey=${sessionKey} result=failed reason=${detail}`)
       summary.failed += 1
       cleanupFailedOpencodeSession(sessionKey)

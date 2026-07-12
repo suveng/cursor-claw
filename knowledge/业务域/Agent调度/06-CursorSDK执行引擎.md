@@ -8,7 +8,7 @@
 
 - **Engine Port**：`engine-port-adapter.ts` 注册 `sdk`；`agent-sdk-http.ts` 查 `getEnginePort` 委托 launch/dispatch；`sdk-run-port-lifecycle.ts` 缓存 Lifecycle、`applySdkStreamRunEvent`、`completeSdkRunViaPort`。
 - **RunLifecycle**：`guarding→streaming→watching→completing→notifying`；`streamRunEvents` 终态经 `RunEvent` 路由，**禁止** adapter 外平行完整终态 notify。
-- **API/MCP/续接（S7）**：长驻+二次 send；`recoverAllActiveRuns` 于 `initDaemonManager` 挂接（内含 `recoverSdkActiveRuns`）；`Agent.resume`→`getOrCreateSdkRunLifecycle().resume()`→`enterGuardWithLifecycle`→`startSdkRun`；失败 `notifyResumeFailure`（`run-resume-notify.ts`，四引擎共用）。CC/Codex/OpenCode 对称 `*-run-recover`+`*-active-runs.json`（见 07–09）。
+- **API/MCP/续接（S7）**：`recoverAllActiveRuns` 挂 `initDaemonManager`；`Agent.resume`→guard→`startSdkRun`；`getRun` 终态**未改**；shared notify 默认 `unrecoverable` 尾句对齐三引擎。三引擎 `*-run-recover` 见 07–09。
 - **呈现/ordering/watchdog**：Rev2 end-only、飞书 f41、tool 分级、watchdog 门控见 AGENTS.md；OpenCode 已对齐（见 [09](./09-OpenCodeSDK执行引擎.md) §二）。
 
 ## 三、服务端规则
@@ -59,6 +59,7 @@ S7 四引擎主进程 recover 已对称；Cursor 独有 `Agent.resume`+`getRun` 
 
 ## 十、变更记录
 
+- 2026-07-12：shared 续接失败分类 IM 尾句对齐（`sdk-run-recover` 无业务 diff；archive 20260712145449）。
 - 2026-07-12：续接编排迁入 `recoverAllActiveRuns`；`notifyResumeFailure` 抽取 shared（archive 20260712113332）。
 - 2026-07-12：Engine Port + RunLifecycle 抽象，终态委托 shared（archive 20260711232258）。
 - 2026-07-11：首条冷启动优化（archive 20260711211323）。

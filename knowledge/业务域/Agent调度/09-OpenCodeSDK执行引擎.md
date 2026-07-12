@@ -9,7 +9,7 @@
 - **Engine Port**：`registerOpencodeEnginePort`；`mapOpencodeSseToRunEvent` 映射 SSE→`RunEvent`。
 - **终态出口**：`completeOpencodeViaLifecycle`/`notifyOpencodeRunFailure`/`notifyOpencodeWatchdogTimeout`→shared 模板；运行中 IM 直接 import `run-notify`。
 - **Client/MCP**：`resolveOpencodeClient` embedded/external；`opencode-mcp-loader` 读 `opencode.json`/项目配置。
-- **resume/续接（S7）**：`opencodeSessionId` 续跑；`recoverOpencodeActiveRuns` 读 `opencode-active-runs.json`（含 embedded 连接字段）→探活→`startOpencodeRun`；失败 `notifyResumeFailure`。
+- **resume/续接（S7）**：`opencodeSessionId` 续跑；`recoverOpencodeActiveRuns` guard 前 `probeOpencodeRecoverTarget`（`session.get`+server 探活）→`startOpencodeRun`；失败经 `classifyResumeFailure`（server 瞬时→`retryable`）→`notifyResumeFailure`。
 - **Presentation ordering（Rev2 end-only）**：对称 Cursor；门控 `presentationOrderingEligible`；过程事件不抢 stream 首包；终态唯一 `flushOpencodeStreamPost(true)`。SSOT：`electron/agent/opencode/AGENTS.md`。
 
 ## 三、服务端规则
@@ -44,7 +44,7 @@ sequenceDiagram
 
 ## 六、数据
 
-`OpencodeSessionAgent`：`opencodeSessionId`、`errorNotified`、`watchdogTimedOut`、`runFinalizing`；`opencode-active-runs.json`（`OpencodeActiveRunRecord`）；ordering 字段 `seenProcessEvent`、`presentationDeferStream`、`streamBuffer`/`streamPostChain`/`outboundMessageId`；门控见 [10](./10-SDK上下文保护与失败归因.md)。
+`OpencodeSessionAgent` 含 `opencodeSessionId`、门控闩、`opencode-active-runs.json`；ordering 字段见 AGENTS.md。
 
 ## 七、非功能与可观测
 
@@ -56,11 +56,8 @@ RunGuard+`enterGuardWithLifecycle`+watchdog；SSE 未知 WARN；失败经 `forma
 
 ## 九、已知限制与 TODO
 
-外部探活依赖 `config.get`；embedded server 冷启动后 `opencodeSessionId` 有效性待验证。Codex ordering 不在本引擎范围。
+外部探活依赖 `config.get`；embedded server 冷启动后 `opencodeSessionId` 有效性待验证；`probeOpencodeRecoverTarget` 与 `startOpencodeRun` 双连 `resolveOpencodeClient`（ponytail，见 `electron/agent/opencode/AGENTS.md`）。Codex ordering 不在本引擎范围。
 
 ## 十、变更记录
 
-- 2026-07-12：主进程续接 `opencode-run-recover`+`opencode-active-runs.json`（archive 20260712113332）。
-- 2026-07-12：Presentation defer/Rev2 end-only 对齐 Cursor（archive 20260712113320）。
-- 2026-07-12：Engine Port + RunLifecycle（archive 20260711232258）。
-- 2026-06-30：OpenCode 四引擎接入（archive 20260630105159）。
+- 2026-07-12：续接 hardening+`retryable` 分类（20260712145449）；主进程续接（20260712113332）；ordering（20260712113320）；Engine Port（20260711232258）；四引擎接入（20260630105159）。

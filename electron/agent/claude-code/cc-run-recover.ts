@@ -6,7 +6,8 @@ import type { RecoverSummary } from "../cursor-sdk/sdk-session-types"
 import { type ChatType } from "../shared/agent-launcher"
 import { completeRunGuard, enterGuardWithLifecycle, releaseRunGuard } from "../shared/agent-run-guard"
 import { createRunLifecycle } from "../shared/run-lifecycle"
-import { notifyResumeFailure } from "../shared/run-resume-notify"
+import { classifyResumeFailure, notifyResumeFailure } from "../shared/run-resume-notify"
+import { probeCcRecoverTarget } from "./cc-run-probe"
 import { pushUiLog } from "../../app/ui-logger"
 import { CC_SESSIONS } from "./agent-cc-session-registry"
 import { broadcastCcSessionStatus, clearStreamPostTimer } from "./agent-cc-stream"
@@ -89,6 +90,8 @@ export async function recoverCcActiveRuns(): Promise<RecoverSummary> {
     }
 
     try {
+      await probeCcRecoverTarget(record)
+
       const session = buildCcSessionFromRecord(record)
       CC_SESSIONS.set(sessionKey, session)
       broadcastCcSessionStatus([...CC_SESSIONS.values()])
@@ -114,7 +117,8 @@ export async function recoverCcActiveRuns(): Promise<RecoverSummary> {
     } catch (e: unknown) {
       clearCcActiveRun(sessionKey)
       const detail = e instanceof Error ? e.message : String(e)
-      await notifyResumeFailure(sessionKey, "会话恢复失败")
+      const { reason, category } = classifyResumeFailure("cc", detail)
+      await notifyResumeFailure(sessionKey, reason, category)
       pushUiLog("CC", "WARN", `[recover] sessionKey=${sessionKey} result=failed reason=${detail}`)
       summary.failed += 1
       cleanupFailedCcSession(sessionKey)

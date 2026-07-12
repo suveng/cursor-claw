@@ -6,7 +6,8 @@ import type { RecoverSummary } from "../cursor-sdk/sdk-session-types"
 import { type ChatType } from "../shared/agent-launcher"
 import { completeRunGuard, enterGuardWithLifecycle, releaseRunGuard } from "../shared/agent-run-guard"
 import { createRunLifecycle } from "../shared/run-lifecycle"
-import { notifyResumeFailure } from "../shared/run-resume-notify"
+import { classifyResumeFailure, notifyResumeFailure } from "../shared/run-resume-notify"
+import { probeCodexRecoverTarget } from "./codex-run-probe"
 import { pushUiLog } from "../../app/ui-logger"
 import { loadCodexMcpServers } from "../../mcp/loaders/codex-mcp-loader"
 import { CODEX_SESSIONS } from "./agent-codex-session-registry"
@@ -67,15 +68,39 @@ function cleanupFailedCodexSession(sessionKey: string): void {
   broadcastCodexSessionStatus([...CODEX_SESSIONS.values()])
 }
 
+/** CLI 缺失时逐条 notify + 清盘（清偿父变更静默早退债） */
+async function failAllCodexRunsOnCliMissing(
+  records: CodexActiveRunRecord[],
+  cliError: string,
+): Promise<RecoverSummary> {
+  const summary: RecoverSummary = { resumed: 0, failed: 0, skipped: 0 }
+  pushUiLog("Codex", "WARN", `[recover] CLI 不可用，清理 ${records.length} 条: ${cliError}`)
+  for (const record of records) {
+    await notifyResumeFailure(record.sessionKey, cliError, "unrecoverable")
+    clearCodexActiveRun(record.sessionKey)
+    summary.failed += 1
+  }
+  return summary
+}
+
 /** 主进程启动后批量续接 Codex 活跃 Run */
 export async function recoverCodexActiveRuns(): Promise<RecoverSummary> {
   const cliCheck = checkCodexCliAvailable()
-  if (!cliCheck.ok) {
-    pushUiLog("Codex", "WARN", `[recover] recoverCodexActiveRuns 跳过: ${cliCheck.error}`)
-    return { resumed: 0, failed: 0, skipped: 0 }
-  }
-
   const records = listRecoverableCodexRuns()
+
+  if (!cliCheck.ok) {
+    if (records.length === 0) {
+      pushUiLog("Codex", "WARN", `[recover] recoverCodexActiveRuns CLI 缺失且无待续接: ${cliCheck.error}`)
+      return { resumed: 0, failed: 0, skipped: 0 }
+    }
+    const summary = await failAllCodexRunsOnCliMissing(records, cliCheck.error)
+    pushUiLog(
+      "Codex",
+      "INFO",
+      `[recover] recoverCodexActiveRuns 完成 resumed=${summary.resumed} failed=${summary.failed} skipped=${summary.skipped}`,
+    )
+    return summary
+  }
   const summary: RecoverSummary = { resumed: 0, failed: 0, skipped: 0 }
 
   if (records.length === 0) {
@@ -94,6 +119,8 @@ export async function recoverCodexActiveRuns(): Promise<RecoverSummary> {
     }
 
     try {
+      await probeCodexRecoverTarget(record)
+
       const session = buildCodexSessionFromRecord(record)
       CODEX_SESSIONS.set(sessionKey, session)
       broadcastCodexSessionStatus([...CODEX_SESSIONS.values()])
@@ -122,7 +149,8 @@ export async function recoverCodexActiveRuns(): Promise<RecoverSummary> {
     } catch (e: unknown) {
       clearCodexActiveRun(sessionKey)
       const detail = e instanceof Error ? e.message : String(e)
-      await notifyResumeFailure(sessionKey, "会话恢复失败")
+      const { reason, category } = classifyResumeFailure("codex", detail)
+      await notifyResumeFailure(sessionKey, reason, category)
       pushUiLog("Codex", "WARN", `[recover] sessionKey=${sessionKey} result=failed reason=${detail}`)
       summary.failed += 1
       cleanupFailedCodexSession(sessionKey)

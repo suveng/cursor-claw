@@ -8,7 +8,7 @@
 
 - **Engine Port**：`registerCcEnginePort` 于 `agent-sdk-http`；`mapCcSdkMessageToRunEvent`/`emitCcQueryTerminalRunEvent` 供 `agent-cc-events.ts` 路由。
 - **终态出口**：`completeCcViaLifecycle`/`notifyCcRunFailure`/`notifyCcWatchdogTimeout`→`enterNotifying`→`completeRunFromTemplate`；`agent-cc-notify.ts` **仅** re-export `run-notify`。
-- **resume/续接（S7）**：`ccSessionId`+`options.resume`；`recoverCcActiveRuns` 读 `cc-active-runs.json`→`RunLifecycle.resume`→guard→`startCcQuery`（可重发 `lastTaskMessage`）；失败 `notifyResumeFailure`；`userStopped` 跳过。
+- **resume/续接（S7）**：`ccSessionId`+`options.resume`；`recoverCcActiveRuns` guard 前 `probeCcRecoverTarget`（`cc-run-probe.ts`）→`RunLifecycle.resume`→guard→`startCcQuery`（可重发 `lastTaskMessage`）；失败经 `classifyResumeFailure`→`notifyResumeFailure(reason,category)`；`userStopped` 跳过。
 - **MCP inline**：`cc-mcp-loader`+审批门控；`strictMcpConfig:true` 见 AGENTS.md。
 
 ## 三、服务端规则
@@ -46,7 +46,7 @@ IM 委托 `launchCcAgentFromHttp`（统一网关路由）。
 
 ## 七、非功能与可观测
 
-RunGuard+`enterGuardWithLifecycle`+`armCcWatchdog`；busy IM 对称四引擎；Presentation 对称 SDK ordering；`[recover]` 可检索。
+RunGuard+`enterGuardWithLifecycle`+`armCcWatchdog`；busy IM 对称四引擎；`[recover]` 可检索；续接分类 IM 见 [10](./10-SDK上下文保护与失败归因.md)。
 
 ## 八、推送
 
@@ -54,10 +54,11 @@ RunGuard+`enterGuardWithLifecycle`+`armCcWatchdog`；busy IM 对称四引擎；P
 
 ## 九、已知限制与 TODO
 
-project scope 审批未并读 settings 多源（R1 accepted_debt）；CC recover 无 Cursor 式 `getRun` 终态探测，续接成败依赖 SDK `resume` 语义（待逐场景验证）。
+project scope 审批未并读 settings 多源（R1 accepted_debt）；`probeCcRecoverTarget` 用 `getSessionInfo` 仅校验会话文件存在性（非 Run 运行时态）；ponytail 升级路径见 `electron/agent/claude-code/AGENTS.md`。
 
 ## 十、变更记录
 
+- 2026-07-12：续接 hardening — `cc-run-probe`+分类 IM（20260712145449）。
 - 2026-07-12：主进程续接 `cc-run-recover`+`cc-active-runs.json`（archive 20260712113332）。
 - 2026-07-12：Engine Port + RunLifecycle，终态委托 shared（archive 20260711232258）。
 - 2026-07-05：飞书 f41 assistant plain 收尾。

@@ -22,7 +22,14 @@
 - **收尾模板**：`run-complete-template.completeRunFromTemplate` — 幂等 `errorNotified`/`runFinalizing`；f41 stream 成功路径由引擎 stream 收尾，模板**禁止**双写 assistant。
 - **状态机**：`run-lifecycle.createRunLifecycle` — 四引擎终态须经 `enterNotifying` → `completeRunFromTemplate`；`resume()` S7 清零 `errorNotified`/`runFinalizing` 并 `phase→guarding`（主进程重启续接经各引擎 `*-run-recover.ts` + `agent-run-recover-orchestrator`）。
 - **adapter 唯一切面**：各引擎 `engine-port-adapter.ts` 实现 `AgentEnginePort` 六方法；**禁止**在 adapter 外平行实现完整终态 notify/failure/complete 主路径（绕开 `errorNotified` 闩或模板直发失败/超时/取消 IM）；运行中「Agent 处理中…」、pre-send 阻断、resume 失败等**非终态** notify 除外。
-- **guard 挂接**：`agent-run-guard.enterGuardWithLifecycle(session, lifecycle?)` — busy 经 `formatRunFailureMessage` + `notifySessionChat` 一次 IM；闩算法核心不改。**四引擎 launch/dispatch**（Cursor `agent-sdk.ts`、CC `agent-claude-sdk.ts`、Codex `agent-codex-sdk.ts`、OpenCode `agent-opencode-sdk.ts`）均须 `createRunLifecycle(session)` + `enterGuardWithLifecycle`；禁止裸 `acquireRunGuard` 静默 busy 早退；`stale_aborted` 对称 Cursor 仅 `{ ok: false, error: "agent busy" }` 不二次 IM。
+- **guard 挂接**：`agent-run-guard.enterGuardWithLifecycle(session, lifecycle?)` — busy 经 `formatRunFailureMessage` + `notifySessionChat` 一次 IM；闩算法核心不改。
+
+## 续接失败分类（recover hardening）
+
+- **类型 SSOT**：`run-resume-notify.ts` — `ResumeFailureCategory`（`retryable` | `unrecoverable`）、`classifyResumeFailure`、`notifyResumeFailure(sessionKey, reason, category?)`；第三参默认 `unrecoverable` 保 Cursor 兼容。
+- **IM 尾句**：`retryable` →「请稍后重新发送消息重试」；`unrecoverable` →「请重新发送消息开始新任务」。
+- **消费方**：三引擎 `*-run-recover.ts` catch/probe 失败路径调用 `classifyResumeFailure` + `notifyResumeFailure`；**不改** IM 入队/dispatch。
+- **Cursor**：`sdk-run-recover.ts` 业务逻辑未改，依赖默认 `category`。**四引擎 launch/dispatch**（Cursor `agent-sdk.ts`、CC `agent-claude-sdk.ts`、Codex `agent-codex-sdk.ts`、OpenCode `agent-opencode-sdk.ts`）均须 `createRunLifecycle(session)` + `enterGuardWithLifecycle`；禁止裸 `acquireRunGuard` 静默 busy 早退；`stale_aborted` 对称 Cursor 仅 `{ ok: false, error: "agent busy" }` 不二次 IM。
 
 ## 模块边界
 
