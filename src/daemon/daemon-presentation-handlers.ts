@@ -91,7 +91,12 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     if (ch.type === "error") return false;
     const title = deps.extractWorkspaceTitle(sessionKey);
     if (ch.type === "wechat") {
-      return ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
+      const result = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
+      if (result.outboundId) {
+        deps.trackMessageSession(result.outboundId, sessionKey);
+        deps.sessionLastReplyAt.set(sessionKey, Date.now());
+      }
+      return result.ok;
     }
     const sentMsgId = await ch.rt.sender!.sendMessage(text, undefined, (ch as { chatId?: string }).chatId, title);
     if (sentMsgId) {

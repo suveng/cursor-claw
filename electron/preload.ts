@@ -30,6 +30,10 @@ export interface MessageChannel {
   larkBotName?: string
   wechatToken?: string
   wechatAccountId?: string
+  /** 微信群聊入队：mention_required | all */
+  wechatGroupEnqueueMode?: "mention_required" | "all"
+  /** 微信机器人 @ 匹配别名 */
+  wechatBotDisplayName?: string
   agentResourceId: string
   model: string
   modelParams: string

@@ -15,7 +15,7 @@ function newLocalChannelId(): string {
 }
 
 function emptyChannel(type: "feishu" | "wechat", defaultName: string): ChannelConfig {
-  return {
+  const base: ChannelConfig = {
     id: newLocalChannelId(),
     name: defaultName,
     enabled: true,
@@ -34,6 +34,9 @@ function emptyChannel(type: "feishu" | "wechat", defaultName: string): ChannelCo
     digitalIdentity: "",
     workspaceDir: "",
   }
+  // 微信通道默认群聊须 @ 入队
+  if (type === "wechat") return { ...base, wechatGroupEnqueueMode: "mention_required" }
+  return base
 }
 
 export default function ChannelPanel() {
@@ -54,6 +57,9 @@ export default function ChannelPanel() {
       othersWorkspaceMode: c.othersWorkspaceMode ?? "isolated",
       othersWorkspaceDir: c.othersWorkspaceDir ?? "",
       digitalIdentity: c.digitalIdentity ?? cfg.digitalIdentity ?? "",
+      ...(c.type === "wechat"
+        ? { wechatGroupEnqueueMode: c.wechatGroupEnqueueMode ?? "mention_required" }
+        : {}),
     })))
     setResources(cfg.agentResources ?? [])
   }, [])
@@ -505,6 +511,29 @@ function ChannelEditModal({ channel, isNew, resources, onClose, onSave, onSaveDr
                   )}
                 </div>
               )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">群聊入队策略</label>
+                  <select
+                    value={draft.wechatGroupEnqueueMode ?? "mention_required"}
+                    onChange={(e) => set({ wechatGroupEnqueueMode: e.target.value as "mention_required" | "all" })}
+                    className={inputCls}
+                  >
+                    <option value="mention_required">群聊须 @ 机器人</option>
+                    <option value="all">群聊全量入队</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">机器人显示名（@ 匹配，可选）</label>
+                  <input
+                    type="text"
+                    value={draft.wechatBotDisplayName ?? ""}
+                    onChange={(e) => set({ wechatBotDisplayName: e.target.value })}
+                    placeholder={draft.name || "默认用通道名称"}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
             </div>
           )}
 

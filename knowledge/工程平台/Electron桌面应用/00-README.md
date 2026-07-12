@@ -25,6 +25,7 @@ Cursor Claw 桌面端：Electron 主进程 + React 渲染层，负责配置、Da
 
 ## 变更记录
 
+- 2026-07-12：03/04 补多引擎 MCP 设置、Daemon 可复制指引与健康 SSOT（archive 20260712145827）
 - 2026-07-02：阅读路径补 `electron/AGENTS.md` 根索引；文件清单路径对齐语义子目录（archive 20260702112559）
 - 2026-06-27：新增 05-构建与打包（macOS deploy 入口）
 - 2026-06-27：kb-sync 初始建立

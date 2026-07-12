@@ -1,0 +1,282 @@
+{
+  "change_id": "20260712145827",
+  "id": "20260712145827-多引擎MCP设置实质化",
+  "name": "多引擎MCP设置实质化",
+  "title": "多引擎MCP设置实质化",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T14:58:27+0800",
+  "updated_at": "2026-07-12T16:47:01+0800",
+  "archived_at": "2026-07-12T16:47:01+0800",
+  "depends_on": [
+    "20260712144931-斜杠执行模式稳态收尾"
+  ],
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-mcp-settings-contract.sh",
+      "role": "automation_test",
+      "kind": "test_script",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-mcp-settings-contract.mts",
+      "role": "automation_test",
+      "kind": "test_script",
+      "status": "done"
+    },
+    {
+      "path": "src/shared/mcp-health-label.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-mcp-admin.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-slash-mcp.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/scheduling/command-handler.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/session/session-mcp-status.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "electron/session/session-mcp-disk-fallback.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/SettingsMcpEngineBlock.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/SettingsMcpDaemonGuide.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/lib/mcp-view-strategy.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/SessionMcpPanel.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/pages/Settings.tsx",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/AGENTS.md",
+      "role": "agents",
+      "kind": "doc",
+      "status": "done"
+    },
+    {
+      "path": "electron/session/AGENTS.md",
+      "role": "agents",
+      "kind": "doc",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "role": "agents",
+      "kind": "doc",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/04-配置与更新.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/03-渲染端界面.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Electron桌面应用/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/02-HTTP与MCP服务.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "健康降级文案 SSOT",
+      "status": "done",
+      "files": [
+        "src/shared/mcp-health-label.ts",
+        "src/daemon/daemon-http-mcp-admin.ts",
+        "src/daemon/daemon-slash-mcp.ts",
+        "electron/scheduling/command-handler.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "session-mcp-status 扩展 Codex/OpenCode 读盘",
+      "status": "done",
+      "files": [
+        "electron/session/session-mcp-status.ts",
+        "electron/session/session-mcp-disk-fallback.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T3",
+      "title": "Settings Codex/OpenCode 只读块",
+      "status": "done",
+      "files": [
+        "src/renderer/components/SettingsMcpEngineBlock.tsx",
+        "src/renderer/lib/mcp-view-strategy.ts"
+      ],
+      "depends_on": ["T2"]
+    },
+    {
+      "id": "T4",
+      "title": "Daemon MCP 可复制指引",
+      "status": "done",
+      "files": [
+        "src/renderer/components/SettingsMcpDaemonGuide.tsx",
+        "src/renderer/components/SettingsMcpEngineBlock.tsx"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T5",
+      "title": "SessionMcpPanel 健康空态降级",
+      "status": "done",
+      "files": [
+        "src/renderer/components/SessionMcpPanel.tsx"
+      ],
+      "depends_on": ["T1", "T2"]
+    },
+    {
+      "id": "T6",
+      "title": "AGENTS 对齐与验收记录",
+      "status": "done",
+      "files": [
+        "src/renderer/components/AGENTS.md",
+        "electron/session/AGENTS.md",
+        "src/daemon/AGENTS.md",
+        "06-automation-test.md",
+        "auto_test/run-mcp-settings-contract.sh",
+        "auto_test/run-mcp-settings-contract.mts"
+      ],
+      "depends_on": ["T1", "T2", "T3", "T4", "T5"]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "FR1",
+      "type": "full-review",
+      "verdict": "pass",
+      "reviewed_at": "2026-07-12T16:41:00+0800",
+      "reviewer": "kb-reviewer",
+      "summary": "T1–T5 实现符合 01/02/03；健康 SSOT、多引擎只读、Daemon 指引已落地；零 open/accepted_debt",
+      "open_critical": 0,
+      "open_warning": 0,
+      "accepted_debt": 0,
+      "archive_ready": true,
+      "doc": "04-review.md"
+    }
+  ],
+  "revisions": [],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "功能",
+    "priority": "P2"
+  },
+  "test_evidence": {
+    "automation_test_doc": "06-automation-test.md",
+    "contract_script": "auto_test/run-mcp-settings-contract.sh",
+    "executed_at": "2026-07-12T16:42:00+0800",
+    "result": "ALL PASS",
+    "st_coverage": "ST-M1～M5"
+  }
+}

@@ -18,7 +18,8 @@
 - `SettingsEngineShell.tsx`：三 Tab 共用外壳；`allBoundTypes` 为全量绑定、`boundTypes` 为 Tab 可见子集；`channelContextLoaded` 未完成前不渲染空态；无通道/绑定失效/无适用引擎时分档琥珀引导。
 - `SettingsRulesPanel.tsx`：SDK 项目级 Rules CRUD（`.cursor/rules/`）；由 `Settings.tsx` 仅在 `sdk ∈ boundTypes` 时经 Shell 挂载。
 - `SettingsSkillsPanel.tsx`：SDK 项目级 Skills 管理；挂载条件同 Rules，仅 `sdk ∈ boundTypes`。
-- `SettingsMcpEngineBlock.tsx`：按 `engineType` switch 渲染各引擎 MCP 块（SDK CRUD / CC 只读 / Codex·OpenCode 占位）。
+- `SettingsMcpEngineBlock.tsx`：按 `engineType` switch 渲染各引擎 MCP 块（SDK CRUD / CC·Codex·OpenCode 只读 `SettingsMcpDiskReadonly`）；Codex 文案标明「设置页不提供 TOML 编辑」。
+- `SettingsMcpDaemonGuide.tsx`：MCP Tab 顶部可复制 `cursor-claw`→`/mcp` 片段；脚注指向 IM `/mcp` 或 `POST /api/mcp`（不含 `/mcp-admin`）。
 - `SettingsMcpSdkSection.tsx`：SDK MCP CRUD 实现细节；由 `SettingsMcpEngineBlock` 在 `engineType === "sdk"` 时调用；`SettingsMcpPanel.tsx` 仅为过渡 re-export，Settings 页应经 Shell 直挂 `SettingsMcpEngineBlock`。
 - `Settings.tsx`：`rules`/`skills`/`mcp`/`tasks` tab 共用 `loadChannelContext()`；Rules/Skills 传 `allBoundTypes`（全量）+ `boundTypes`（SDK 子集）；`channelContextLoaded` 防首次空态闪烁。
 

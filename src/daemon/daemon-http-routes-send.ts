@@ -7,7 +7,7 @@ import type { HttpRoutesDeps } from "./daemon-http-routes-types.js";
 
 /** 发送路由侧通道运行时（窄化 unknown rt，避免与 daemon ChannelRuntime 强耦合） */
 type SendChannelRt = {
-  wechat?: { sendText: (chatId: string, text: string) => Promise<boolean>; sendMedia: (chatId: string, path: string) => Promise<unknown> };
+  wechat?: { sendText: (chatId: string, text: string, opts?: { skipTyping?: boolean }) => Promise<{ ok: boolean; outboundId?: string }>; sendMedia: (chatId: string, path: string, opts?: { skipTyping?: boolean }) => Promise<{ ok: boolean; outboundId?: string }> };
   sender?: {
     sendMessage: (text: string, replyId?: string, chatId?: string, title?: string) => Promise<string | undefined>;
     sendImage: (path: string, replyId?: string, chatId?: string) => Promise<void>;
@@ -33,10 +33,14 @@ export async function tryHandleSendRoute(
     const ch = deps.resolveChannel(session_key);
     if (ch.type === "error") { deps.json(res, { ok: false, error: ch.message }, 400); return true; }
     let sendOk = false;
+    let sentMsgId: string | undefined;
     if (ch.type === "wechat") {
       const rt = ch.rt as SendChannelRt;
-      sendOk = await rt.wechat!.sendText(ch.chatId!, text);
-      deps.json(res, { ok: sendOk });
+      const result = await rt.wechat!.sendText(ch.chatId!, text, { skipTyping: true });
+      sendOk = result.ok;
+      sentMsgId = result.outboundId;
+      if (sentMsgId && session_key) deps.trackMessageSession(sentMsgId, session_key);
+      deps.json(res, { ok: sendOk, message_id: sentMsgId });
     } else {
       const rt = ch.rt as SendChannelRt;
       const sender = rt.sender!;
@@ -104,7 +108,8 @@ export async function tryHandleSendRoute(
     if (ch.type === "error") { deps.json(res, { ok: false, error: ch.message }, 400); return true; }
     if (ch.type === "wechat") {
       const rt = ch.rt as SendChannelRt;
-      await rt.wechat!.sendMedia(ch.chatId!, image_path);
+      const result = await rt.wechat!.sendMedia(ch.chatId!, image_path, { skipTyping: true });
+      if (result.outboundId && session_key) deps.trackMessageSession(result.outboundId, session_key);
     } else {
       const rt = ch.rt as SendChannelRt;
       await rt.sender!.sendImage(image_path, message_id, ch.chatId);
@@ -126,7 +131,8 @@ export async function tryHandleSendRoute(
     if (ch.type === "error") { deps.json(res, { ok: false, error: ch.message }, 400); return true; }
     if (ch.type === "wechat") {
       const rt = ch.rt as SendChannelRt;
-      await rt.wechat!.sendMedia(ch.chatId!, file_path);
+      const result = await rt.wechat!.sendMedia(ch.chatId!, file_path, { skipTyping: true });
+      if (result.outboundId && session_key) deps.trackMessageSession(result.outboundId, session_key);
     } else {
       const rt = ch.rt as SendChannelRt;
       await rt.sender!.sendFile(file_path, message_id, ch.chatId);

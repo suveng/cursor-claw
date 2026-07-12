@@ -40,6 +40,10 @@ export interface MessageChannel {
   // 微信凭据
   wechatToken?: string;
   wechatAccountId?: string;
+  /** 微信群聊入队：mention_required=须@机器人；all=全量入队（默认 mention_required） */
+  wechatGroupEnqueueMode?: "mention_required" | "all";
+  /** 微信机器人 @ 匹配别名，缺省用 name */
+  wechatBotDisplayName?: string;
   // Agent 绑定
   agentResourceId: string;        // sdk / claude-code 资源 id
   model: string;                  // 主模型（"" / "auto" = 默认）
@@ -72,6 +76,10 @@ export interface DaemonChannelConfig {
   appSecret?: string;
   wechatToken?: string;
   wechatAccountId?: string;
+  /** 微信群聊入队策略；undefined 视为 mention_required */
+  wechatGroupEnqueueMode?: "mention_required" | "all";
+  /** @ 匹配别名，缺省用 name */
+  wechatBotDisplayName?: string;
   mainUserEnabled: boolean;
   mainUserChatId: string;
   /** 是否响应其他人私聊及群聊 @ 消息 */

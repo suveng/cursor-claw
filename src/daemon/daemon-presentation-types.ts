@@ -67,7 +67,7 @@ export interface PresentationHandlerCtx {
   resolveChannel: (
     sessionKey: string,
   ) =>
-    | { type: "wechat"; rt: { wechat?: { sendText: (chatId: string, text: string, opts: { skipTyping: boolean }) => Promise<boolean>; startProgressTyping: (chatId: string) => Promise<void>; stopProgressTyping: (chatId: string) => Promise<void> } }; chatId: string }
+    | { type: "wechat"; rt: { wechat?: { sendText: (chatId: string, text: string, opts: { skipTyping: boolean }) => Promise<{ ok: boolean; outboundId?: string }>; startProgressTyping: (chatId: string) => Promise<void>; stopProgressTyping: (chatId: string) => Promise<void> } }; chatId: string }
     | { type: "feishu"; rt: { sender?: { sendMessage: (text: string, replyId: string | undefined, chatId: string | undefined, title?: string) => Promise<string | undefined>; renderToolProgressCard: (...args: unknown[]) => Promise<{ cardMessageId: string; cardEntityId: string; cardSequence: number } | null>; renderThinkingCard: (...args: unknown[]) => Promise<{ cardMessageId: string; cardEntityId: string; cardSequence: number } | null> } }; chatId?: string }
     | { type: "error"; message: string };
   extractWorkspaceTitle: (sessionKey?: string) => string | undefined;

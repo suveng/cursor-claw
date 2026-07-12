@@ -41,7 +41,7 @@ flowchart LR
 
 ### MCP 管理（HTTP / 斜杠）
 
-`POST /api/mcp`（list/add/delete/enable/disable/info）；IM `/mcp` 子命令同语义。`/mcp-admin` 已移除（410）。
+`POST /api/mcp`（list/add/delete/enable/disable/info）；IM `/mcp` 子命令同语义。`/mcp-admin` 已移除（410）。`info` 健康列经 `fetchElectronMcpStatusMap` 转发 agent-api；失败须含中文 `healthError`，展示文案 SSOT 为 `src/shared/mcp-health-label.ts`（`formatMcpHealthDisplay` / `formatMcpHealthDisplayIm`），**禁止**裸「未知」（规矩见 `src/daemon/AGENTS.md` §MCP admin HTTP）。
 
 ### HTTP 路由（节选）
 
@@ -73,6 +73,7 @@ flowchart LR
 ## 七、非功能与可观测
 
 - SSE 队列事件；MCP 连接数影响 agentRunning。
+- MCP `info`/斜杠 `/mcp ls` 健康降级：`healthError` 或空 status 输出「暂不可查（…）」类中文句，SSOT `mcp-health-label.ts`。
 - Presentation 失败 WARN `presentation_failed`。
 - `slash_exec` JSON 含 `command`/`ok`/`exec_path`；dual 去重 `markSlashMessageIdExecuted`+`skip-check`。
 
@@ -86,5 +87,5 @@ SSE；stdout `__WECHAT_QR__` 等供 Electron 解析。
 
 ## 十、变更记录
 
-2026-07-12：斜杠稳态默认 daemon、`/mcp-admin` 移除（20260712144931）；HTTP dispatch retry（20260712144755）；session-routing（20260712113356）；斜杠/workflow/merge（20260712113307 等）。
+2026-07-12：MCP 健康展示 SSOT 与 agent-api 降级文案（archive 20260712145827）；斜杠稳态默认 daemon、`/mcp-admin` 移除（20260712144931）；HTTP dispatch retry（20260712144755）；session-routing（20260712113356）；斜杠/workflow/merge（20260712113307 等）。
 2026-06-27：Presentation/merge API（20260627162620）。

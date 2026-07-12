@@ -7,6 +7,7 @@ import {
   readJsonSafe,
   writeJsonSafe,
 } from "./daemon-http-admin-io.js";
+import { formatMcpHealthDisplayIm } from "../shared/mcp-health-label.js";
 import {
   buildMcpServerInfo,
   fetchElectronMcpStatusMap,
@@ -31,14 +32,6 @@ const MCP_SUBCMD_HELP = [
   "  /mcp delete <序号|名称> 删除",
   '  /mcp add <json>       添加（如 /mcp add {"name":"test","command":"npx","args":["-y","xxx"]}）',
 ].join("\n");
-
-function formatMcpHealthStatus(status?: string): string {
-  if (!status) return "未知";
-  if (status === "ready") return "🟢 可连接";
-  if (status === "disabled") return "⚪ 已禁用";
-  if (status === "needs_login") return "🟡 需 OAuth 授权";
-  return `🔴 ${status}`;
-}
 
 /** 按序号或名称解析 MCP 目标 */
 function resolveMcpNameByToken(
@@ -70,14 +63,19 @@ export async function executeSlashMcp(
     }
     const health = await fetchElectronMcpStatusMap(deps.workspaceDir);
     const statusMap = health.ok ? health.statusMap ?? {} : {};
+    const healthError = health.ok ? undefined : health.error;
     const lines = names.map((name, i) => {
       const s = servers[name];
       const flag = s.enabled === false ? "🔴" : "🟢";
       const src = s.scope === "global" ? "[G]" : "[P]";
       const cfg = s.config as Record<string, unknown>;
       const detail = cfg.url ? String(cfg.url) : String(cfg.command ?? "");
-      const healthKey = s.enabled === false ? "disabled" : (statusMap[name] ?? "");
-      return `  ${i + 1}. ${flag} ${src} ${name}  (${detail})  ${formatMcpHealthStatus(healthKey)}`;
+      const healthLabel = s.enabled === false
+        ? formatMcpHealthDisplayIm("disabled")
+        : health.ok
+          ? formatMcpHealthDisplayIm(statusMap[name])
+          : formatMcpHealthDisplayIm(undefined, healthError);
+      return `  ${i + 1}. ${flag} ${src} ${name}  (${detail})  ${healthLabel}`;
     });
     return { ok: true, message: `📦 MCP 服务器列表：\n${lines.join("\n")}` };
   }

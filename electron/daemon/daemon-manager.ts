@@ -542,6 +542,12 @@ function buildDaemonChannelConfigs(): DaemonChannelConfig[] {
     appSecret: c.larkAppSecret?.trim(),
     wechatToken: c.wechatToken?.trim(),
     wechatAccountId: c.wechatAccountId?.trim(),
+    ...(c.type === "wechat"
+      ? {
+          wechatGroupEnqueueMode: c.wechatGroupEnqueueMode ?? "mention_required",
+          wechatBotDisplayName: c.wechatBotDisplayName?.trim() || undefined,
+        }
+      : {}),
     mainUserEnabled: !!c.mainUserEnabled,
     mainUserChatId: c.mainUserEnabled ? (c.mainUserChatId?.trim() ?? "") : "",
     allowOthers: !!c.allowOthers,

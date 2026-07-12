@@ -29,6 +29,12 @@ export interface WeChatSendOptions {
   skipTyping?: boolean;
 }
 
+/** 微信出站结果；outboundId 形如 wxc_<clientId>，供 daemon trackMessageSession */
+export interface WeChatSendResult {
+  ok: boolean;
+  outboundId?: string;
+}
+
 export class WeChatManager extends EventEmitter {
   private client: WeChatClient | null = null;
   private status: WeChatStatus = "disconnected";
@@ -38,7 +44,11 @@ export class WeChatManager extends EventEmitter {
   private selfAccountId = "";
   private recentMsgHashes = new Set<string>();
   private typingTickets = new Map<string, string>();
+  /** 进度 typing 续期定时器（每 4s 刷新 ticket，直至 stopProgressTyping） */
+  private typingRefreshTimers = new Map<string, NodeJS.Timeout>();
   private static readonly DEDUP_WINDOW = 60_000;
+  /** iLink typing 约 5s 消失，提前 4s 续期 */
+  private static readonly TYPING_REFRESH_MS = 4000;
 
   constructor(opts: WeChatManagerOptions) {
     super();
@@ -153,38 +163,38 @@ export class WeChatManager extends EventEmitter {
     this.opts.log("INFO", "[WeChat] 已停止");
   }
 
-  async sendText(toUserName: string, text: string, opts?: WeChatSendOptions): Promise<boolean> {
+  async sendText(toUserName: string, text: string, opts?: WeChatSendOptions): Promise<WeChatSendResult> {
     if (!this.client || this.status !== "connected") {
       this.opts.log("WARN", "[WeChat] 发送失败: 未连接");
-      return false;
+      return { ok: false };
     }
     const skipTyping = opts?.skipTyping !== false;
     try {
       const normalized = text.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
       if (!skipTyping) await this.ensureTyping(toUserName);
-      await this.client.sendText(toUserName, normalized);
+      const clientId = await this.client.sendText(toUserName, normalized);
       if (!skipTyping) await this.cancelTyping(toUserName);
-      return true;
+      return { ok: true, outboundId: `wxc_${clientId}` };
     } catch (err: any) {
       this.opts.log("ERROR", `[WeChat] 发送文本失败: ${err?.message ?? err}`);
-      return false;
+      return { ok: false };
     }
   }
 
-  async sendMedia(toUserName: string, filePath: string, opts?: WeChatSendOptions): Promise<boolean> {
+  async sendMedia(toUserName: string, filePath: string, opts?: WeChatSendOptions): Promise<WeChatSendResult> {
     if (!this.client || this.status !== "connected") {
       this.opts.log("WARN", "[WeChat] 发送媒体失败: 未连接");
-      return false;
+      return { ok: false };
     }
     const skipTyping = opts?.skipTyping !== false;
     try {
       if (!skipTyping) await this.ensureTyping(toUserName);
-      await this.client.sendMedia(toUserName, filePath);
+      const clientId = await this.client.sendMedia(toUserName, filePath);
       if (!skipTyping) await this.cancelTyping(toUserName);
-      return true;
+      return { ok: true, outboundId: clientId ? `wxc_${clientId}` : undefined };
     } catch (err: any) {
       this.opts.log("ERROR", `[WeChat] 发送媒体失败: ${err?.message ?? err}`);
-      return false;
+      return { ok: false };
     }
   }
 
@@ -194,16 +204,45 @@ export class WeChatManager extends EventEmitter {
       this.opts.log("WARN", "[WeChat] startProgressTyping: 未连接");
       return;
     }
+    this.clearTypingRefreshTimer(userId);
     await this.startTypingForUser(userId);
+    const timer = setInterval(() => {
+      void this.refreshProgressTyping(userId);
+    }, WeChatManager.TYPING_REFRESH_MS);
+    this.typingRefreshTimers.set(userId, timer);
   }
 
   /** 停止进行中指示并清理 ticket（由 daemon 进度状态机调用） */
   async stopProgressTyping(userId: string): Promise<void> {
     if (!this.client || this.status !== "connected") {
+      this.clearTypingRefreshTimer(userId);
       this.opts.log("WARN", "[WeChat] stopProgressTyping: 未连接");
       return;
     }
+    this.clearTypingRefreshTimer(userId);
     await this.cancelTyping(userId);
+  }
+
+  /** 清除续期定时器（重复 stop 安全） */
+  private clearTypingRefreshTimer(userId: string): void {
+    const timer = this.typingRefreshTimers.get(userId);
+    if (!timer) return;
+    clearInterval(timer);
+    this.typingRefreshTimers.delete(userId);
+  }
+
+  /** 周期续期 typing ticket（失败 WARN 不阻断主路径） */
+  private async refreshProgressTyping(userId: string): Promise<void> {
+    if (!this.client || this.status !== "connected") return;
+    try {
+      const ticket = await this.client.getTypingTicket(userId);
+      if (!ticket) return;
+      this.typingTickets.set(userId, ticket);
+      await this.client.sendTyping(userId, ticket, "typing");
+      this.opts.log("INFO", `[WeChat] wechat_typing_refresh user=${userId}`);
+    } catch (err: any) {
+      this.opts.log("WARN", `[WeChat] wechat_typing_refresh 失败: ${err?.message ?? err}`);
+    }
   }
 
   /** 确保发送前有 typing 状态：有缓存 ticket 直接用，没有则重新获取并 typing */

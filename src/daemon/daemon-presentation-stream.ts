@@ -7,7 +7,7 @@ import type { PresentationOrderingApi } from "./daemon-presentation-ordering.js"
 
 /** 流式通道解析结果（最小字段，避免 import daemon ChannelRuntime） */
 export type StreamChannel =
-  | { type: "wechat"; rt: { wechat?: { sendText: (chatId: string, text: string, opts: { skipTyping: boolean }) => Promise<boolean> } }; chatId: string }
+  | { type: "wechat"; rt: { wechat?: { sendText: (chatId: string, text: string, opts: { skipTyping: boolean }) => Promise<{ ok: boolean; outboundId?: string }> } }; chatId: string }
   | { type: "feishu"; rt: { sender?: { sendMessage: (text: string, replyId: string | undefined, chatId: string | undefined, title?: string) => Promise<string | undefined>; sendStreamMessage: (text: string, chatId?: string, title?: string) => Promise<string | undefined>; updateMessageContent: (msgId: string, text: string, title?: string) => Promise<boolean> } }; chatId?: string };
 
 export interface StreamHandlerDeps {
@@ -56,7 +56,8 @@ async function sendStreamSegments(
   }
 
   if (ch.type === "wechat") {
-    await ch.rt.wechat!.sendText(ch.chatId, delta, { skipTyping: true });
+    const result = await ch.rt.wechat!.sendText(ch.chatId, delta, { skipTyping: true });
+    if (result.outboundId) trackMessageSession(result.outboundId, sessionKey);
   } else {
     const segId = await ch.rt.sender!.sendMessage(delta, undefined, ch.chatId, title);
     if (segId) trackMessageSession(segId, sessionKey);
@@ -145,9 +146,10 @@ async function handleStreamText(body: {
 
   if (isFirst) {
     if (ch.type === "wechat") {
-      const ok = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
-      if (!ok) return { ok: false, error: "微信发送失败" };
-      outId = `wx_stream_${sid}`;
+      const result = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
+      if (!result.ok) return { ok: false, error: "微信发送失败" };
+      outId = result.outboundId ?? `wx_stream_${sid}`;
+      if (result.outboundId) trackMessageSession(result.outboundId, session_key);
       state.streamPatchMode = false;
       state.outboundMessageId = outId;
       state.streamLastText = text;

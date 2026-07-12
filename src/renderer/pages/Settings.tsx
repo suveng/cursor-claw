@@ -32,6 +32,7 @@ import SettingsEngineShell from "../components/SettingsEngineShell"
 import SettingsRulesPanel from "../components/SettingsRulesPanel"
 import SettingsSkillsPanel from "../components/SettingsSkillsPanel"
 import SettingsMcpEngineBlock from "../components/SettingsMcpEngineBlock"
+import SettingsMcpDaemonGuide from "../components/SettingsMcpDaemonGuide"
 import { deriveBoundEngineTypes } from "../../shared/channel-types"
 import ChannelPanel from "../components/ChannelPanel"
 import WorkspaceSessionModal, { type SessionEntry } from "../components/WorkspaceSessionModal"
@@ -607,7 +608,9 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
 
             {/* ═══ MCP ═══ */}
             {tab === "mcp" && (
-              <SettingsEngineShell
+              <>
+                <SettingsMcpDaemonGuide />
+                <SettingsEngineShell
                 tab="mcp"
                 allBoundTypes={boundTypes}
                 boundTypes={boundTypes}
@@ -619,6 +622,7 @@ export default function Settings({ onBack, initialTab, onTabConsumed }: Props) {
                   <SettingsMcpEngineBlock engineType={engineType} workspaceDir={workspaceDir} />
                 )}
               />
+              </>
             )}
 
             {/* ═══ Workflows ═══ */}

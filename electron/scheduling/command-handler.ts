@@ -12,6 +12,7 @@ import { deleteDefinition, getDefinition, getInstance, listDefinitions, listInst
 import { resumeWorkflowInstance, runWorkflowDefinition } from "../workflow/workflow-runner"
 import type { WorkflowDefinition } from "../../src/workflow/workflow-types"
 import { CLAUDE_CODE_MODEL_LIST } from "../agent/claude-code/agent-cc-types"
+import { formatMcpHealthDisplayIm } from "../../src/shared/mcp-health-label"
 
 // ── 共享类型与工具 ─────────────────────────────────────────
 
@@ -474,15 +475,6 @@ function formatMcpCommandError(raw?: string): string {
   return msg
 }
 
-/** 将探测状态转为飞书可读文案 */
-function formatMcpHealthStatus(status?: string): string {
-  if (!status) return "未知"
-  if (status === "ready") return "🟢 可连接"
-  if (status === "disabled") return "⚪ 已禁用"
-  if (status === "needs_login") return "🟡 需 OAuth 授权"
-  return `🔴 ${status}`
-}
-
 export async function handleFeishuMcpCommand(port: number, messageId: string, raw: string, chatId?: string): Promise<void> {
   const parts = raw.trim().split(/\s+/).filter((p) => p.length > 0)
 
@@ -499,7 +491,7 @@ export async function handleFeishuMcpCommand(port: number, messageId: string, ra
       const src = s.source === "global" ? "[G]" : "[P]"
       const detail = s.type === "url" ? s.url : s.command
       const health = enabledMap[s.name] === false ? "disabled" : (statusMap[s.name] ?? "")
-      return `  ${i + 1}. ${flag} ${src} ${s.name}  (${detail})  ${formatMcpHealthStatus(health)}`
+      return `  ${i + 1}. ${flag} ${src} ${s.name}  (${detail})  ${formatMcpHealthDisplayIm(health)}`
     })
     await reportCommandResult(port, messageId, true, `📦 MCP 服务器列表：\n${lines.join("\n")}`)
     return
@@ -517,7 +509,7 @@ export async function handleFeishuMcpCommand(port: number, messageId: string, ra
       `  类型: ${target.type}`,
       `  来源: ${target.source}`,
       `  开关: ${enabledMap[target.name] === false ? "🔴 已禁用" : "🟢 已启用"}`,
-      `  健康: ${formatMcpHealthStatus(enabledMap[target.name] === false ? "disabled" : statusMap[target.name])}`,
+      `  健康: ${formatMcpHealthDisplayIm(enabledMap[target.name] === false ? "disabled" : statusMap[target.name])}`,
     ]
     if (target.type === "url") lines.push(`  URL: ${target.url}`)
     else lines.push(`  命令: ${target.command} ${(target.args ?? []).join(" ")}`)

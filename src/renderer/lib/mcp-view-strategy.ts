@@ -96,10 +96,13 @@ export function getMcpViewConfig(engineType: McpEngineType): McpViewConfig {
       }
     case "codex":
       return {
-        title: "MCP",
-        supported: false,
-        unsupportedMessage: "该引擎 MCP 查看尚未支持",
-        emptyHint: () => "",
+        title: "Codex MCP",
+        supported: true,
+        unsupportedMessage: "设置页不提供 TOML 编辑，请直接修改配置文件",
+        emptyHint: (ws, usingFallback) =>
+          usingFallback
+            ? `暂无 MCP 配置。可编辑 ~/.codex/config.toml，或在主工作区 ${ws}/.codex/config.toml 添加。`
+            : `暂无 MCP 配置。可编辑 ~/.codex/config.toml 或 ${ws}/.codex/config.toml。`,
       }
     case "opencode":
       return {

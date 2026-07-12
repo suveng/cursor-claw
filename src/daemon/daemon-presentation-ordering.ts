@@ -68,7 +68,7 @@ export interface PresentationOrderingDeps {
   resolveChannel: (
     sessionKey: string,
   ) =>
-    | { type: "wechat"; rt: { wechat?: { sendText: (chatId: string, text: string, opts: { skipTyping: boolean }) => Promise<boolean> } }; chatId: string }
+    | { type: "wechat"; rt: { wechat?: { sendText: (chatId: string, text: string, opts: { skipTyping: boolean }) => Promise<{ ok: boolean; outboundId?: string }> } }; chatId: string }
     | { type: "feishu"; rt: { sender?: { sendMessage: (text: string, replyId: string | undefined, chatId: string | undefined, title?: string) => Promise<string | undefined>; sendStreamMessage: (text: string, chatId?: string, title?: string) => Promise<string | undefined> } } }
     | { type: "error"; message: string };
   extractWorkspaceTitle: (sessionKey?: string) => string | undefined;

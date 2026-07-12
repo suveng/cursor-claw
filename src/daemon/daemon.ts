@@ -15,6 +15,7 @@ import { onFeishuCardAction } from "./feishu-card-action.js";
 import { tryHandleMergeSlashCommand } from "./daemon-merge-command.js";
 import { formatToolMilestoneText, mergeShellToolDetail, normalizePresentationToolName, shouldSuppressToolStartedPresentation } from "../shared/tool-presentation.js";
 import { WeChatManager } from "../bridge/wechat-manager.js";
+import { buildWechatBotAliases, shouldEnqueueWechatGroupMessage } from "./wechat-group-enqueue-gate.js";
 import {
   initFileQueue,
   getQueueDir,
@@ -351,6 +352,15 @@ function initWeChatChannel(rt: ChannelRuntime): WeChatManager {
           log("ERROR", `[WeChat:${rt.cfg.name}] 指令处理失败: ${e?.message ?? e}`),
         );
         return;
+      }
+      // 群聊 @ 过滤（对齐飞书 isBotMentioned 位置）
+      if (msg.chatType === "group") {
+        const mode = rt.cfg.wechatGroupEnqueueMode ?? "mention_required";
+        const aliases = buildWechatBotAliases(rt.cfg.name, rt.cfg.wechatBotDisplayName);
+        if (!shouldEnqueueWechatGroupMessage({ text: msg.text, mode, botAliases: aliases })) {
+          log("INFO", `[WeChat:${rt.cfg.name}] wechat_group_skip chat=${msg.chatId}`);
+          return;
+        }
       }
       pushMessage(msg.text, msg.messageId, chatKey, msg.chatType, msg.senderOpenId).catch((e: unknown) =>
         log("WARN", `[WeChat:${rt.cfg.name}] 入队失败: ${e instanceof Error ? e.message : e}`),
@@ -1267,7 +1277,10 @@ async function replyToMessage(messageId: string, text: string, chatId?: string):
   const ch = resolveChannel(chatId);
   if (ch.type === "error") { log("WARN", `回复失败: ${ch.message}`); return; }
   if (ch.type === "wechat") {
-    try { await ch.rt.wechat!.sendText(ch.chatId, text); } catch (e: any) { log("WARN", `微信回复失败: ${e?.message}`); }
+    try {
+      const result = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
+      if (!result.ok) log("WARN", "微信回复失败");
+    } catch (e: any) { log("WARN", `微信回复失败: ${e?.message}`); }
     return;
   }
   if (ch.chatId) {

@@ -11,6 +11,7 @@ import {
   Wrench,
 } from "lucide-react"
 import { getMcpViewConfig, formatMcpScopeLabel, formatMcpStatusSourceLabel, type McpEngineType } from "../lib/mcp-view-strategy"
+import { formatMcpPanelStatusLabel } from "../../shared/mcp-health-label"
 
 export interface SessionMcpPanelProps {
   sessionKey: string
@@ -63,8 +64,7 @@ export default function SessionMcpPanel({
   const [statusSource, setStatusSource] = useState<AgentMcpStatusResult["source"]>("disk")
 
   const loadMcp = useCallback(async (force = false) => {
-    // codex supported=false 已 early return；CC/SDK 统一走 agent:mcp-status（透传 force/engineType/workspaceDir）
-    if (!viewConfig.supported) return
+    // CC/SDK/Codex/OpenCode 统一走 agent:mcp-status（透传 force/engineType/workspaceDir）
     setRefreshing(true)
     setStatusLoading(true)
     try {
@@ -76,7 +76,7 @@ export default function SessionMcpPanel({
       setStatusLoading(false)
       setRefreshing(false)
     }
-  }, [sessionKey, engineType, effectiveWs, viewConfig.supported])
+  }, [sessionKey, engineType, effectiveWs])
 
   useEffect(() => {
     if (!viewConfig.supported) return
@@ -155,8 +155,16 @@ export default function SessionMcpPanel({
             const toolState = tools[s.name]
             const rawStatus = statusMap[s.name]
             const isReady = rawStatus === "ready" || rawStatus === "enabled"
-            const statusColor = !rawStatus ? "text-gray-600" : isReady ? "text-green-400" : rawStatus === "disabled" ? "text-gray-500" : rawStatus === "needs_login" ? "text-amber-400" : "text-red-400"
-            const statusLabel = !rawStatus ? "—" : isReady ? "ready" : rawStatus === "disabled" ? "disabled" : rawStatus === "needs_login" ? "需授权" : rawStatus
+            const statusColor = !rawStatus
+              ? "text-gray-600"
+              : isReady
+                ? "text-green-400"
+                : rawStatus === "disabled"
+                  ? "text-gray-500"
+                  : rawStatus === "needs_login"
+                    ? "text-amber-400"
+                    : "text-red-400"
+            const statusLabel = formatMcpPanelStatusLabel(rawStatus, statusSource)
             // 审批未启用：enabled===false 表示审批门控未放行（project scope 未在白名单/被禁用），未注入运行
             const approvalDisabled = s.enabled === false
             // 「未启用」标签：审批未启用且 runtime status 未标 disabled 时补显，避免与 statusLabel 重复

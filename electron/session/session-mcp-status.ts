@@ -17,6 +17,7 @@ import { getCcSession, getCcActiveQuery } from "../agent/claude-code/agent-cc-se
 import { getSdkSession } from "../agent/cursor-sdk/agent-sdk"
 import { loadInlineCcMcpServers, readCcProjectApproval } from "../mcp/loaders/cc-mcp-loader"
 import { fetchMcpStatusMap } from "../mcp/mcp-status-map"
+import { tryNoSessionDiskMcpFallback } from "./session-mcp-disk-fallback"
 import { buildSdkRuntimeEntries } from "./session-mcp-sdk-path"
 import type { McpServerEntry } from "../mcp/mcp-types"
 
@@ -282,16 +283,9 @@ export async function getSessionMcpStatus(
     return { servers, statusMap, source: "runtime" }
   }
 
-  // 3) CC 无 session 读盘 fallback：UI engineType=claude-code 时按 workspaceDir 展示磁盘配置
-  if (!ccSession && !sdkSession && engineType === "claude-code") {
-    const ws = (workspaceDir ?? "").trim()
-    if (ws) {
-      const cfgs = loadInlineCcMcpServers(ws) as Record<string, Record<string, unknown>>
-      const approvedMap = buildApprovedMap(Object.keys(cfgs), ws, readCcProjectApproval(ws))
-      const servers = mapInjectedToEntries(cfgs, approvedMap)
-      return { servers, statusMap: buildDiskStatusMap(approvedMap), source: "disk" }
-    }
-  }
+  // 3) 无 session 读盘 fallback：按 engineType hint 展示各引擎磁盘配置
+  const diskFallback = tryNoSessionDiskMcpFallback(engineType, workspaceDir)
+  if (diskFallback) return diskFallback
 
   // 4) 无任何 session → 空态（disk），UI 显示空列表
   return { servers: [], statusMap: {}, source: "disk" }

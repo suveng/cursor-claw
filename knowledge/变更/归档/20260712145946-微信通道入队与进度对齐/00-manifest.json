@@ -1,0 +1,287 @@
+{
+  "change_id": "20260712145946",
+  "id": "20260712145946-微信通道入队与进度对齐",
+  "name": "微信通道入队与进度对齐",
+  "title": "微信通道入队与进度对齐",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T14:59:46+0800",
+  "updated_at": "2026-07-12T16:46:00+0800",
+  "archived_at": "2026-07-12T16:46:00+0800",
+  "depends_on": [
+    "20260712144755-HTTP dispatch失败重入队对齐",
+    "20260712145152-消息队列模块拆分"
+  ],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/00-manifest.json",
+      "kind": "change_doc",
+      "source": "plan",
+      "status": "changed"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/01-proposal.md",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/02-design.md",
+      "kind": "change_doc",
+      "source": "design",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/03-tasks.md",
+      "kind": "change_doc",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/04-review.md",
+      "kind": "change_doc",
+      "source": "review",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/05-summary.md",
+      "kind": "change_doc",
+      "source": "archive",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "test",
+      "status": "done"
+    },
+    {
+      "path": "src/shared/channel-types.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "electron/preload.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/env.d.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/renderer/components/ChannelPanel.tsx",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/wechat-group-enqueue-gate.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/wechat-manager.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-send.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-handlers.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-stream.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-ordering-release.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-types.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-ordering.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-non-api-routes.ts",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/AGENTS.md",
+      "kind": "code",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/auto_test/run-wechat-enqueue-progress-contract.mts",
+      "kind": "config",
+      "source": "test",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/auto_test/run-wechat-enqueue-progress-contract.sh",
+      "kind": "config",
+      "source": "test",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/03-微信通道.md",
+      "kind": "knowledge",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/04-消息队列与路由.md",
+      "kind": "knowledge",
+      "source": "plan",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/01-概览.md",
+      "kind": "knowledge",
+      "source": "plan",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "通道配置 wechatGroupEnqueueMode",
+      "status": "done",
+      "depends_on": [],
+      "files": [
+        "src/shared/channel-types.ts",
+        "electron/preload.ts",
+        "src/renderer/env.d.ts",
+        "src/renderer/components/ChannelPanel.tsx",
+        "electron/daemon/daemon-manager.ts"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "微信群 @ 过滤纯函数",
+      "status": "done",
+      "depends_on": [],
+      "files": ["src/daemon/wechat-group-enqueue-gate.ts"]
+    },
+    {
+      "id": "T3",
+      "title": "微信入站 gate 接线",
+      "status": "done",
+      "depends_on": ["T1", "T2"],
+      "files": ["src/daemon/daemon.ts"]
+    },
+    {
+      "id": "T4",
+      "title": "微信 typing 续期",
+      "status": "done",
+      "depends_on": [],
+      "files": ["src/bridge/wechat-manager.ts"]
+    },
+    {
+      "id": "T5",
+      "title": "微信出站 track（clientId 等价）",
+      "status": "done",
+      "depends_on": ["T4"],
+      "files": [
+        "src/bridge/wechat-manager.ts",
+        "src/daemon/daemon-http-routes-send.ts",
+        "src/daemon/daemon-presentation-handlers.ts",
+        "src/daemon/daemon-presentation-stream.ts",
+        "src/daemon/daemon-presentation-ordering-release.ts",
+        "src/daemon/daemon-presentation-types.ts",
+        "src/daemon/daemon-presentation-ordering.ts",
+        "src/daemon/daemon-http-non-api-routes.ts"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "调用方扫尾与 AGENTS 沉淀",
+      "status": "done",
+      "depends_on": ["T3", "T5"],
+      "files": ["src/daemon/AGENTS.md", "src/bridge/AGENTS.md"]
+    },
+    {
+      "id": "T7",
+      "title": "契约验收脚本",
+      "status": "done",
+      "depends_on": ["T6"],
+      "files": [
+        "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/auto_test/run-wechat-enqueue-progress-contract.mts",
+        "knowledge/变更/归档/20260712145946-微信通道入队与进度对齐/auto_test/run-wechat-enqueue-progress-contract.sh"
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "R-01",
+      "severity": "warning",
+      "status": "false_positive",
+      "file": "src/bridge/wechat-manager.ts",
+      "summary": "387 行超 300 硬限；T4 验收字面写 ≤300",
+      "resolution": "变更前 HEAD 348 行已超限；02 §2 明确 typing 续期与 ticket Map 内聚留 manager；W1a gate 已拆至 wechat-group-enqueue-gate.ts（47 行）；本期净增 +39 行为 T4/T5 必要接线；全量拆分类比 lark-core 预存债另开任务，不阻断 review/archive"
+    },
+    {
+      "id": "R-02",
+      "severity": "info",
+      "status": "false_positive",
+      "file": "src/bridge/wechat-manager.ts",
+      "summary": "typing 续期 setInterval 未 .unref()（02 §六 S4 字面）",
+      "resolution": "WeChatManager 运行于 daemon 长驻子树；stopProgressTyping 必 clearInterval；缺 unref 仅影响无 stop 的孤立退出，与改前 typing 行为同级，非功能回归"
+    }
+  ],
+  "revisions": [],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "功能",
+    "priority": "P3"
+  }
+}

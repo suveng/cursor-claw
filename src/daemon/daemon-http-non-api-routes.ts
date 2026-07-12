@@ -20,7 +20,7 @@ export interface NonApiRoutesDeps {
     cfg: { name: string; type: string; mainUserEnabled?: boolean; mainUserChatId?: string };
     lastP2pChatId: string | null;
     bindArmed?: boolean;
-    wechat?: { sendText: (chatId: string, text: string) => Promise<boolean> };
+    wechat?: { sendText: (chatId: string, text: string, opts?: { skipTyping?: boolean }) => Promise<{ ok: boolean; outboundId?: string }> };
     sender?: { sendMessage: (text: string, replyId?: string, chatId?: string) => Promise<string | undefined> };
   }>;
   channelDefaultChatId: (rt: { cfg: { mainUserEnabled?: boolean; mainUserChatId?: string }; lastP2pChatId: string | null }) => string | null;
@@ -99,7 +99,8 @@ export async function handleNonApiRoute(
     if (!chatId) { deps.json(res, { ok: false, error: "暂无私聊记录，请先绑定主用户或给机器人发一条消息" }, 400); return true; }
     try {
       if (rt.cfg.type === "wechat") {
-        deps.json(res, { ok: await rt.wechat!.sendText(chatId, "🔗 微信测试成功！连接正常。") });
+        const result = await rt.wechat!.sendText(chatId, "🔗 微信测试成功！连接正常。", { skipTyping: true });
+        deps.json(res, { ok: result.ok });
       } else {
         const msgId = await rt.sender!.sendMessage("🔗 绑定测试成功！连接正常。", undefined, chatId);
         deps.json(res, { ok: !!msgId });

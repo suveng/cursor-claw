@@ -52,6 +52,9 @@
 
 ## 微信客户端（wechat-manager.ts + wechat/）
 
+- **群聊入队门控**：daemon `initWeChatChannel` 在 `pushMessage` 前调用 `wechat-group-enqueue-gate.ts` 纯函数；策略字段 `wechatGroupEnqueueMode`（默认 `mention_required`）。
+- **typing 续期**：`startProgressTyping` 立即 typing + 每 4s `wechat_typing_refresh` 续 ticket；`stopProgressTyping` 须 `clearInterval` 防泄漏。
+- **出站 track**：`sendText`/`sendMedia` 返回 `{ ok, outboundId? }`，`outboundId` 前缀 `wxc_`（iLink `clientId` 等价物）；daemon `trackMessageSession` 消费。
 - **typing 指示**：`startProgressTyping` / `stopProgressTyping` 由 daemon `sessionProgressMap` 驱动；最终回复与流式分段须 `{ skipTyping: true }`，**禁止**在 `sendText` 内 cancelTyping。
 - **出站**：`sendText`、分段流式、图片/文件发送；与飞书 CardKit 路径互斥，由 daemon 按通道分流。
 - **子树**：`wechat/` 为协议与客户端实现；域外仅经 `wechat-manager.ts` 暴露，不直接 import 子模块。

@@ -5,6 +5,7 @@ import {
   getMcpViewConfig,
   formatMcpScopeLabel,
   formatMcpStatusSourceLabel,
+  type McpEngineType,
 } from "../lib/mcp-view-strategy"
 import SettingsMcpSdkSection from "./SettingsMcpSdkSection"
 
@@ -13,25 +14,52 @@ interface Props {
   workspaceDir: string
 }
 
-/** Settings MCP Tab：按引擎类型分块展示（SDK CRUD / CC 只读 / Codex·OpenCode 占位） */
+/** 只读磁盘 MCP 块支持的引擎（Settings 不提供编辑） */
+type DiskReadonlyEngine = Extract<McpEngineType, "claude-code" | "codex" | "opencode">
+
+/** 各只读引擎配置文件路径说明 */
+const DISK_READONLY_PATHS: Record<DiskReadonlyEngine, { global: string; projectSuffix: string; format: string }> = {
+  "claude-code": {
+    global: "~/.claude.json",
+    projectSuffix: "/.mcp.json",
+    format: "JSON",
+  },
+  codex: {
+    global: "~/.codex/config.toml",
+    projectSuffix: "/.codex/config.toml",
+    format: "TOML",
+  },
+  opencode: {
+    global: "~/.config/opencode/opencode.json",
+    projectSuffix: "/opencode.json",
+    format: "JSON",
+  },
+}
+
+/** Settings MCP Tab：按引擎类型分块展示（SDK CRUD / 多引擎只读磁盘配置） */
 export default function SettingsMcpEngineBlock({ engineType, workspaceDir }: Props) {
   switch (engineType) {
     case "sdk":
       return <SettingsMcpSdkSection workspaceDir={workspaceDir} />
     case "claude-code":
-      return <SettingsMcpCcReadonly workspaceDir={workspaceDir} />
     case "codex":
-      return <SettingsMcpCodexPlaceholder />
     case "opencode":
-      return <SettingsMcpOpencodePlaceholder workspaceDir={workspaceDir} />
+      return <SettingsMcpDiskReadonly engineType={engineType} workspaceDir={workspaceDir} />
     default:
       return null
   }
 }
 
-/** Claude Code：只读磁盘配置，无 CRUD */
-function SettingsMcpCcReadonly({ workspaceDir }: { workspaceDir: string }) {
-  const viewConfig = getMcpViewConfig("claude-code")
+/** 多引擎只读磁盘配置：getAgentMcpStatus 无 session 读盘 + 刷新 */
+function SettingsMcpDiskReadonly({
+  engineType,
+  workspaceDir,
+}: {
+  engineType: DiskReadonlyEngine
+  workspaceDir: string
+}) {
+  const viewConfig = getMcpViewConfig(engineType)
+  const pathInfo = DISK_READONLY_PATHS[engineType]
   const ws = workspaceDir.trim()
 
   const [servers, setServers] = useState<McpServerEntry[]>([])
@@ -41,14 +69,13 @@ function SettingsMcpCcReadonly({ workspaceDir }: { workspaceDir: string }) {
   const loadStatus = useCallback(async () => {
     setLoading(true)
     try {
-      // 无 session 时走 CC 磁盘 fallback（session-mcp-status）
-      const res = await window.electronAPI.getAgentMcpStatus("", false, "claude-code", ws)
+      const res = await window.electronAPI.getAgentMcpStatus("", false, engineType, ws)
       setServers(res.servers)
       setStatusSource(res.source)
     } finally {
       setLoading(false)
     }
-  }, [ws])
+  }, [engineType, ws])
 
   useEffect(() => { void loadStatus() }, [loadStatus])
 
@@ -57,10 +84,11 @@ function SettingsMcpCcReadonly({ workspaceDir }: { workspaceDir: string }) {
       <div className="rounded-lg border border-gray-700/60 bg-gray-900/40 px-3 py-2.5 text-xs">
         <p className="font-medium text-gray-300">{viewConfig.title}</p>
         <p className="mt-1 text-gray-600">
-          用户级：<span className="font-mono text-gray-500">~/.claude.json</span>；
-          项目级：<span className="font-mono text-gray-500">{ws ? `${ws}/.mcp.json` : "（需先配置主工作区）"}</span>
+          用户级：<span className="font-mono text-gray-500">{pathInfo.global}</span>；
+          项目级：<span className="font-mono text-gray-500">{ws ? `${ws}${pathInfo.projectSuffix}` : "（需先配置主工作区）"}</span>
+          （{pathInfo.format}）
         </p>
-        <p className="mt-1 text-gray-600">设置页仅查看配置，编辑请直接修改上述文件。</p>
+        <p className="mt-1 text-gray-600">设置页仅查看配置，请直接编辑上述文件。</p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -89,7 +117,7 @@ function SettingsMcpCcReadonly({ workspaceDir }: { workspaceDir: string }) {
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-sm font-medium text-gray-300">{s.name}</span>
                     <span className="rounded bg-gray-800 px-1 py-0.5 text-[9px] text-gray-500">
-                      {formatMcpScopeLabel(s, "claude-code")}
+                      {formatMcpScopeLabel(s, engineType)}
                     </span>
                   </div>
                   <p className="truncate text-[10px] text-gray-600">
@@ -101,34 +129,6 @@ function SettingsMcpCcReadonly({ workspaceDir }: { workspaceDir: string }) {
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-/** Codex：暂不支持，仅占位文案 */
-function SettingsMcpCodexPlaceholder() {
-  const viewConfig = getMcpViewConfig("codex")
-  return (
-    <div className="rounded-lg border border-gray-700/60 bg-gray-900/40 px-3 py-2.5 text-xs">
-      <p className="font-medium text-gray-300">{viewConfig.title}</p>
-      <p className="mt-2 text-gray-500">{viewConfig.unsupportedMessage}</p>
-    </div>
-  )
-}
-
-/** OpenCode：路径说明 + Dashboard 引导，不调 list IPC */
-function SettingsMcpOpencodePlaceholder({ workspaceDir }: { workspaceDir: string }) {
-  const viewConfig = getMcpViewConfig("opencode")
-  const ws = workspaceDir.trim()
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-gray-700/60 bg-gray-900/40 px-3 py-2.5 text-xs">
-        <p className="font-medium text-gray-300">{viewConfig.title}</p>
-        <p className="mt-2 text-gray-600">{viewConfig.emptyHint(ws, !ws)}</p>
-        <p className="mt-2 text-gray-500">运行时 MCP 状态请在会话 Dashboard 查看。</p>
-      </div>
-      <p className="text-center text-xs text-gray-600">首版设置页不提供 OpenCode MCP 编辑，请在上述路径手动配置。</p>
     </div>
   )
 }

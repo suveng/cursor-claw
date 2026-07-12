@@ -37,13 +37,14 @@ export function createOrderingReleaseApi(releaseDeps: OrderingReleaseDeps) {
       let outId: string | undefined;
 
       if (ch.type === "wechat") {
-        const ok = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
-        if (!ok) {
+        const result = await ch.rt.wechat!.sendText(ch.chatId, text, { skipTyping: true });
+        if (!result.ok) {
           state.assistantCardReleased = false;
           deps.logPresentationFailed(sessionKey, "assistant", "微信发送失败");
           return;
         }
-        outId = `wx_stream_${sid}`;
+        outId = result.outboundId ?? `wx_stream_${sid}`;
+        if (result.outboundId) deps.trackMessageSession(result.outboundId, sessionKey);
         state.streamPatchMode = false;
         state.outboundMessageId = outId;
         state.streamLastText = text;

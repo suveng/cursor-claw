@@ -4,6 +4,7 @@
 import * as fs from "node:fs";
 import * as http from "node:http";
 import * as path from "node:path";
+import { formatMcpHealthDisplay } from "../shared/mcp-health-label.js";
 import { GLOBAL_MCP_PATH, getProjectMcpPath, readJsonSafe, writeJsonSafe } from "./daemon-http-admin-io.js";
 
 const APP_DATA_DIR = process.env.APP_DATA_DIR ?? "";
@@ -69,14 +70,6 @@ export function toggleMcpServerEnabled(
   mcpJson.mcpServers = mcpServers;
   writeJsonSafe(entry.filePath, mcpJson);
   return { ok: true, message: `${name} 已${enabled ? "启用" : "禁用"}` };
-}
-
-function formatMcpHealthLabel(status?: string): string {
-  if (!status) return "未知";
-  if (status === "ready") return "可连接";
-  if (status === "disabled") return "已禁用";
-  if (status === "needs_login") return "需 OAuth 授权";
-  return status;
 }
 
 function readElectronAgentApiPort(): number {
@@ -151,7 +144,10 @@ export function buildMcpServerInfo(entry: McpEntry, healthStatus?: string, healt
     envKeys: entry.config.env && typeof entry.config.env === "object"
       ? Object.keys(entry.config.env as Record<string, unknown>)
       : [],
-    health: formatMcpHealthLabel(healthKey),
+    health: formatMcpHealthDisplay(
+      healthKey || undefined,
+      enabled && healthError ? healthError : undefined,
+    ),
     healthStatus: healthKey ?? null,
     healthError,
   };

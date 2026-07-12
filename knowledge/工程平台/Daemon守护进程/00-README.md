@@ -26,6 +26,7 @@
 
 ## 变更记录
 
+- 2026-07-12：`02-HTTP与MCP服务` 补 MCP 健康降级 SSOT 与 `src/daemon/AGENTS.md` 交叉引用（archive 20260712145827）
 - 2026-07-12：`session-routing.json` 调度态路由持久化（archive 20260712113356）
 - 2026-07-02：源码入口对齐 `src/daemon/daemon.ts`（archive 20260702120154）
 - 2026-06-27：IM 唯一编排、poll 移除（archive 20260627162620）

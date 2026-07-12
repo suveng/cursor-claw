@@ -39,6 +39,7 @@
 | `daemon-http-non-api-routes.ts` | `/health`、`/enqueue`、队列/通道 bind 等非 `/api` |
 | `daemon-merge-action-feedback.ts` | 合并动作 IM 反馈文案 SSOT（纯函数，禁止 import daemon/bridge） |
 | `feishu-card-action.ts` | `onFeishuCardAction` — 合并卡 `card.action.trigger` 路由（Deps 注入，≤300 行） |
+| `wechat-group-enqueue-gate.ts` | 微信群 @ 过滤纯函数 SSOT（`shouldEnqueueWechatGroupMessage`） |
 | `daemon-merge-command.ts` | `tryHandleMergeSlashCommand` — `/merge` 斜杠 Daemon 内闭环（不写 `.fcmd`） |
 | `daemon-http-mcp-admin.ts` | MCP 配置读写、开关与健康探测（admin 与斜杠共用） |
 | `daemon-slash-executor.ts` | `executeSlashCommand` — IM 斜杠 SSOT（T5 接线） |
@@ -67,7 +68,7 @@
 ## MCP admin HTTP（`/api/mcp`）
 
 - **开关**：`enable`/`disable` 经 `daemon-http-mcp-admin.ts` 写 `mcp.json` `disabled`，与 Electron `toggleMcpServer` 一致。
-- **健康**：`info` 经 `fetchElectronMcpStatusMap` 转发主进程 `POST /api/mcp/status-map`；失败响应须含中文 `healthError`，禁止静默成功。
+- **健康**：`info` 经 `fetchElectronMcpStatusMap` 转发主进程 `POST /api/mcp/status-map`；失败响应须含中文 `healthError`，禁止静默成功；展示文案 SSOT 为 `src/shared/mcp-health-label.ts`（`formatMcpHealthDisplay` / `formatMcpHealthDisplayIm`），**禁止**裸「未知」。
 - **manage_mcp**：`server-admin.ts` action 与 POST `/api/mcp` 一一对应。
 
 ## Orchestrator launch 名称透传
@@ -96,8 +97,10 @@
 
 ## 会话进行中指示（sessionProgressMap）
 
-- **启动**：入队确认后 `confirmEnqueueAndStartProgress` — 微信 `startProgressTyping`，飞书原消息 `Get` 表情。
-- **停止**：统一经 `stopSessionProgress(sessionKey)` — 微信 `stopProgressTyping`，并 `delete` Map 条目防泄漏。
+- **启动**：入队确认后 `confirmEnqueueAndStartProgress` — 微信 `startProgressTyping`（4s 续期），飞书原消息 `Get` 表情。
+- **停止**：统一经 `stopSessionProgress(sessionKey)` — 微信 `stopProgressTyping`（清续期 timer），并 `delete` Map 条目防泄漏。
+- **微信群聊 gate**：`initWeChatChannel` 群聊入队前调用 `wechat-group-enqueue-gate.ts`；跳过打 `wechat_group_skip` INFO；私聊/斜杠/首条绑定不经 gate。
+- **微信出站 track**：`POST /api/send-text` 微信成功须 `trackMessageSession`，`message_id` 以 `wxc_` 开头；调用方判 `sendText` 返回 `.ok` 而非 boolean。
 - **完成路径须 stop**：带 `message_id` 的最终回复经 `ackOnReply`（已含 stop）；异常 notify 经 `/api/send-text` 传 `stop_progress: true`；`/api/stream-text` 的 `final: true`（可选 `message_id` 触发 ack）；`/api/send-image|send-file` 成功且带 `message_id` 时经 `ackOnReply`。三态进度文案（「正在启动」「Agent 处理中…」）走 send-text **不带** `message_id`/`stop_progress`，**不** stop。
 - **poll Get 去重**：`sessionGetReactedIds` 按 inbound `messageId` 记录已打 Get；入队确认与 orchestrator claim 均写入，`idsNeedingPollGetReaction` 按 id 过滤，不依赖 `sessionProgressMap` 生命周期。
 - **勿在 sendText 内 cancelTyping**：最终回复与流式分段用 `{ skipTyping: true }`；进行中指示仅由进度状态机 stop。
