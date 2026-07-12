@@ -1,0 +1,197 @@
+{
+  "change_id": "20260712144755",
+  "id": "20260712144755-HTTP dispatch失败重入队对齐",
+  "name": "HTTP dispatch失败重入队对齐",
+  "title": "HTTP dispatch失败重入队对齐",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "parent_change_id": "20260711232817-dispatch失败重入队与ack策略",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T14:47:55+0800",
+  "updated_at": "2026-07-12T15:48:00+0800",
+  "archived_at": "2026-07-12T15:48:00+0800",
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-http-dispatch-retry-contract.sh",
+      "role": "automation_test",
+      "kind": "script",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-http-dispatch-retry-contract.mts",
+      "role": "automation_test",
+      "kind": "script",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-types.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-orchestrator.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-routes-orchestrator.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "role": "convention",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/02-HTTP与MCP服务.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/01-概览.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/04-消息队列与路由.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/01-概览.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/变更/归档/20260711232817-dispatch失败重入队与ack策略/05-summary.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "HttpRoutesDeps 扩展 retry 回调类型",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-http-routes-types.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "OrchestratorApi 透出 handleLaunchFailure 与 clearDispatchRetryAttempt",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-orchestrator.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T3",
+      "title": "HTTP dispatch 失败/busy 路径改调 handleLaunchFailure",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-http-routes-orchestrator.ts"
+      ],
+      "depends_on": ["T1", "T2", "T4"]
+    },
+    {
+      "id": "T4",
+      "title": "daemon.ts 注入 HttpRoutesDeps retry 回调",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": ["T1", "T2"]
+    },
+    {
+      "id": "T5",
+      "title": "daemon/AGENTS.md 登记 HTTP dispatch retry 对齐",
+      "status": "done",
+      "files": [
+        "src/daemon/AGENTS.md"
+      ],
+      "depends_on": ["T3", "T4"]
+    },
+    {
+      "id": "T6",
+      "title": "ST-H 自动化验收（对照 06 占位）",
+      "status": "done",
+      "files": [
+        "06-automation-test.md",
+        "auto_test/run-http-dispatch-retry-contract.sh",
+        "auto_test/run-http-dispatch-retry-contract.mts"
+      ],
+      "depends_on": ["T5"],
+      "evidence": "run-http-dispatch-retry-contract.sh 全绿；ST-H1～H7 pass"
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "可靠性",
+    "priority": "P0"
+  }
+}

@@ -6,6 +6,15 @@ import type { AgentPhase } from "./daemon-orchestrator.js";
 import type { PresentationEvent } from "./daemon-presentation-types.js";
 import type { AdminRouteHandler } from "./daemon-http-admin-io.js";
 
+/** launch/dispatch 失败重试入参（HttpRoutesDeps / OrchestratorApi / dispatchRetry 对齐） */
+export type DispatchLaunchFailureOpts = {
+  sessionKey: string;
+  messageIds: string[];
+  error?: string;
+  busyDelayMs: number;
+};
+export type DispatchLaunchFailureResult = "retried" | "exhausted";
+
 export interface HttpRoutesDeps {
   log: (level: string, ...args: unknown[]) => void;
   pkgVersion: string;
@@ -37,6 +46,10 @@ export interface HttpRoutesDeps {
   forwardElectronAgentApi: (subpath: string, body: object) => Promise<{ ok: boolean; error?: string }>;
   parseBusyRetryDelayMs: (error?: string) => number;
   scheduleBusyRetry: (sessionKey: string, delayMs: number) => void;
+  /** 与 IM launch 共用同一 dispatchRetry 实例；失败/busy 时 release 并延后重调度 */
+  handleLaunchFailure: (opts: DispatchLaunchFailureOpts) => Promise<DispatchLaunchFailureResult>;
+  /** HTTP dispatch 成功时清零 session 重试计数 */
+  clearDispatchRetryAttempt: (sessionKey: string) => void;
   notifySessionUser: (sessionKey: string, text: string, stopProgress?: boolean) => Promise<void>;
   formatOrchestratorFailure: (error?: string) => string;
   ackMessages: (messageId: string, sessionKey?: string) => string[];

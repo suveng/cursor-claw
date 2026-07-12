@@ -9,6 +9,7 @@ import type { QueueMessage } from "../bridge/file-queue.js";
 import { resolveLaunchChatName } from "./chat-name-resolve.js";
 import { createOrchestratorNotify } from "./daemon-orchestrator-notify.js";
 import { createDispatchRetry } from "./daemon-orchestrator-retry.js";
+import type { DispatchLaunchFailureOpts, DispatchLaunchFailureResult } from "./daemon-http-routes-types.js";
 
 export type AgentPhase = "starting" | "processing" | "idle";
 
@@ -69,6 +70,9 @@ export interface OrchestratorApi {
   setSessionAgentPhase: (sessionKey: string, phase: AgentPhase | "idle") => void;
   parseBusyRetryDelayMs: (error?: string) => number;
   scheduleBusyRetry: (sessionKey: string, delayMs: number) => void;
+  /** 与 HTTP dispatch 共用 dispatchRetry */
+  handleLaunchFailure: (opts: DispatchLaunchFailureOpts) => Promise<DispatchLaunchFailureResult>;
+  clearDispatchRetryAttempt: (sessionKey: string) => void;
   notifySessionUser: (sessionKey: string, text: string, stopProgress?: boolean) => Promise<void>;
   formatOrchestratorFailure: (error?: string) => string;
 }
@@ -140,19 +144,12 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     }
     try {
       const res = await deps.httpJson<{ ok?: boolean; error?: string; message?: string }>(
-        `http://127.0.0.1:${port}${subpath}`,
-        body,
-        60_000,
+        `http://127.0.0.1:${port}${subpath}`, body, 60_000,
       );
-      return {
-        ok: !!res.ok,
-        error: res.error,
-        message: res.message ?? res.error,
-      };
+      return { ok: !!res.ok, error: res.error, message: res.message ?? res.error };
     } catch (e: unknown) {
       const err = e instanceof Error ? e.message : String(e);
-      const msg = `❌ 应用未运行或未就绪: ${err}`;
-      return { ok: false, error: err, message: msg };
+      return { ok: false, error: err, message: `❌ 应用未运行或未就绪: ${err}` };
     }
   }
 
@@ -239,10 +236,7 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
 
     const textHasGroupName = /group_name:\s*\S/.test(claimed.text);
     const textPreview = claimed.text.length > 200 ? `${claimed.text.slice(0, 200)}…` : claimed.text;
-    deps.log(
-      "INFO",
-      `agent_launch_prompt: session=${sessionKey} chat_name_field=${chatName ?? "omit"} text_has_group_name=${textHasGroupName} preview=${JSON.stringify(textPreview)}`,
-    );
+    deps.log("INFO", `agent_launch_prompt: session=${sessionKey} chat_name_field=${chatName ?? "omit"} text_has_group_name=${textHasGroupName} preview=${JSON.stringify(textPreview)}`);
 
     const result = await forwardElectronAgentApi("/api/agent/launch", launchBody);
 
@@ -292,6 +286,8 @@ export function createOrchestrator(deps: OrchestratorDeps): OrchestratorApi {
     setSessionAgentPhase,
     parseBusyRetryDelayMs,
     scheduleBusyRetry: dispatchRetry.scheduleBusyRetry,
+    handleLaunchFailure: dispatchRetry.handleLaunchFailure,
+    clearDispatchRetryAttempt: dispatchRetry.clearAttempt,
     notifySessionUser,
     formatOrchestratorFailure,
   };

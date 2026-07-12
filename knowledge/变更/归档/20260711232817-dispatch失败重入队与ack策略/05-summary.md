@@ -107,7 +107,7 @@
 
 | ID | 来源 | status | 摘要 |
 |----|------|--------|------|
-| D1 | 04 §7 | accepted_debt | HTTP `POST /api/agent/dispatch` 未接线 release + 有限重试 |
+| D1 | 04 §7 | closed_by: `20260712144755` | HTTP `POST /api/agent/dispatch` 已接线 `handleLaunchFailure`（与 IM launch 共用 retry） |
 | D2 | 04 §7 | accepted_debt | `file-queue.ts` ≈583 行，超 AGENTS ≤300；整体拆分另任务 |
 | D3 | 06 §2/§7 | accepted_debt | E2E-1～4 未跑（瞬时恢复 / busy / 耗尽 / 成功不双跑） |
 

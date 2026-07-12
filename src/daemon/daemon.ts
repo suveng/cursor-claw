@@ -1712,6 +1712,9 @@ function wireDaemonSubmodules(_ctx: DaemonBootstrapContext): void {
     forwardElectronAgentApi: orchestratorApi.forwardElectronAgentApi,
     parseBusyRetryDelayMs: orchestratorApi.parseBusyRetryDelayMs,
     scheduleBusyRetry: orchestratorApi.scheduleBusyRetry,
+    // HTTP dispatch 与 IM launch 共用 orchestrator dispatchRetry
+    handleLaunchFailure: (opts) => orchestratorApi.handleLaunchFailure(opts),
+    clearDispatchRetryAttempt: (sk) => orchestratorApi.clearDispatchRetryAttempt(sk),
     notifySessionUser: orchestratorApi.notifySessionUser,
     formatOrchestratorFailure: orchestratorApi.formatOrchestratorFailure,
     ackMessages,

@@ -119,21 +119,18 @@ export async function tryHandleOrchestratorRoute(
         task_text,
         ...(Array.isArray(body.message_ids) && body.message_ids.length > 0 && { message_ids: body.message_ids }),
       });
-      if (!result.ok) {
+      if (result.ok) {
+        // 成功：清零重试计数；不 ack（等 stream final / ackOnReply）
+        deps.clearDispatchRetryAttempt(session_key);
+      } else {
         deps.log("WARN", `dispatch_failed: session=${session_key} error=${result.error ?? "unknown"}`);
-        const busyDelay = deps.parseBusyRetryDelayMs(result.error);
-        if (busyDelay > 0) {
-          deps.scheduleBusyRetry(session_key, busyDelay);
-        } else {
-          await deps.notifySessionUser(
-            session_key,
-            deps.formatOrchestratorFailure(result.error),
-            true,
-          );
-          const ids = Array.isArray(body.message_ids) ? body.message_ids : [];
-          const lastId = ids[ids.length - 1];
-          if (lastId) deps.ackMessages(lastId, session_key);
-        }
+        // 失败/busy：与 IM launch 共用 handleLaunchFailure（release + 退避重调度）
+        await deps.handleLaunchFailure({
+          sessionKey: session_key,
+          messageIds: Array.isArray(body.message_ids) ? body.message_ids : [],
+          error: result.error,
+          busyDelayMs: deps.parseBusyRetryDelayMs(result.error),
+        });
       }
       deps.json(res, result, result.ok ? 200 : 400);
     } catch (e: unknown) {

@@ -121,10 +121,12 @@
 - **触发**：`broadcastQueueEvent` debounce 300ms；`session-agent-phase` → idle 时 `flushReadyMergeBatches`。
 - **门控**：`shouldDeferDispatch` + `sessionAgentPhaseMap` processing；合并 batch 须 `ready` 才 claim。
 - **SSOT**：`POST /api/agent/launch|dispatch` 在 Daemon 暴露并转发 Electron；`GET /api/poll-message` 返回 404。
-- **日志**：调度失败 `dispatch_failed`；重试排期 `dispatch_retry_scheduled`（busy 兼 `agent_busy_requeue`）；耗尽 `dispatch_retry_exhausted`；SDK Run 错误在 Electron 侧用 `agent_failed`。
+- **HTTP dispatch 失败重试对齐**：`POST /api/agent/dispatch` 失败/busy 与 `dispatchSessionToAgent`（IM launch）**共用** `handleLaunchFailure` / 同一 session `attemptBySession` Map；成功时 `clearDispatchRetryAttempt`，**不**提前 ack。
+- **日志关键字**（运维区分重试中 / busy 待调度 / 已停试）：`dispatch_retry_scheduled`、`dispatch_retry_exhausted`、`agent_busy_requeue`、`dispatch_failed`；SDK Run 错误在 Electron 侧用 `agent_failed`。
+- **ack 规矩**：HTTP dispatch 失败未耗尽时**禁止** `ackMessages`；耗尽后由 `handleLaunchFailure` ack；成功最终 ack 仍仅 stream final / `ackOnReply`。
 - **失败重入队接线**：`releaseClaimedMessages` 经 `OrchestratorDeps` 由 `daemon.ts` 注入；**禁止**在 orchestrator 内重复实现 rename；退避常数本地声明，**禁止** import Electron `retry-policy`。
 - **拆分模式**：`daemon-orchestrator.ts` 超 300 行时按 notify 同构拆 `daemon-orchestrator-*.ts`（retry 等），经工厂注入，禁止预建通用 Retry 框架。
-- **busy 重排一致性**：`agent_busy` 走 `parseBusyRetryDelayMs` + `scheduleBusyRetry`/`scheduleDispatchRetry`（含 launch 与 HTTP dispatch 入口）；未耗尽勿 ack。
+- **busy 重排一致性**：busy 经 `handleLaunchFailure` → `parseBusyRetryDelayMs` + `scheduleDispatchRetry`（reason=busy，日志 `agent_busy_requeue`）；未耗尽勿 ack。
 
 ## 合并预览与 Agent 阶段（daemon 内存）
 
