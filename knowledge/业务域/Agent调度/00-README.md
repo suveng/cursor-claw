@@ -35,37 +35,21 @@
 | 模块 | 路径 |
 |------|------|
 | 调度 | `electron/session/session-dispatcher.ts`、`electron/agent/cursor-sdk/agent-sdk.ts` |
-| Daemon 薄组装 | `src/daemon/daemon.ts`（`daemonMain`/`wireDaemonSubmodules`；queue/channel 仍驻此，批2） |
-| Daemon 编排 | `src/daemon/daemon-orchestrator.ts`（`runAgentDispatchLoop`、`forwardElectronAgentApi`、`dispatchSessionToAgent`） |
-| Daemon agent HTTP | `src/daemon/daemon-http-routes-orchestrator.ts`（`/api/agent/launch|dispatch` 路由簇） |
-| 回退栈 | `src/daemon/daemon-session-routing.ts` |
-| 会话路由持久化 | `src/daemon/daemon-session-routing-persist.ts`（`session-routing.json`） |
-| Daemon | `electron/daemon/daemon-manager.ts`、`electron/daemon/daemon-client.ts` |
-| 远程/Cron | `electron/scheduling/command-handler.ts`、`electron/scheduling/cron-scheduler.ts` |
-| Cursor | `electron/agent/cursor-sdk/agent-sdk.ts`、`electron/agent/cursor-sdk/sdk-run-*.ts`、`electron/agent/cursor-sdk/sdk-warmup.ts`、`electron/agent/cursor-sdk/context-usage-model-limit.ts`、`electron/mcp/loaders/mcp-sdk-loader.ts` |
-| Claude | `electron/agent/claude-code/agent-claude-sdk.ts`、`electron/agent/claude-code/agent-cc-*.ts`、`electron/agent/claude-code/cc-run-*.ts`、`electron/mcp/loaders/cc-mcp-loader.ts` |
-| Codex | `electron/agent/codex/agent-codex-sdk.ts`、`electron/agent/codex/agent-codex-*.ts`、`electron/agent/codex/codex-run-*.ts`、`electron/mcp/loaders/codex-mcp-loader.ts` |
-| OpenCode | `electron/agent/opencode/agent-opencode-sdk.ts`、`electron/agent/opencode/agent-opencode-*.ts`、`electron/agent/opencode/opencode-run-*.ts`、`electron/mcp/loaders/opencode-mcp-loader.ts`、`electron/agent/opencode/opencode-failure-messages.ts` |
-| Session MCP | `electron/session/session-mcp-status.ts` |
-| 跨引擎 Port/Lifecycle | `electron/agent/shared/run-lifecycle*.ts`、`agent-engine-port.ts`、`run-notify.ts`、`run-failure-formatter.ts`、`run-complete-template.ts`、`active-run-store.ts`、`agent-run-recover-orchestrator.ts`、`run-resume-notify.ts` |
-| Daemon dispatch notify | `src/daemon/daemon-orchestrator-notify.ts`、`src/shared/orchestrator-failure-formatter.ts` |
-| 契约冒烟 | `npm run test:run-notify-contract`（变更 auto_test，mock 终态 IM） |
-| 跨引擎 | `electron/agent/shared/agent-launcher.ts`、`electron/agent/shared/crash-log-archiver.ts`、`electron/agent/shared/agent-run-guard.ts` |
-| HTTP | `electron/agent/cursor-sdk/agent-sdk-http.ts`（统一网关）、`electron/agent/claude-code/agent-cc-http.ts`（cc）、`electron/agent/codex/agent-codex-http.ts`（codex）、`electron/agent/opencode/agent-opencode-http.ts`（opencode） |
-| 配置 | `electron/config/config-store.ts`（`newOpencodeResourceId`/`isOpencodeResourceId`） |
+| Daemon 薄组装 | `daemon.ts`（`daemonMain`）；接线 `daemon-wire.ts`；队列 `daemon-queue.ts` |
+| Daemon 编排 | `daemon-orchestrator.ts`（dispatch loop / launch|dispatch 转发） |
+| Daemon agent HTTP | `daemon-http-routes-orchestrator.ts`（`/api/agent/launch|dispatch`） |
+| 回退/路由持久化 | `daemon-session-routing.ts`、`daemon-session-routing-persist.ts` |
+| Electron Daemon | `electron/daemon/daemon-manager.ts`、`daemon-client.ts` |
+| 远程/Cron | `electron/scheduling/command-handler.ts`、`cron-scheduler.ts` |
+| 四引擎 SDK | 见 [06](./06-CursorSDK执行引擎.md)～[09](./09-OpenCodeSDK执行引擎.md)；共享 `electron/agent/shared/*` |
+| Session MCP / 配置 | `session-mcp-status.ts`、`config-store.ts` |
+| Daemon notify | `daemon-orchestrator-notify.ts`、`orchestrator-failure-formatter.ts` |
+| 契约冒烟 | `npm run test:run-notify-contract` |
 
 ## 变更记录
 
-- 2026-07-12：关键源码补 `daemon-session-routing-persist.ts`（archive 20260712113356）。
-- 2026-07-12：关键源码补四引擎 recover（`agent-run-recover-orchestrator`、`*-run-recover`、`*-active-runs.json`）（archive 20260712113332）。
-- 2026-07-12：关键源码补 Engine Port / RunLifecycle / dispatch 对称 notify（archive 20260711232258）。
-- 2026-07-11：关键源码 Daemon 编排锚点扩散（巨型单体拆分批1）。
-2026-07-05：新增 10 SDK 上下文保护（archive 20260705230806）。
-2026-07-02：关键源码增补 Daemon 编排（archive 20260702120154）。
-2026-07-02：关键源码补 sdk-run-* 事件流/续接模块（archive 20260701212827）。
-2026-07-02：关键源码补 Cursor SDK 配置加载模块（archive 20260701212732）。
-2026-06-30：新增 09 OpenCode SDK；四引擎 `agent-opencode-*`（archive 20260630105159）。
-2026-06-30：07 §二/§五/§七/§九 补 project scope 审批门控与启用展示（archive 20260630140113）。
-2026-06-30：新增 08 Codex SDK；三引擎 `agent-codex-*`（archive 20260630104714）。
-2026-06-30：新增 06/07 执行引擎文档（kb-sync）。
-2026-06-29：扩展 Claude Code SDK（archive 20260629164130）。
+- 2026-07-12：勾销批2 注记；薄组装锚点对齐 queue/wire（archive 20260712170438）。
+- 2026-07-12：`daemon-session-routing-persist`、四引擎 recover、Engine Port/notify（20260712113356 等）。
+- 2026-07-11：Daemon 编排锚点扩散（巨型单体拆分批1）。
+- 2026-07-05～06-29：10 上下文保护、06～09 引擎文档与 Codex/OpenCode/Claude 扩展。
+

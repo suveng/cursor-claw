@@ -27,11 +27,14 @@
 | 微信客户端 | `src/bridge/wechat/` |
 | 微信管理 | `src/bridge/wechat-manager.ts` |
 | 文件队列 | `file-queue.ts`（入口）+ `file-queue-*.ts` 子模块（`AGENTS.md`） |
-| Daemon 薄组装 | `src/daemon/daemon.ts`（组装；`pushMessage`/MergeBatch/通道仍驻此，批2） |
+| Daemon 薄组装 | `src/daemon/daemon.ts`（`daemonMain` ≤200） |
+| Daemon 队列/合并 | `daemon-queue.ts`（`createQueueController`）、`daemon-queue-types.ts`、`daemon-queue-merge*.ts` |
+| Daemon 通道 | `daemon-channel.ts`（`createChannelRegistry`）、`daemon-channel-feishu.ts`、`daemon-channel-wechat.ts` |
+| Daemon 日志/接线 | `daemon-logging.ts`、`daemon-wire.ts`、`daemon-bootstrap.ts` |
 | Daemon HTTP | `daemon-http-server.ts`、`daemon-http-routes*.ts`、`daemon-http-mcp.ts`、`daemon-http-non-api-routes.ts` |
-| Daemon 编排 | `daemon-orchestrator.ts`（claim/dispatch loop；MergeBatch claim 路由经 `daemon-http-routes-orchestrator.ts`） |
-| Presentation 出站 | `daemon-presentation-enqueue.ts`（F1/Get/排队）、`daemon-presentation-stream.ts`（stream-text）、`daemon-presentation-handlers.ts` 及 `daemon-presentation-*` 子模块 |
-| 飞书事件 | `feishu-event-handlers.ts`（已有边界锚点） |
+| Daemon 编排 | `daemon-orchestrator.ts`（claim/dispatch；MergeBatch claim 经 `daemon-http-routes-orchestrator.ts`） |
+| Presentation 出站 | `daemon-presentation-enqueue.ts`、`daemon-presentation-stream.ts`、`daemon-presentation-handlers.ts` 及 `daemon-presentation-*` |
+| 飞书事件 | `feishu-event-handlers.ts` |
 
 ## 推荐阅读路径
 
@@ -42,8 +45,8 @@
 
 ## 变更记录
 
+2026-07-12：勾销批2 注记；queue/channel/logging 锚点迁至 `daemon-queue*`/`daemon-channel*`/`daemon-logging`（archive 20260712170438）。
 2026-07-12：file-queue 子模块族锚点与阅读路径（archive 20260712145152）。
-2026-07-11：Daemon 路由/队列锚点补充批1 子模块（HTTP、orchestrator、presentation-*）；queue/MergeBatch 落点仍注记批2（巨型单体拆分批1）。
+2026-07-11：Daemon 路由/队列锚点补充批1 子模块（HTTP、orchestrator、presentation-*）。
 2026-07-02：源码锚点对齐 `src/bridge/*` 与 `src/daemon/daemon.ts`（archive 20260702120154）。
 2026-06-27：Daemon IM 编排与 MergeBatch（archive 20260627162620）。
-2026-06-27：kb-sync 初始建立。

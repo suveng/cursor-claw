@@ -1,50 +1,64 @@
 # daemon 域编码约定
 
-> 入口：`src/daemon-entry.ts` → `daemon/daemon.ts`（薄组装）+ `daemon-*` 子模块。批1 已拆 HTTP / orchestrator / presentation；queue / channel / logging 仍驻 `daemon.ts`（批2）。
+> 入口：`src/daemon-entry.ts` → `daemon/daemon.ts`（薄组装 ≤200）+ `daemon-*` 子模块。批1：HTTP / orchestrator / presentation；批2：logging / queue / channel / slash 路由 / wire / bootstrap。
 
-## 目录职责（批1 模块边界）
+## 目录职责（批2 模块边界）
 
-| 文件 | 职责 |
+| 文件 | 负责 | 不负责 |
+|------|------|--------|
+| `daemon.ts` | 工厂组装、`daemonMain` 冷启动顺序 | queue/MergeBatch/channel/logging 实现体 |
+| `daemon-logging.ts` | `createDaemonLogger`、2MB 轮转、stderr 同步 | 日志双写统一 |
+| `daemon-queue.ts` | `createQueueController`：SSE、`pushMessage`、`ackOnReply`、组装 merge | file-queue 磁盘格式、调度并发 |
+| `daemon-queue-types.ts` | MergeBatch 类型与常量 | 状态机副作用 |
+| `daemon-queue-merge*.ts` | MergeBatch 状态机 / 卡渲染 / action | presentation/orchestrator 直引 |
+| `daemon-channel.ts` | `createChannelRegistry`、resolve/pick/status | lark-core / wechat-manager 内部 |
+| `daemon-channel-feishu.ts` | `startFeishuChannel` | 微信路径 |
+| `daemon-channel-wechat.ts` | `initWeChatChannel`、群 gate 接线 | 飞书路径 |
+| `daemon-slash-command-router.ts` | TTL、`handleCommand` 壳、`.fcmd` 兼容 | 斜杠产品默认模式变更 |
+| `daemon-session-maps.ts` | active/message 映射、Get/DONE、routing key | presentation 出站 |
+| `daemon-wire.ts` | orchestrator/presentation/http/slash deps 接线 | 业务状态机实现 |
+| `daemon-bootstrap.ts` | 通道 start、HTTP listen、定时任务、lock | 组装顺序决策（在 `daemonMain`） |
+| `daemon-http-utils.ts` | `readBody` / `json` / `httpJson` | 路由业务 |
+
+| 文件 | 职责（批1 保留） |
 |------|------|
-| `daemon.ts` | 组装入口、`wireDaemonSubmodules`、queue/MergeBatch/channel/logging |
 | `daemon-orchestrator.ts` | `createOrchestrator` — dispatch loop、Electron API 转发、claim 门控 |
-| `daemon-orchestrator-retry.ts` | `createDispatchRetry` — attempt 计数、退避延后、耗尽 ack（超 300 行时从 orchestrator 拆出） |
+| `daemon-orchestrator-retry.ts` | `createDispatchRetry` — attempt 计数、退避延后、耗尽 ack |
 | `daemon-orchestrator-notify.ts` | `createOrchestratorNotify` — IM 失败通知 |
-| `daemon-presentation-ordering.ts` | `createPresentationOrdering` — 编排入口（eligible + release 组装） |
-| `daemon-presentation-ordering-eligible.ts` | eligible 门控、节流、`presentation_order_violation` 日志 |
+| `daemon-presentation-ordering.ts` | `createPresentationOrdering` — 编排入口 |
+| `daemon-presentation-ordering-eligible.ts` | eligible 门控、节流、`presentation_order_violation` |
 | `daemon-presentation-ordering-release.ts` | deferred assistant release 串行链 |
-| `daemon-presentation-stream.ts` | `createStreamTextHandler` — `/api/stream-text` |
+| `daemon-presentation-stream.ts` | `createStreamTextHandler` |
 | `daemon-presentation-process-events.ts` | tool/thinking presentation-event |
 | `daemon-presentation-assistant-events.ts` | assistant/task/merge_batch presentation-event |
-| `daemon-presentation-handlers.ts` | `createPresentationHandlers` — 工厂壳层 |
+| `daemon-presentation-handlers.ts` | `createPresentationHandlers` |
 | `daemon-presentation-enqueue.ts` | 入队确认、F1/Get、排队文案 |
 | `daemon-presentation-merge-preview.ts` | 合并预览卡回复编辑 |
-| `daemon-presentation-types.ts` | presentation 共享类型（避免 handlers/events 环引） |
-| `daemon-presentation-milestone.ts` | 里程碑 send-text 降级（已有） |
-| `daemon-http-routes.ts` | `createAdminApiHandler` — `/api/*` 分发入口 |
-| `daemon-http-routes-types.ts` | `HttpRoutesDeps`（routes 子模块共享，防环引） |
-| `daemon-http-routes-orchestrator.ts` | orchestrator / merge / agent launch|dispatch 路由簇 |
+| `daemon-presentation-types.ts` | presentation 共享类型 |
+| `daemon-presentation-milestone.ts` | 里程碑 send-text 降级 |
+| `daemon-http-routes.ts` | `createAdminApiHandler` |
+| `daemon-http-routes-types.ts` | `HttpRoutesDeps` |
+| `daemon-http-routes-orchestrator.ts` | orchestrator / merge / agent 路由簇 |
 | `daemon-http-routes-send.ts` | send-text/image/file、presentation、stream-text |
-| `daemon-http-routes-session.ts` | active-session、session-fallback 等 |
+| `daemon-http-routes-session.ts` | active-session、session-fallback |
 | `daemon-http-routes-misc.ts` | SSE queue-events、chat-names、user-names |
-| `daemon-http-workflow-signal.ts` | `POST /api/workflow-signal`（action=resume） |
-| `daemon-session-routing.ts` | `fallbackSessionMap` — 临时会话回退栈 SSOT（与 `activeSessionMap` 并列）；`set/clearSessionFallback` 统一 persist；`wireSessionRoutingPersist` 由 `daemon.ts` 注入 active 引用 |
-| `daemon-session-routing-persist.ts` | `session-routing.json` load/save/prune/debounce（纯函数导出，无类；`daemon.ts` T2 已接线） |
-| `daemon-http-admin-crud.ts` | admin CRUD 入口（tasks + workspace/agent entity） |
-| `daemon-http-admin-content.ts` | mcp / rules / skills admin 子路由 |
-| `daemon-http-mcp-admin.ts` | MCP 配置合并、开关、健康探测转发（供 admin-content） |
-| `daemon-http-admin-io.ts` | admin 文件 IO 辅助、`AdminRouteHandler` 类型 |
-| `daemon-http-server.ts` | `startHttpServer` — 监听壳 |
-| `daemon-http-mcp.ts` | MCP Server 工厂（agent + admin） |
-| `daemon-http-non-api-routes.ts` | `/health`、`/enqueue`、队列/通道 bind 等非 `/api` |
-| `daemon-merge-action-feedback.ts` | 合并动作 IM 反馈文案 SSOT（纯函数，禁止 import daemon/bridge） |
-| `feishu-card-action.ts` | `onFeishuCardAction` — 合并卡 `card.action.trigger` 路由（Deps 注入，≤300 行） |
-| `wechat-group-enqueue-gate.ts` | 微信群 @ 过滤纯函数 SSOT（`shouldEnqueueWechatGroupMessage`） |
-| `daemon-merge-command.ts` | `tryHandleMergeSlashCommand` — `/merge` 斜杠 Daemon 内闭环（不写 `.fcmd`） |
-| `daemon-http-mcp-admin.ts` | MCP 配置读写、开关与健康探测（admin 与斜杠共用） |
-| `daemon-slash-executor.ts` | `executeSlashCommand` — IM 斜杠 SSOT（T5 接线） |
-| `daemon-slash-mcp.ts` | `/mcp` 斜杠子命令（复用 `daemon-http-mcp-admin`） |
-| `feishu-event-handlers.ts` / `feishu-card-action.ts` / `server-admin.ts` / `daemon-scheduled-tasks.ts` / `chat-name-resolve.ts` | 飞书事件与合并卡按钮回调；其余为已有边界锚点 |
+| `daemon-http-workflow-signal.ts` | `POST /api/workflow-signal` |
+| `daemon-session-routing.ts` | `fallbackSessionMap`；`wireSessionRoutingPersist` |
+| `daemon-session-routing-persist.ts` | `session-routing.json` load/save/prune |
+| `daemon-http-admin-crud.ts` | admin CRUD 入口 |
+| `daemon-http-admin-content.ts` | mcp / rules / skills admin |
+| `daemon-http-mcp-admin.ts` | MCP 配置合并、开关、健康探测 |
+| `daemon-http-admin-io.ts` | admin 文件 IO 辅助 |
+| `daemon-http-server.ts` | `startHttpServer` |
+| `daemon-http-mcp.ts` | MCP Server 工厂 |
+| `daemon-http-non-api-routes.ts` | `/health`、`/enqueue`、队列/通道 bind |
+| `daemon-merge-action-feedback.ts` | 合并动作 IM 反馈文案 SSOT |
+| `feishu-card-action.ts` | 合并卡 `card.action.trigger` |
+| `wechat-group-enqueue-gate.ts` | 微信群 @ 过滤 |
+| `daemon-merge-command.ts` | `/merge` 斜杠闭环 |
+| `daemon-slash-executor.ts` | `executeSlashCommand` |
+| `daemon-slash-mcp.ts` | `/mcp` 斜杠子命令 |
+| `feishu-event-handlers.ts` / `server-admin.ts` / `daemon-scheduled-tasks.ts` / `chat-name-resolve.ts` | 既有边界锚点 |
 
 ## session-routing 持久化（`daemon-session-routing-persist.ts`）
 
@@ -52,18 +66,19 @@
 - **容错**：读盘/写盘失败不抛未捕获异常；写盘失败 `stderr` WARN（`[session-routing]` 前缀）。
 - **接线**：`daemonMain` 在 `wireDaemonSubmodules` 前 `loadSessionRoutingInto`（失败 `session_routing_load_failed` WARN，空映射继续）；`setActiveSession` / `clearActiveSession` / fallback helper 末尾 `scheduleSessionRoutingPersist`；`startSessionRoutingPruneTimer` 6h `.unref()`，有剔除时 debounce 写盘；本文件不 import `daemon.ts`。
 
-## 依赖注入规矩（批1）
+## 依赖注入规矩
 
-- 子模块**禁止**互相 import；跨域仅经 `daemon.ts` 内 `wireDaemonSubmodules` 注入 `*Deps`。
+- 子模块**禁止**互相 import 业务实现；跨域仅经 `daemon.ts` / `daemon-wire.ts` 注入 `*Deps`。
 - 参照 `feishu-event-handlers.ts` 的 `FeishuEventHandlerDeps` 模式；禁止 `daemon-context.ts` barrel、`index.ts`。
 - `scheduleAgentDispatch` 由 orchestrator 产出，queue 侧经 `scheduleAgentDispatchRef` 回调，避免 queue↔orchestrator 环引。
+- `daemon-queue*` ↔ `daemon-presentation*` / `daemon-orchestrator`：**禁止**直接 import。
 
 ## import 规矩
 
 - bridge 域：`../bridge/file-queue.js`、`../bridge/wechat-manager.js`、`../bridge/lark-core.js`
 - workflow 域：`../workflow/server-workflow.js`
 - shared 跨域类型：`../shared/channel-types.js`、`../shared/feishu-presentation-gate.js`、`../shared/tool-presentation.js`、`../shared/constants.js`
-- 域内同目录：`./daemon-orchestrator.js`、`./daemon-slash-executor.js`、`./daemon-slash-mcp.js`、`./daemon-presentation-*.js`、`./daemon-http-*.js`、`./daemon-session-routing.js`、`./daemon-session-routing-persist.js`、`./daemon-presentation-milestone.js`、`./daemon-merge-action-feedback.js`、`./daemon-merge-command.js`、`./feishu-card-action.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`、`./feishu-event-handlers.js`
+- 域内同目录：`./daemon-orchestrator.js`、`./daemon-logging.js`、`./daemon-queue*.js`、`./daemon-channel*.js`、`./daemon-slash-*.js`、`./daemon-session-*.js`、`./daemon-wire.js`、`./daemon-bootstrap.js`、`./daemon-http-*.js`、`./daemon-presentation-*.js`、`./daemon-merge-*.js`、`./feishu-card-action.js`、`./daemon-scheduled-tasks.js`、`./server-admin.js`、`./chat-name-resolve.js`、`./feishu-event-handlers.js`
 
 ## MCP admin HTTP（`/api/mcp`）
 
@@ -91,7 +106,8 @@
 ## 禁止
 
 - 禁止 barrel `index.ts` 或 re-export shim
-- 枢纽 `daemon.ts` 仅做组装与批2 域（queue/channel/logging）；子模块单文件目标 ≤300 行，超限须再切或批2 跟进
+- 枢纽 `daemon.ts` 仅做组装（≤200）；子模块单文件 ≤300 行；超限须再切
+- **未**改调度并发、**未**做日志双写统一、**未**改 file-queue 磁盘语义
 
 ---
 

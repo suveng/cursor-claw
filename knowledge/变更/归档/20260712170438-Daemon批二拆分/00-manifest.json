@@ -1,0 +1,307 @@
+{
+  "change_id": "20260712170438",
+  "id": "20260712170438-Daemon批二拆分",
+  "name": "Daemon批二拆分",
+  "title": "Daemon批二拆分",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T17:04:38+0800",
+  "updated_at": "2026-07-12T17:35:32+0800",
+  "archived_at": "2026-07-12T17:35:32+0800",
+  "depends_on": [
+    "20260711203953-巨型单体拆分"
+  ],
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon.ts",
+      "role": "hub",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-logging.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-queue.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-queue-types.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-queue-merge.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-queue-merge-card.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-queue-merge-action.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-channel.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-channel-feishu.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-channel-wechat.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-slash-command-router.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-http-utils.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-session-maps.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-wire.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/daemon-bootstrap.ts",
+      "role": "implementation",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "src/AGENTS.md",
+      "role": "agents",
+      "kind": "code",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/01-概览.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/工程平台/Daemon守护进程/03-进程模型与部署.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/03-微信通道.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/04-消息队列与路由.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "抽出 daemon-logging.ts",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-logging.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "抽出 MergeBatch 类型与状态机（强制 ≤300 再切）",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-queue-types.ts",
+        "src/daemon/daemon-queue-merge.ts",
+        "src/daemon/daemon-queue-merge-card.ts",
+        "src/daemon/daemon-queue-merge-action.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "抽出 daemon-queue.ts facade（createQueueController）",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-queue.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": [
+        "T2"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "抽出 daemon-channel*（飞书/微信强制再切 ≤300）",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-channel.ts",
+        "src/daemon/daemon-channel-feishu.ts",
+        "src/daemon/daemon-channel-wechat.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": [
+        "T3"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "枢纽残留清理（slash / HTTP / presentation 类型）",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-slash-command-router.ts",
+        "src/daemon/daemon-http-utils.ts",
+        "src/daemon/daemon-session-maps.ts",
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": [
+        "T4"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "重接 wireDaemonSubmodules + daemonMain 瘦身（≤200）并更新 AGENTS.md",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon.ts",
+        "src/daemon/daemon-wire.ts",
+        "src/daemon/daemon-bootstrap.ts",
+        "src/daemon/AGENTS.md",
+        "src/AGENTS.md"
+      ],
+      "depends_on": [
+        "T5"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "行为与结构全量回归（覆盖 01 §六 + 02 八·（二））",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon.ts"
+      ],
+      "depends_on": [
+        "T6"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "external": {
+    "external_sync": "SKIP",
+    "external_sync_reason": "kb.project.json 无 integrations.registry / integrations.notifications 配置",
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "技术债",
+    "priority": "P0"
+  },
+  "knowledge_merge": {
+    "status": "done",
+    "merged_at": "2026-07-12T17:40:00+0800",
+    "batch1_r1_closed": true,
+    "note": "步骤 6–7 完成；stage 保持 reviewed，archived 与目录迁移交 kb-release"
+  }
+}

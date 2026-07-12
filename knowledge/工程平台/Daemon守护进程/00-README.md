@@ -17,15 +17,17 @@
 
 ## 源码入口
 
-- `src/daemon-entry.ts` → `src/daemon/daemon.ts`（`daemonMain`）
+- `src/daemon-entry.ts` → `src/daemon/daemon.ts`（`daemonMain` 薄组装 ≤200）
+- 批2 子模块：`daemon-logging` / `daemon-queue*` / `daemon-channel*` / `daemon-wire` / `daemon-bootstrap`（职责表见 `src/daemon/AGENTS.md`）
 - 打包产物由 `scripts/bundle-daemon.cjs` 生成，Electron 以 `ELECTRON_RUN_AS_NODE` spawn
 
 ## 推荐阅读路径
 
-1. 01-概览 → 2. 03-进程模型与部署 → 3. 02-HTTP 与 MCP 服务
+1. 01-概览 → 2. 03-进程模型与部署 → 3. 02-HTTP 与 MCP 服务 → 4. `src/daemon/AGENTS.md`（模块边界）
 
 ## 变更记录
 
+- 2026-07-12：批2 queue/channel/logging 拆分锚点（archive 20260712170438）
 - 2026-07-12：`02-HTTP与MCP服务` 补 MCP 健康降级 SSOT 与 `src/daemon/AGENTS.md` 交叉引用（archive 20260712145827）
 - 2026-07-12：`session-routing.json` 调度态路由持久化（archive 20260712113356）
 - 2026-07-02：源码入口对齐 `src/daemon/daemon.ts`（archive 20260702120154）
