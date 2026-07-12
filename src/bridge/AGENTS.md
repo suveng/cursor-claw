@@ -21,15 +21,25 @@
 
 ---
 
-## 文件队列（file-queue.ts）
+## 文件队列（file-queue 子模块族）
 
-- **磁盘布局**：`APP_DATA_DIR/file-queue/<sessionHash>/` 下 `.qmsg`（待处理）与 `.claimed`（已 claim 待 ack）；`initFileQueue` 须在 daemon 启动早期调用。
-- **入队/出队**：`pushMessage` 写入 `.qmsg`；orchestrator claim 时原子 rename 为 `.claimed`；`ackOnReply` 删除 `.claimed`。
-- **冷启动回收**：`cleanupOrphanClaimedOnColdStart` 将遗留 `.claimed` 还原为 `.qmsg`（由 daemon `initQueue` 调用，全应用重启后无 live Agent）。
-- **按 id 释放**：`releaseClaimedMessages(ids, sessionKey?)` 将匹配的 `.claimed` rename 回 `.qmsg`（与冷启动同构）；**禁止**与 `ackMessages`（unlink）混用同一语义。
+- **对外入口**：域外仅 `import "../bridge/file-queue.js"`；`file-queue.ts` 为薄组装 re-export，禁止 barrel `index.ts`。
+- **子模块职责**（域内直引 `./file-queue-*.js` 仅限子模块互引，daemon 不得绕过入口）：
+
+| 文件 | 职责 |
+|------|------|
+| `file-queue-path.ts` | 目录初始化、`APP_DATA_DIR/file-queue/<hash>/`、会话子目录 helper |
+| `file-queue-types.ts` | `QueueMessage*` 类型定义 |
+| `file-queue-message-io.ts` | JSON 解析、`safeId` 匹配、tmp+rename 原子写 |
+| `file-queue-enqueue.ts` | `pushToFileQueue` 入队与 dedup |
+| `file-queue-claim.ts` | `claimSessionMessages` / `claimNextMessage` / `waitForSessionMessages` |
+| `file-queue-lifecycle.ts` | `ackMessages`、`releaseClaimedMessages`、冷启动 recycle、`.tmp` 清理 |
+| `file-queue-query.ts` | 计数、列表、合并替换、管理面 CRUD |
+
+- **磁盘布局**：`.qmsg`（待处理）与 `.claimed`（已 claim 待 ack）；`initFileQueue` 须在 daemon 启动早期调用。
+- **lifecycle 划界**：`ackMessages` 删 `.claimed`；`releaseClaimedMessages` / `cleanupOrphanClaimedOnColdStart` 为 `.claimed→.qmsg` rename；**禁止**混用语义。
 - **计数口径**：`getSessionUnclaimedCount` 仅统计 `.qmsg`；**禁止**用 `.claimed` 推断 Agent processing（phase 以 daemon `sessionAgentPhaseMap` 为准）。
-- **导出**：`pushToFileQueue` 等对外符号不变；队列目录路径变更不影响 HTTP 契约。
-- **行数债务**：`file-queue.ts` 已超 300 行硬限；新增原语优先同文件增量，整体拆分另开任务，禁止顺手扩 scope。
+- **单文件行数**：各子模块与入口均 ≤300 行；新增原语落入对应职责文件，禁止重建 `IQueueStore` 等未批准抽象。
 
 ## 飞书 Lark 核心（lark-core.ts）
 

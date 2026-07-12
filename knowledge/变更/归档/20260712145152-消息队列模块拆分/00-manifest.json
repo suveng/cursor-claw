@@ -1,0 +1,229 @@
+{
+  "change_id": "20260712145152",
+  "id": "20260712145152-消息队列模块拆分",
+  "name": "消息队列模块拆分",
+  "title": "消息队列模块拆分",
+  "flow": "standard",
+  "stage": "archived",
+  "archived_at": "2026-07-12T16:13:26+0800",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-12T14:51:52+0800",
+  "updated_at": "2026-07-12T16:13:26+0800",
+  "depends_on": [
+    "20260712144755-HTTP dispatch失败重入队对齐"
+  ],
+  "files": [
+    {
+      "path": "00-manifest.json",
+      "role": "manifest",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "01-proposal.md",
+      "role": "proposal",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "02-design.md",
+      "role": "design",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "03-tasks.md",
+      "role": "tasks",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "04-review.md",
+      "role": "review",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "05-summary.md",
+      "role": "summary",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "06-automation-test.md",
+      "role": "automation_test",
+      "kind": "change_doc",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/file-queue.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/file-queue-path.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/file-queue-types.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/file-queue-message-io.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/file-queue-enqueue.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/file-queue-claim.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/file-queue-lifecycle.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/file-queue-query.ts",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "src/bridge/AGENTS.md",
+      "role": "implementation",
+      "kind": "source",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-file-queue-split-contract.sh",
+      "role": "automation_test",
+      "kind": "test",
+      "status": "done"
+    },
+    {
+      "path": "auto_test/run-file-queue-split-contract.mts",
+      "role": "automation_test",
+      "kind": "test",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/00-README.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/01-概览.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/04-消息队列与路由.md",
+      "role": "knowledge",
+      "kind": "knowledge",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "name": "file-queue-path 与 file-queue-types 基础模块",
+      "status": "done",
+      "files": [
+        "src/bridge/file-queue-path.ts",
+        "src/bridge/file-queue-types.ts"
+      ]
+    },
+    {
+      "id": "T2",
+      "name": "file-queue-message-io 解析与原子写原语",
+      "status": "done",
+      "files": [
+        "src/bridge/file-queue-message-io.ts"
+      ]
+    },
+    {
+      "id": "T3",
+      "name": "file-queue-enqueue 入队模块",
+      "status": "done",
+      "files": [
+        "src/bridge/file-queue-enqueue.ts"
+      ]
+    },
+    {
+      "id": "T4",
+      "name": "file-queue-claim 领取模块",
+      "status": "done",
+      "files": [
+        "src/bridge/file-queue-claim.ts"
+      ]
+    },
+    {
+      "id": "T5",
+      "name": "file-queue-lifecycle ack / release / cleanup 模块",
+      "status": "done",
+      "files": [
+        "src/bridge/file-queue-lifecycle.ts"
+      ]
+    },
+    {
+      "id": "T6",
+      "name": "file-queue-query 查询与管理模块",
+      "status": "done",
+      "files": [
+        "src/bridge/file-queue-query.ts"
+      ]
+    },
+    {
+      "id": "T7",
+      "name": "file-queue.ts 组装收敛与调用方零变更",
+      "status": "done",
+      "files": [
+        "src/bridge/file-queue.ts"
+      ]
+    },
+    {
+      "id": "T8",
+      "name": "bridge/AGENTS.md 登记子模块职责",
+      "status": "done",
+      "files": [
+        "src/bridge/AGENTS.md"
+      ]
+    },
+    {
+      "id": "T9",
+      "name": "ST-Q 行为回归验收",
+      "status": "done",
+      "files": [
+        "06-automation-test.md",
+        "auto_test/run-file-queue-split-contract.sh",
+        "auto_test/run-file-queue-split-contract.mts"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "技术债",
+    "priority": "P1"
+  }
+}

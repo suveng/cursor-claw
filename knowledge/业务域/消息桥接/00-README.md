@@ -10,7 +10,7 @@
 | 01 | [01-概览.md](./01-概览.md) | 模块总图、术语、依赖 |
 | 02 | [02-飞书通道.md](./02-飞书通道.md) | WebSocket 接收、LarkSender 发送、权限与消息类型 |
 | 03 | [03-微信通道.md](./03-微信通道.md) | iLink API、扫码登录、ClawBot 长轮询 |
-| 04 | [04-消息队列与路由.md](./04-消息队列与路由.md) | file-queue、session_key、双通道并存 |
+| 04 | [04-消息队列与路由.md](./04-消息队列与路由.md) | file-queue 子模块族、session_key、双通道并存 |
 
 ## 职责边界
 
@@ -26,7 +26,7 @@
 | 通道类型 | `src/shared/channel-types.ts` |
 | 微信客户端 | `src/bridge/wechat/` |
 | 微信管理 | `src/bridge/wechat-manager.ts` |
-| 文件队列 | `src/bridge/file-queue.ts` |
+| 文件队列 | `file-queue.ts`（入口）+ `file-queue-*.ts` 子模块（`AGENTS.md`） |
 | Daemon 薄组装 | `src/daemon/daemon.ts`（组装；`pushMessage`/MergeBatch/通道仍驻此，批2） |
 | Daemon HTTP | `daemon-http-server.ts`、`daemon-http-routes*.ts`、`daemon-http-mcp.ts`、`daemon-http-non-api-routes.ts` |
 | Daemon 编排 | `daemon-orchestrator.ts`（claim/dispatch loop；MergeBatch claim 路由经 `daemon-http-routes-orchestrator.ts`） |
@@ -36,12 +36,13 @@
 ## 推荐阅读路径
 
 1. **01-概览** — 建立全局认知
-2. **04-消息队列与路由** — 理解 Daemon 如何 claim 与 dispatch
+2. **04-消息队列与路由** — claim/dispatch 与子模块落点（§二/§五）
 3. **02-飞书通道** 或 **03-微信通道** — 按接入平台选读
 4. 配置细节见根目录 `README.md`「平台接入配置」
 
 ## 变更记录
 
+2026-07-12：file-queue 子模块族锚点与阅读路径（archive 20260712145152）。
 2026-07-11：Daemon 路由/队列锚点补充批1 子模块（HTTP、orchestrator、presentation-*）；queue/MergeBatch 落点仍注记批2（巨型单体拆分批1）。
 2026-07-02：源码锚点对齐 `src/bridge/*` 与 `src/daemon/daemon.ts`（archive 20260702120154）。
 2026-06-27：Daemon IM 编排与 MergeBatch（archive 20260627162620）。
