@@ -3,7 +3,7 @@
  */
 import { readLockFile, enqueueToMainSession } from "../../daemon/daemon-client"
 import { launchIndependentAgent, stopAllSessionAgents } from "../../session/session-dispatcher"
-import { runWithHttpCommandResultSink } from "../../scheduling/command-handler"
+import { reportCommandResult, runWithHttpCommandResultSink } from "../../scheduling/command-handler"
 import { executeFileCommand } from "../../scheduling/command-executor"
 import { broadcastLog } from "../../app/ui-logger"
 
@@ -37,6 +37,31 @@ function parseCommandExecuteBody(body: Record<string, unknown>): {
 /** 未知斜杠指令判定（与 executeFileCommand default 分支一致） */
 function isUnknownCommandMessage(message: string): boolean {
   return message.includes("未知指令")
+}
+
+/** /restart daemon 判定（仅全量 Daemon 重启须走新 Daemon 回报） */
+function isRestartDaemonCommand(command: string): boolean {
+  const tokens = command.trim().split(/\s+/).filter((t) => t.length > 0)
+  return tokens[0]?.toLowerCase() === "/restart" && tokens[1]?.toLowerCase() === "daemon"
+}
+
+/**
+ * /restart daemon 会 stopDaemon 杀掉发起 forward 的旧 Daemon，HTTP 响应无法回到旧进程。
+ * 须在 Electron 侧向新 Daemon POST /cmd/result，由新 Daemon replyToMessage 下发群消息。
+ * 普通 /restart（仅当前会话）不杀 Daemon，走正常 HTTP reply 即可。
+ */
+async function notifyRestartResultToNewDaemon(
+  messageId: string,
+  ok: boolean,
+  message: string,
+  chatId?: string,
+): Promise<void> {
+  const newLock = readLockFile()
+  if (!newLock?.port) {
+    broadcastLog("[HTTP 指令] /restart daemon 完成后无可用 Daemon 端口，群消息回报失败", "WARN")
+    return
+  }
+  await reportCommandResult(newLock.port, messageId, ok, message, chatId)
 }
 
 /** 处理 POST /api/command/execute */
@@ -107,6 +132,11 @@ export async function handleCommandExecuteHttp(body: Record<string, unknown>): P
     const finalOk = capturedMessage ? capturedOk : result.ok
     const finalMessage = capturedMessage || result.message
     const httpStatus = !finalOk && isUnknownCommandMessage(finalMessage) ? 400 : 200
+
+    // 仅 /restart daemon：旧 Daemon 已被杀，须由 Electron 直发新 Daemon
+    if (isRestartDaemonCommand(command) && capturedMessage) {
+      await notifyRestartResultToNewDaemon(messageId, finalOk, finalMessage, chatId)
+    }
 
     return { httpStatus, body: { ok: finalOk, message: finalMessage } }
   } catch (e: unknown) {

@@ -33,6 +33,7 @@ import {
   clearMessageQueue,
   getQueueMessages,
   isMainUser,
+  restartCurrentSessionAgent,
 } from "../session/session-dispatcher"
 
 export type { FileCommand } from "./command-handler"
@@ -173,14 +174,37 @@ export async function executeFileCommand(
     }
 
     case "/restart": {
-      ctx.stopAgent()
-      const cleared = await clearMessageQueue()
-      // 仅在 restartDaemon 完成后 reply 一次终态文案，避免中间态与成功/失败消息重复
-      const result = await ctx.restartDaemon()
-      if (result.ok) {
-        await reply(true, `✅ Daemon 重启成功（已停止 Agent，已清空 ${cleared} 条队列消息）`)
+      const restartArg = (cmdTokens[1] ?? "").toLowerCase()
+      // /restart daemon：运维全量重启（停全部 Agent + 清队列 + Daemon）
+      if (restartArg === "daemon") {
+        ctx.stopAgent()
+        const cleared = await clearMessageQueue()
+        const daemonResult = await ctx.restartDaemon()
+        if (daemonResult.ok) {
+          await reply(true, `✅ Daemon 重启成功（已停止全部 Agent，已清空 ${cleared} 条队列消息）`)
+        } else {
+          await reply(
+            false,
+            `❌ Daemon 重启失败: ${daemonResult.error ?? "未知错误"}（已停止全部 Agent，已清空 ${cleared} 条队列消息）`,
+          )
+        }
+        break
+      }
+      // 默认 /restart：仅重建当前会话，不影响其他会话 / 不清全局队列 / 不重启 Daemon
+      const sessionKey = resolveCommandSessionKey(cmd.chatId, cmd.chatType) ?? cmd.chatId
+      if (!sessionKey) {
+        await reply(true, "当前无活跃 Agent，发送消息将新建")
+        break
+      }
+      const restartResult = await restartCurrentSessionAgent(sessionKey)
+      if (restartResult.kind === "sdk-ok") {
+        await reply(true, "✅ 已重建当前会话 Agent（不影响其他会话）")
+      } else if (restartResult.kind === "sdk-fail") {
+        await reply(false, "❌ 重建当前会话 Agent 失败，已保留旧实例")
+      } else if (restartResult.kind === "removed") {
+        await reply(true, "✅ 已重建当前会话 Agent（已停止旧会话，下次消息将新建；不影响其他会话）")
       } else {
-        await reply(false, `❌ Daemon 重启失败: ${result.error ?? "未知错误"}（已停止 Agent，已清空 ${cleared} 条队列消息）`)
+        await reply(true, "当前无活跃 Agent，发送消息将新建")
       }
       break
     }

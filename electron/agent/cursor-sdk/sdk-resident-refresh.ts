@@ -1,10 +1,23 @@
 /**
- * 长驻 Agent 空闲刷新：先 create 成功再替换，失败保留旧实例。
- * 与 ContextRotation 安全顺序一致，供 sendWithRetry / opaque_retry 复用。
+ * 长驻 Agent 空闲刷新 / 按 session 原地重建。
+ * 与 ContextRotation 安全顺序一致，供 sendWithRetry / opaque_retry / slash-restart 复用。
  */
 import { Agent, type SDKAgent } from "@cursor/sdk"
+import { reportSessionAgentPhase } from "../../daemon/daemon-client"
+import { completeRunGuard, releaseRunGuard } from "../shared/agent-run-guard"
 import { ZERO_CONTEXT_USAGE } from "./context-usage"
 import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loaders/plugin-sdk-bootstrap"
+import { cancelRunAndWait } from "./finalize-sdk-run"
+import { clearPersistThrottle } from "./sdk-run-persist"
+import { clearActiveSdkRun, markSdkRunUserStopped } from "./sdk-run-persistence"
+import { resetStreamPostChain } from "./sdk-run-presentation"
+import {
+  broadcastSdkSessionStatus,
+  failedCooldowns,
+  getSdkSession,
+  hasSdkSession,
+  resetSdkRunPresentationState,
+} from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
 import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
 import { pushUiLog } from "../../app/ui-logger"
@@ -80,6 +93,47 @@ export async function recreateSessionAgent(
   session.contextUsage = { ...ZERO_CONTEXT_USAGE }
   session.contextUsagePeakTokens = undefined
   return true
+}
+
+/**
+ * 按 sessionKey 原地重建当前 SDK Agent（含 idle 长驻；勿用 isSdkSessionRunning）。
+ * 有进行中 Run 时先取消并置 run=null，避免 complete 路径与 recreate 竞态；保留 sessionKey。
+ */
+export async function restartSdkSessionInPlace(
+  sessionKey: string,
+  reason: string,
+): Promise<boolean> {
+  if (!hasSdkSession(sessionKey)) return false
+  const session = getSdkSession(sessionKey)
+  if (!session) return false
+
+  if (session.run) {
+    // 用户主动重建：不续接、抑制取消触发的失败 IM
+    markSdkRunUserStopped(sessionKey)
+    session.errorNotified = true
+    const run = session.run
+    session.run = null
+    session.pendingDispatch = false
+    void cancelRunAndWait(run)
+    clearActiveSdkRun(sessionKey)
+    clearPersistThrottle(sessionKey)
+    resetStreamPostChain(session)
+    if (session.runGuardToken) {
+      completeRunGuard(sessionKey, session.runGuardToken)
+      releaseRunGuard(sessionKey, session.runGuardToken)
+      session.runGuardToken = undefined
+    }
+    void reportSessionAgentPhase(sessionKey, "idle")
+  }
+
+  const ok = await recreateSessionAgent(session, reason)
+  if (ok) {
+    failedCooldowns.delete(sessionKey)
+    resetSdkRunPresentationState(session)
+    broadcastSdkSessionStatus()
+    pushUiLog("SDK", "INFO", `[${sessionKey}] ${reason} ok agentId=${session.agentId}`)
+  }
+  return ok
 }
 
 /**

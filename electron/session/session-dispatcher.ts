@@ -14,6 +14,8 @@ export {
   stopSessionAgent,
   stopAllSessionAgents,
   getSessionAgentList,
+  restartCurrentSessionAgent,
+  type RestartCurrentSessionResult,
 } from "./session-dispatcher-runtime"
 
 export {

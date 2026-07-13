@@ -39,6 +39,7 @@
 - **共享 workspaceDir**：`warnIfSharedWorkspaceDir` 多活跃 session 同目录时 WARN（每目录每进程 1 条），仅可观测不改行为。
 - **resident-refresh**（`sdk-resident-refresh.ts`）：长驻且 `Date.now()-lastActivityAt ≥ RESIDENT_STALE_IDLE_MS`（15min）时，`sendWithRetry` attempt===1 先重建 Agent；日志 `[sessionKey] resident-refresh idle=…ms`；create 失败保留旧实例。
 - **opaque_retry**（`sdk-opaque-retry.ts`）：`completeSdkRun` 遇静默早期 ERROR（无可用 message/result/errorCode、无 lastTool、duration<15s、本 turn usage≈0）且有 `lastSendText`、尚未 `opaqueRetryDone` 时，重建并重发一次；**不** notify、**不**写 `failedCooldowns`；成功则清旧 run 态后 `startSdkRun` 并提前 return；失败再走原 notify。`lastSendText` 在 send 前写入；`opaqueRetryDone` 由 `resetSdkRunPresentationState` 清零；opaque 成功路径在 `startSdkRun` **前**置 true；`startSdkRun` 不再清零该闩。
+- **error-auto-restart**（`sdk-run-port-lifecycle.completeSdkRunViaPort`）：opaque 耗尽或不可 opaque、且已/将 notify 之后、`residentMode` 保留实例之前，对**当前** session 调用 `recreateSessionAgent(..., "error-auto-restart")`；成功则 `failedCooldowns.delete` + 清 `opaqueRetryDone` 并打 UI `error-auto-restart ok`；失败保留旧实例 WARN、不抛；**禁止** stopAll / 影响其他 session。斜杠 `/restart` 复用 `sdk-resident-refresh.restartSdkSessionInPlace`。
 - **失败兜底文案**：非上下文静默失败用「临时故障，请重新发送」；上下文 peak/pre-send≥95% 仍用「上下文窗口已接近或达到上限」。
 
 ## IM 调度

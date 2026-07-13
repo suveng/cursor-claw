@@ -1,17 +1,22 @@
 /**
- * 会话调度 — 四引擎运行态查询与停止
+ * 会话调度 — 四引擎运行态查询与停止；当前会话原地重启
  */
 import {
   stopSdkSession, stopAllSdkSessions,
-  isSdkSessionRunning, getSdkSessionList,
+  isSdkSessionRunning, getSdkSessionList, hasSdkSession,
 } from "../agent/cursor-sdk/agent-sdk"
+import { restartSdkSessionInPlace } from "../agent/cursor-sdk/sdk-resident-refresh"
 import {
   isClaudeCodeSessionRunning, stopClaudeCodeSession, stopAllClaudeCodeSessions,
-  getClaudeCodeSessionList,
+  getClaudeCodeSessionList, getCcSession,
 } from "../agent/claude-code/agent-claude-sdk"
-import { isCodexSessionRunning, stopCodexSession, stopAllCodexSessions, getCodexSessionList } from "../agent/codex/agent-codex-sdk"
 import {
-  isOpencodeSessionRunning, stopOpencodeSession, stopAllOpencodeSessions, getOpencodeSessionList,
+  isCodexSessionRunning, stopCodexSession, stopAllCodexSessions,
+  getCodexSessionList, getCodexSession,
+} from "../agent/codex/agent-codex-sdk"
+import {
+  isOpencodeSessionRunning, stopOpencodeSession, stopAllOpencodeSessions,
+  getOpencodeSessionList,
 } from "../agent/opencode/agent-opencode-sdk"
 import { chatNameCache } from "./session-dispatcher-shared"
 
@@ -34,6 +39,39 @@ export function stopAllSessionAgents(): void {
   stopAllClaudeCodeSessions()
   stopAllCodexSessions()
   stopAllOpencodeSessions()
+}
+
+/** /restart 当前会话结果（仅本 session，禁止 stopAll） */
+export type RestartCurrentSessionResult =
+  | { kind: "sdk-ok" }
+  | { kind: "sdk-fail" }
+  | { kind: "removed" }
+  | { kind: "none" }
+
+/**
+ * 仅重建/移除当前会话 Agent：SDK 原地 recreate；其它引擎停并移除（冷启）。
+ * 禁止 stopAll / 清全局队列 / restartDaemon。
+ */
+export async function restartCurrentSessionAgent(sessionKey: string): Promise<RestartCurrentSessionResult> {
+  // idle 长驻须用 hasSdkSession（isSdkSessionRunning 对 idle 为 false）
+  if (hasSdkSession(sessionKey)) {
+    const ok = await restartSdkSessionInPlace(sessionKey, "slash-restart")
+    return ok ? { kind: "sdk-ok" } : { kind: "sdk-fail" }
+  }
+  if (getCcSession(sessionKey)) {
+    stopClaudeCodeSession(sessionKey)
+    return { kind: "removed" }
+  }
+  if (getCodexSession(sessionKey)) {
+    stopCodexSession(sessionKey)
+    return { kind: "removed" }
+  }
+  // OpenCode：列表命中则停并移除
+  if (getOpencodeSessionList().some((s) => s.sessionKey === sessionKey)) {
+    stopOpencodeSession(sessionKey)
+    return { kind: "removed" }
+  }
+  return { kind: "none" }
 }
 
 /** 聚合四引擎会话列表（补全 chatName 展示字段） */

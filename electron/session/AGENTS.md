@@ -6,7 +6,7 @@
 - `session-dispatcher-launch.ts`：任务/工作流/`/chat new` 经 `launchSdkAgentFromHttp`（`agent-sdk-http` 统一网关）启动；**不**按引擎直 POST 独立端口。
 - `session-dispatcher-chat.ts`：`/chat` 命令、`parseChatNewArgs`、工作目录校验（委托 `agent/shared/launch-request-resolve`）。
 - `session-dispatcher-lifecycle.ts`：`initSessionDispatcher`、会话关闭回退、Daemon 队列、`fetchChatNames`/`fetchUserNames`。
-- `session-dispatcher-runtime.ts`：四引擎运行态查询（`isSessionAgentRunning`/`stop*`/`getSessionAgentList`）。
+- `session-dispatcher-runtime.ts`：四引擎运行态查询（`isSessionAgentRunning`/`stop*`/`getSessionAgentList`）；`restartCurrentSessionAgent` 仅重建/移除当前会话（SDK 原地 recreate，其它引擎冷启移除），**禁止** stopAll。
 - `session-dispatcher-shared.ts`：`chatNameCache`、`extractChatId`、`isMainUser` 等无环共享工具。
 - **不**扫描 IM 队列（已迁入 Daemon）；**launch 前不得**调用 `agent/shared/workspace-injector` 写盘。
 - `session-mcp-status.ts`：展示层按 sessionKey 取运行时 MCP 状态的唯一入口。

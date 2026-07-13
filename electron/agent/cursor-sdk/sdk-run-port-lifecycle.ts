@@ -26,6 +26,7 @@ import {
 } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
 import { isOpaqueEarlyRunFailure, resendAfterOpaqueFailure } from "./sdk-opaque-retry"
+import { recreateSessionAgent } from "./sdk-resident-refresh"
 import { pushUiLog } from "../../app/ui-logger"
 
 const lifecycleBySession = new WeakMap<SdkSessionAgent, RunLifecycle>()
@@ -151,6 +152,26 @@ export async function completeSdkRunViaPort(session: SdkSessionAgent, run: Run):
     }
     if (!session.errorNotified) {
       await completeSdkFailureViaTemplate(session, "sdk_run_error", undefined, run)
+    }
+
+    // opaque 耗尽/不可 opaque 且已 notify 后、长驻保留实例前：仅自愈当前会话
+    if (session.residentMode && !isRunTimeoutFailure(session, run)) {
+      try {
+        const rebuilt = await recreateSessionAgent(session, "error-auto-restart")
+        if (rebuilt) {
+          failedCooldowns.delete(sessionKey)
+          session.opaqueRetryDone = undefined
+          pushUiLog("SDK", "INFO", `[${sessionKey}] error-auto-restart ok agentId=${session.agentId}`)
+        } else {
+          pushUiLog("SDK", "WARN", `[${sessionKey}] error-auto-restart failed, keep_old agentId=${session.agentId}`)
+        }
+      } catch (err: unknown) {
+        pushUiLog(
+          "SDK",
+          "WARN",
+          `[${sessionKey}] error-auto-restart exception: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
     }
   } else if (run.status === "finished") {
     lifecycle.onStreamEvent({ type: "run_succeeded", result: run.result })

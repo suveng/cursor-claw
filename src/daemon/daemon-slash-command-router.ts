@@ -35,7 +35,7 @@ const COMMANDS: Record<string, string> = {
   "/chat": "会话管理（/chat ls | /chat <序号> | /chat stop <序号> | /chat new <描述> [-dir <路径>]；省略 -dir 用当前主会话目录，无效目录不创建）",
   "/clean": "清空消息队列",
   "/reset": "重置会话上下文（下次拉起为新会话），不删除本地文件",
-  "/restart": "停止 Agent + 清空队列 + 重启 Daemon",
+  "/restart": "重建当前会话 Agent；/restart daemon 全量重启 Daemon",
   "/help": "显示可用指令列表",
   "/merge": "合并控制（/merge send | split | edit <正文>）",
 };
