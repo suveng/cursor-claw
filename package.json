@@ -1,6 +1,6 @@
 {
   "name": "cursor-claw",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "description": "Cursor Claw - 飞书 & 微信 × Cursor AI 协作桌面应用",
   "keywords": [
     "mcp",
@@ -41,12 +41,12 @@
     "test:run-notify-contract": "bash \"knowledge/变更/归档/20260711232258-四引擎 Engine Port 与 RunLifecycle 抽象/auto_test/run-notify-contract.sh\""
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.195",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.207",
     "@cursor/sdk": "1.0.23",
     "@larksuiteoapi/node-sdk": "^1.67.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@openai/codex-sdk": "^0.142.4",
-    "@opencode-ai/sdk": "^1.17.11",
+    "@openai/codex-sdk": "^0.144.3",
+    "@opencode-ai/sdk": "^1.17.18",
     "cron-parser": "^5.5.0",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.8.3",
@@ -83,11 +83,11 @@
     "node": ">=18.0.0"
   },
   "optionalDependencies": {
-    "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.195",
-    "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.195",
-    "@anthropic-ai/claude-agent-sdk-linux-arm64": "0.3.195",
-    "@anthropic-ai/claude-agent-sdk-linux-x64": "0.3.195",
-    "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.195"
+    "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.207",
+    "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.207",
+    "@anthropic-ai/claude-agent-sdk-linux-arm64": "0.3.207",
+    "@anthropic-ai/claude-agent-sdk-linux-x64": "0.3.207",
+    "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.207"
   },
   "overrides": {
     "axios": "^1.15.0"

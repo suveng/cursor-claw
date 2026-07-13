@@ -37,7 +37,7 @@ export type { ClaudeCodeLaunchOptions, CcSessionAgent } from "./agent-cc-types"
 export { CLAUDE_CODE_MODEL_LIST } from "./agent-cc-types"
 export { checkClaudeCodeApiKey, ensureClaudeCodeHttpServer, getCcAgentApiPort } from "./agent-cc-http"
 export { getClaudeCodeSessionList, getCcSession, getCcActiveQuery } from "./agent-cc-session-registry"
-/** 长驻策略：Map + query(resume)；SDK 0.3.195 无 startup() 导出，与 Cursor SDK_RESIDENT_AGENT 语义对等 */
+/** 长驻策略：Map + query(resume)；SDK 0.3.207 无 startup() 导出，与 Cursor SDK_RESIDENT_AGENT 语义对等 */
 const CC_PENDING_LAUNCHES = new Set<string>()
 const CC_FAILED_COOLDOWNS = new Map<string, number>()
 const FAIL_COOLDOWN_MS = 30_000
