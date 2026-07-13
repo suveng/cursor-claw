@@ -1,0 +1,36 @@
+{
+  "change_id": "20260714000128-SDK新特性落地-Claude预热与生命周期观测",
+  "id": "20260714000128-SDK新特性落地-Claude预热与生命周期观测",
+  "name": "SDK新特性落地-Claude预热与生命周期观测",
+  "flow": "standard",
+  "stage": "proposed",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-14T00:01:28+0800",
+  "updated_at": "2026-07-14T00:02:12+0800",
+  "tasks": [],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/进行中/20260714000128-SDK新特性落地-Claude预热与生命周期观测/00-manifest.json",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "changed",
+      "role": "manifest"
+    },
+    {
+      "path": "knowledge/变更/进行中/20260714000128-SDK新特性落地-Claude预热与生命周期观测/01-proposal.md",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "changed",
+      "role": "proposal"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "需求",
+    "priority": "P2"
+  }
+}
