@@ -39,7 +39,8 @@ export function createFeishuHeartbeat(deps: FeishuHeartbeatDeps): FeishuHeartbea
     const state = deps.sessionProgressMap.get(sessionKey);
     if (!state?.typingActive) return;
     const ch = deps.resolveChannel(sessionKey);
-    if (ch.type !== "feishu") return;
+    // `{ type: string }` 与 `"feishu"` 字面量并存时 TS 无法仅凭 type 收窄出 rt
+    if (ch.type !== "feishu" || !("rt" in ch)) return;
 
     // 优先流式 assistant 卡 settings 续期（用户侧无新消息）
     const sender = ch.rt.sender;
