@@ -10,46 +10,38 @@
 
 ## 文件清单
 
-| 编号 | 文件 | 内容 |
-|------|------|------|
-| 01 | [01-概览.md](./01-概览.md) | 总图、架构、术语 |
-| 02 | [02-多会话模型.md](./02-多会话模型.md) | ChatType、sessionKey |
-| 03 | [03-启动与自动重连.md](./03-启动与自动重连.md) | 四引擎启动、resume |
-| 04 | [04-远程指令.md](./04-远程指令.md) | 远程指令 |
-| 05 | [05-定时任务.md](./05-定时任务.md) | Cron |
-| 06 | [06-CursorSDK执行引擎.md](./06-CursorSDK执行引擎.md) | Cursor SDK（含冷启动并行与 bind 预热） |
-| 07 | [07-ClaudeCodeSDK执行引擎.md](./07-ClaudeCodeSDK执行引擎.md) | Claude Agent SDK |
-| 08 | [08-CodexSDK执行引擎.md](./08-CodexSDK执行引擎.md) | Codex SDK |
-| 09 | [09-OpenCodeSDK执行引擎.md](./09-OpenCodeSDK执行引擎.md) | OpenCode SDK |
-| 10 | [10-SDK上下文保护与失败归因.md](./10-SDK上下文保护与失败归因.md) | RunFailureReason、errorNotified、pre-send 保护 |
+* [[01-概览]] - 总图、架构、术语
+* [[02-多会话模型]] - ChatType、sessionKey、同目录提示
+* [[03-启动与自动重连]] - 四引擎启动、resume、空闲预热
+* [[04-远程指令]] - 远程指令（含 /stop /status）
+* [[05-定时任务]] - Cron
+* [[06-CursorSDK执行引擎]] - Cursor SDK（空闲预热、同目录提示、tool 卡住提示）
+* [[07-ClaudeCodeSDK执行引擎]] - Claude Agent SDK
+* [[08-CodexSDK执行引擎]] - Codex SDK
+* [[09-OpenCodeSDK执行引擎]] - OpenCode SDK
+* [[10-SDK上下文保护与失败归因]] - RunFailureReason、errorNotified、pre-send 保护
 
 ## 推荐阅读路径
 
 1. 新人：01 → 02 → 03
 2. 运维：04 → 05
 3. IM 排查：03 → 04
-4. SDK 排查：06 → 10（上下文已满/pre-send）→ 07 → 08 → 09 → 03
+4. SDK 排查：06 → 10 → 07 → 08 → 09 → 03
+5. 长任务/多会话体感：06 → 02 → [[业务域/消息桥接/02-飞书通道]] → [[业务域/消息桥接/04-消息队列与路由]]
 
 ## 关键源码
 
 | 模块 | 路径 |
 |------|------|
 | 调度 | `electron/session/session-dispatcher.ts`、`electron/agent/cursor-sdk/agent-sdk.ts` |
+| Cursor 空闲预热/卡住提示 | `sdk-resident-bg-warmup.ts`、`sdk-resident-refresh.ts`、`sdk-tool-stuck-hint.ts`、`sdk-session-registry.ts` |
 | Daemon 薄组装 | `daemon.ts`（`daemonMain`）；接线 `daemon-wire.ts`；队列 `daemon-queue.ts` |
-| Daemon 编排 | `daemon-orchestrator.ts` + `daemon-orchestrator-dispatch.ts`（跨 session 并行 kickoff / 同会话门控） |
+| Daemon 编排 | `daemon-orchestrator.ts` + `daemon-orchestrator-dispatch.ts` |
 | Daemon agent HTTP | `daemon-http-routes-orchestrator.ts`（`/api/agent/launch|dispatch`） |
 | 回退/路由持久化 | `daemon-session-routing.ts`、`daemon-session-routing-persist.ts` |
 | Electron Daemon | `electron/daemon/daemon-manager.ts`、`daemon-client.ts` |
 | 远程/Cron | `electron/scheduling/command-handler.ts`、`cron-scheduler.ts` |
-| 四引擎 SDK | 见 [06](./06-CursorSDK执行引擎.md)～[09](./09-OpenCodeSDK执行引擎.md)；共享 `electron/agent/shared/*` |
+| 四引擎 SDK | [[06-CursorSDK执行引擎]]～[[09-OpenCodeSDK执行引擎]]；共享 `electron/agent/shared/*` |
 | Session MCP / 配置 | `session-mcp-status.ts`、`config-store.ts` |
 | Daemon notify | `daemon-orchestrator-notify.ts`、`orchestrator-failure-formatter.ts` |
 | 契约冒烟 | `npm run test:run-notify-contract` |
-
-## 变更记录
-
-- 2026-07-12：多会话并发调度源码锚点含 `daemon-orchestrator-dispatch.ts`（20260712170543）。
-- 2026-07-12：勾销批2 注记；薄组装锚点对齐 queue/wire（archive 20260712170438）。
-- 2026-07-12：`daemon-session-routing-persist`、四引擎 recover、Engine Port/notify（20260712113356 等）。
-- 2026-07-11～06-29：编排拆分批1、10 上下文保护、06～09 引擎文档。
-

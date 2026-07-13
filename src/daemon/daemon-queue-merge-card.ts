@@ -66,8 +66,9 @@ export function buildMergeBatchCardView(
     const secs = Math.max(0, Math.ceil((batch.quietDeadlineAt - Date.now()) / 1000));
     footerText = secs > 0 ? `${secs} 秒后发送…` : "即将发送…";
   } else if (batch.phase === "ready") {
+    // 与 buildEnqueueStatusText(processing) 用词对齐：已排队 + 当前任务结束后…
     footerText = deps.getSessionAgentPhase(sessionKey) === "processing"
-      ? "当前任务完成后发送"
+      ? "已排队，当前任务结束后发送"
       : "即将发送";
   } else if (batch.phase === "locked") {
     footerText = "发送中…";

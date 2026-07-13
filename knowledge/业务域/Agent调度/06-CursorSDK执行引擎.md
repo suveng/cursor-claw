@@ -1,25 +1,40 @@
+---
+type: DomainModule
+title: Cursor SDK 执行引擎
+description: Cursor SDK 长驻 Run、空闲预热、同目录提示、tool 呈现与卡住提示
+timestamp: 2026-07-13T22:40:00+08:00
+related:
+  - 业务域/Agent调度/02-多会话模型
+  - 业务域/Agent调度/03-启动与自动重连
+  - 业务域/Agent调度/10-SDK上下文保护与失败归因
+  - 业务域/消息桥接/02-飞书通道
+depends_on:
+  - 业务域/Agent调度/01-概览
+---
+
 # Cursor SDK 执行引擎
 
 ## 一、能力范围
 
-`@cursor/sdk` Electron 执行 IM/任务/工作流；`sdk-run-*` 事件流/续接；出站 `presentation-event`+`stream-text`。经 `engine-port-adapter.ts` 实现 `AgentEnginePort` 六能力，终态经 `RunLifecycle`+`completeRunFromTemplate`。不负责 Daemon 队列与其他引擎（07–09）。
+`@cursor/sdk` Electron 执行 IM/任务/工作流；`sdk-run-*` 事件流/续接；出站 `presentation-event`+`stream-text`。经 `engine-port-adapter` 实现 `AgentEnginePort`；终态经 `RunLifecycle`+`completeRunFromTemplate`。不负责 Daemon 队列与其他引擎（07–09）。
 
 ## 二、设计决策与取舍
 
-- **Engine Port**：`engine-port-adapter.ts` 注册 `sdk`；`agent-sdk-http.ts` 查 `getEnginePort` 委托 launch/dispatch；`sdk-run-port-lifecycle.ts` 缓存 Lifecycle、`applySdkStreamRunEvent`、`completeSdkRunViaPort`。
-- **RunLifecycle**：`guarding→streaming→watching→completing→notifying`；`streamRunEvents` 终态经 `RunEvent` 路由，**禁止** adapter 外平行完整终态 notify。
-- **API/MCP/续接（S7）**：`recoverAllActiveRuns` 挂 `initDaemonManager`；`Agent.resume`→guard→`startSdkRun`；`getRun` 终态**未改**；shared notify 默认 `unrecoverable` 尾句对齐三引擎。三引擎 `*-run-recover` 见 07–09。
-- **呈现/ordering/watchdog**：Rev2 end-only、飞书 f41、tool 分级、watchdog 门控见 AGENTS.md；OpenCode 已对齐（见 [09](./09-OpenCodeSDK执行引擎.md) §二）。
+- **Engine Port / RunLifecycle**：`guarding→streaming→watching→completing→notifying`；终态经 `RunEvent` 路由，禁止 adapter 外平行完整终态 notify。
+- **长驻空闲双保险**：空闲 ≥15min（`RESIDENT_STALE_IDLE_MS`）时，`sdk-resident-bg-warmup` 后台扫描 `recreate`（多会话串行+jitter，processing 跳过）；发前 `sdk-resident-refresh` 仍可 recreate；二者共用 recreate inFlight 闩。
+- **同 workspaceDir**：`warnIfSharedWorkspaceDir` → UI `[shared-workspace]` WARN + 通道 `notifySessionChat`（`SHARED_WORKSPACE_DIR_HINT`）；每目录每进程 dedup；**不默认硬阻断**。
+- **tool 呈现**：notify 白名单 `presentation-event`；`started` 文案「正在执行：…」（`formatToolMilestoneText`）；`tool_call running` 武装 `armToolStuckHint`（默认 10min，`SDK_TOOL_STUCK_MS`），文案含 `/stop` `/status`；**禁止**假 SDK turn 保活。
+- **API/MCP/续接（S7）**：`recoverAllActiveRuns`；`Agent.resume`→guard→`startSdkRun`。呈现/ordering/watchdog 见 AGENTS.md。
 
 ## 三、服务端规则
 
 1. SDK 资源+API Key；模型默认 `composer-2`；非超时 `failedCooldowns` 30s。
-2. 终态 IM：`completeSdkFailureViaTemplate`→`enterNotifying`→`completeRunFromTemplate`；`errorNotified` 闩防重复；用户 `stopSdkSession`（aborted）静默。
-3. pre-send/context_blocked 见 [10](./10-SDK上下文保护与失败归因.md)；冷启动三阶段见 [03](./03-启动与自动重连.md)。
+2. 终态 IM：`completeSdkFailureViaTemplate`→`enterNotifying`；`errorNotified` 闩；用户 stop 静默。
+3. pre-send/context_blocked 见 [[10-SDK上下文保护与失败归因]]；冷启动见 [[03-启动与自动重连]]。
 
 ## 四、客户端流程
 
-`launch`/`dispatch`→`startSdkRun`→`streamRunEvents`（`RunEvent`）→`completeSdkRunViaPort`；失败/超时/取消统一 `completeSdkFailureViaTemplate`。
+`launch`/`dispatch`→`startSdkRun`→`streamRunEvents`→`completeSdkRunViaPort`；失败/超时/取消统一 finalizer。
 
 ```mermaid
 sequenceDiagram
@@ -35,19 +50,17 @@ sequenceDiagram
 | 入口 | 说明 |
 |------|------|
 | `AgentEnginePort` 六方法 | launch/dispatch/stop/stream/watchdog/complete |
-| `launchSdkAgent`/`dispatchToSdkAgent` | 业务入口，经 Port 或直连 |
-| `POST /api/agent/launch\|dispatch` | Daemon 统一网关 |
-| `POST /api/sdk-warmup` | bind 后预热 |
-
-出站 `presentation-event`、`stream-text`；终态 `notifySessionChat(..., stop_progress: true)`。
+| `launchSdkAgent`/`dispatchToSdkAgent` | 业务入口 |
+| `POST /api/agent/launch\|dispatch` | Daemon 网关 |
+| `POST /api/sdk-warmup` | bind 后预热（与空闲 bg-warmup 不同） |
 
 ## 六、数据
 
-`SdkSessionAgent`：`errorNotified`、`watchdogTimedOut`、`runFinalizing`、`abortController`；Lifecycle 门控语义见 [10](./10-SDK上下文保护与失败归因.md)。`sdk-active-runs.json` 续接。
+`SdkSessionAgent`：`errorNotified`、`runPhase`（含 `tool_running`）、`toolRunningSince`/`toolStuckHintSent`、`watchdogTimedOut`；`sdk-active-runs.json`。
 
 ## 七、非功能与可观测
 
-RunGuard+`enterGuardWithLifecycle`（guard busy→`notifyGuardBusy`/`session_abnormal`）；`isSdkSessionProcessing` 早退另经 `notifySdkProcessingBusy`；400ms 节流；`[sdk_warmup]`/`[recover]` 可检索；契约冒烟 `npm run test:run-notify-contract`（S1/S4/S5/S7/S8）。
+RunGuard busy IM；400ms 节流；`[sdk_warmup]`/`[resident-bg-warmup]`/`[shared-workspace]`/`tool_stuck_hint`；`npm run test:run-notify-contract`。
 
 ## 八、推送
 
@@ -55,12 +68,12 @@ RunGuard+`enterGuardWithLifecycle`（guard busy→`notifyGuardBusy`/`session_abn
 
 ## 九、已知限制与 TODO
 
-S7 四引擎主进程 recover 已对称；Cursor 独有 `Agent.resume`+`getRun` 终态探测，三引擎依赖各 SDK `resume` 语义（见 07–09 §九）。
+S7 四引擎 recover 已对称；Cursor 独有 `Agent.resume`+`getRun`；同目录仅提示不硬阻断。
 
-## 十、变更记录
+## 十、相关
 
-- 2026-07-12：shared 续接失败分类 IM 尾句对齐（`sdk-run-recover` 无业务 diff；archive 20260712145449）。
-- 2026-07-12：续接编排迁入 `recoverAllActiveRuns`；`notifyResumeFailure` 抽取 shared（archive 20260712113332）。
-- 2026-07-12：Engine Port + RunLifecycle 抽象，终态委托 shared（archive 20260711232258）。
-- 2026-07-11：首条冷启动优化（archive 20260711211323）。
-- 2026-07-05：pre-send 上下文保护（archive 20260705230806）。
+- [[01-概览]]
+- [[02-多会话模型]]
+- [[03-启动与自动重连]]
+- [[10-SDK上下文保护与失败归因]]
+- [[业务域/消息桥接/02-飞书通道]]

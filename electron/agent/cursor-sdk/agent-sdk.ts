@@ -3,31 +3,24 @@
  * 复杂逻辑下沉 sdk-run-* / sdk-session-* / agent-sdk-http。
  */
 import { Agent } from "@cursor/sdk"
-import { resolve, join, dirname } from "node:path"
-import { existsSync } from "node:fs"
-import { createRequire } from "node:module"
 import { ZERO_CONTEXT_USAGE, evaluatePreSendContextPressure, resolveContextLimitForSession } from "./context-usage"
 import { buildPrompt } from "../shared/agent-launcher"
 import { bootstrapSdkPluginWorkspace, logSdkPluginConfig } from "../../mcp/loaders/plugin-sdk-bootstrap"
-import { ensureSdkThirdPartyPluginPatch } from "./ensure-sdk-plugin-patch"
 import { acquireRunGuard, completeRunGuard, releaseRunGuard, enterGuardWithLifecycle } from "../shared/agent-run-guard"
 import { createRunLifecycle } from "../shared/run-lifecycle"
 import { ensureAgentSdkHttpServer } from "./agent-sdk-http"
+import { ensureSdkBinaryPaths } from "./sdk-binary-paths"
 import { notifyDispatchFailure, notifyPreSendContextFailure } from "./sdk-run-finalize"
 import { notifySdkProcessingBusy } from "./engine-port-adapter"
 import { sendWithRetry } from "./sdk-run-dispatch"
-import { startSdkRun, stopSdkSession, stopAllSdkSessions } from "./sdk-run-lifecycle"
+import { startSdkRun } from "./sdk-run-lifecycle"
+import { startResidentBgWarmup } from "./sdk-resident-bg-warmup"
 import {
   broadcastSdkSessionStatus,
   failedCooldowns,
   FAIL_COOLDOWN_MS,
   f41Eligible,
-  getSdkSession,
-  getSdkSessionCount,
-  getSdkSessionList,
-  hasSdkSession,
   isSdkSessionProcessing,
-  isSdkSessionRunning,
   markSessionActivity,
   pendingLaunches,
   resetSdkRunPresentationState,
@@ -61,36 +54,7 @@ export { checkSdkApiKey, listSdkModels } from "./sdk-api-models"
 export { stopSdkSession, stopAllSdkSessions } from "./sdk-run-lifecycle"
 export { ensureAgentSdkHttpServer, getAgentSdkApiPort, launchSdkAgentFromHttp } from "./agent-sdk-http"
 export { recoverSdkActiveRuns } from "./sdk-run-recover"
-
-/** 解析 SDK 平台包内 ripgrep 路径，并确保第三方插件 patch 已应用 */
-export function ensureSdkBinaryPaths(): void {
-  ensureSdkThirdPartyPluginPatch()
-  if (process.env.CURSOR_RIPGREP_PATH) return
-  const platformPkg = `@cursor/sdk-${process.platform}-${process.arch}`
-  const binaryName = process.platform === "win32" ? "rg.exe" : "rg"
-  const candidates: string[] = []
-  try {
-    const req = createRequire(import.meta.url)
-    const pkgDir = dirname(req.resolve(`${platformPkg}/package.json`))
-    candidates.push(join(pkgDir, "bin", binaryName))
-  } catch { /* package not resolvable */ }
-  const appDir = process.env.PORTABLE_EXECUTABLE_DIR || dirname(process.execPath)
-  for (const base of [appDir, resolve(".")]) {
-    candidates.push(join(base, "node_modules", platformPkg, "bin", binaryName))
-    candidates.push(join(base, "resources", "node_modules", platformPkg, "bin", binaryName))
-  }
-  for (const p of candidates) {
-    const real = p.includes("app.asar") && !p.includes("app.asar.unpacked")
-      ? p.replace("app.asar", "app.asar.unpacked")
-      : p
-    if (existsSync(real)) {
-      process.env.CURSOR_RIPGREP_PATH = real
-      pushUiLog("SDK", "INFO", `Ripgrep 路径: ${real}`)
-      return
-    }
-  }
-  pushUiLog("SDK", "WARN", `未找到 ${binaryName}，SDK 可能报错 (searched: ${candidates.join(", ")})`)
-}
+export { ensureSdkBinaryPaths } from "./sdk-binary-paths"
 
 export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: boolean; error?: string }> {
   const { sessionKey, chatType, meta, workspaceDir, senderOpenId, chatName, taskMessage } = opts
@@ -186,6 +150,8 @@ export async function launchSdkAgent(opts: SdkLaunchOptions): Promise<{ ok: bool
       launchBootstrapDone: true,
     }
     sdkSessions.set(sessionKey, session)
+    // stopAll 会停预热 timer；新建 session 后幂等重启
+    startResidentBgWarmup()
     pendingLaunches.delete(sessionKey)
     warnIfSharedWorkspaceDir(session.workspaceDir, sessionKey)
     broadcastLog(`[SDK] 会话 ${sessionKey} 已创建, agentId=${agent.agentId}`)

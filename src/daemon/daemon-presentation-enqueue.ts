@@ -16,6 +16,8 @@ export interface EnqueueHandlerDeps {
     | { type: "error"; message: string };
   replyToMessage: (messageId: string, text: string, chatId?: string) => Promise<void>;
   addReactionToMessages: (messageIds: string[], sessionKey: string, emojiType?: string) => void;
+  /** 飞书长任务心跳 start（LITE-01）；微信不走此路径 */
+  startFeishuHeartbeat?: (sessionKey: string) => void;
 }
 
 export interface EnqueueHandlerApi {
@@ -27,13 +29,20 @@ export interface EnqueueHandlerApi {
 
 /** 入队确认与 Get 表情进度 */
 export function createEnqueueHandlers(deps: EnqueueHandlerDeps): EnqueueHandlerApi {
+  /**
+   * 入队确认文案 SSOT（飞书/微信 F1、合并卡 fallback footer）。
+   * busy/starting 只强调「已排队 + 结束后处理」，勿复述三态进度近义句
+   * （「正在连接 Agent…」「Agent 处理中…」由 orchestrator / agent-sdk 另发）。
+   */
   function buildEnqueueStatusText(sessionKey: string, pending: number): string {
     const phase = deps.getSessionAgentPhase(sessionKey) ?? "idle";
     let text: string;
     if (phase === "starting") {
-      text = "已收到。正在连接 Agent，你的消息已排队";
+      // 与 orchestrator「正在连接 Agent…」分工：此处不复述「正在连接」
+      text = "已排队，当前连接结束后处理";
     } else if (phase === "processing") {
-      text = "已收到。Agent 正在处理上一条，你的消息已排队";
+      // 与「Agent 处理中…」分工：明确排队体感，不说「正在处理上一条」
+      text = "已排队，当前任务结束后处理";
     } else if (pending <= 1) {
       text = "已收到，等待 Agent 领取";
     } else {
@@ -97,6 +106,8 @@ export function createEnqueueHandlers(deps: EnqueueHandlerDeps): EnqueueHandlerA
       state.typingActive = true;
       deps.addReactionToMessages([messageId], sessionKey, "Get");
       recordGetReactions(sessionKey, [messageId]);
+      // 飞书无 typing：启动 CardKit/里程碑心跳（对标微信 4s 续期）
+      deps.startFeishuHeartbeat?.(sessionKey);
     }
   }
 

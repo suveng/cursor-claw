@@ -140,3 +140,33 @@ export async function closeStreamingCardMode(
     return false;
   }
 }
+
+/**
+ * CardKit 静默续期：PATCH settings 保持 streaming_mode=true（不改正文、不刷屏）。
+ * sequence 须严格递增；失败返回 false 供 daemon 降级轻量里程碑。
+ */
+export async function renewStreamingCardSettings(
+  ctx: LarkSenderCtx,
+  cardId: string,
+  sequence: number,
+): Promise<boolean> {
+  try {
+    const res = await ctx.client.request({
+      method: "PATCH",
+      url: `/open-apis/cardkit/v1/cards/${cardId}/settings`,
+      data: {
+        settings: JSON.stringify({ config: { streaming_mode: true } }),
+        sequence,
+        uuid: randomUUID(),
+      },
+    }) as { code?: number; msg?: string };
+    if (res?.code !== 0) {
+      ctx.log("WARN", `CardKit 续期失败: code=${res?.code}, msg=${res?.msg}`);
+      return false;
+    }
+    return true;
+  } catch (e: unknown) {
+    ctx.log("WARN", `CardKit 续期异常: ${e instanceof Error ? e.message : e}`);
+    return false;
+  }
+}

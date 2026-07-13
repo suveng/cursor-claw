@@ -50,10 +50,11 @@
 |------|------|
 | `lark-types.ts` | Card/事件/`LarkSenderOptions`/`LarkSenderCtx` 等类型 |
 | `lark-utils.ts` | `MEDIA_CACHE_DIR`、缓存清理、代理剥离、`createLarkClient` |
-| `lark-sender-stream.ts` | 流式 CardKit create / send / PATCH / close |
+| `lark-sender-stream.ts` | 流式 CardKit create / send / PATCH / close / `renewStreamingCardSettings` |
 | `lark-sender-outbound.ts` | plain text/post+md、回复、表情、图片/文件、下载；含 @ 降级 text |
 | `lark-sender-merge.ts` | 合并批次卡 create/send/PATCH/`renderMergeBatchCard` |
 | `lark-sender-progress.ts` | 工具/思考进度卡；shell 经 `../shared/tool-presentation.js` |
+| `lark-cardkit-renewal.ts` | 飞书会话心跳 Map+interval；`start/stop/noteOutbound` 幂等（对标 `wechat-progress-typing`）；**禁止**假 SDK turn；renew 由 daemon 注入 |
 | `lark-sender-help.ts` | 帮助卡 create / `sendHelpCard` |
 | `lark-sender-parse.ts` | `parseMessageContent` / `processIncomingMessage` / `extractCardText` |
 | `lark-sender-connection.ts` | `startConnection` 与 EventDispatcher 注册 |
@@ -86,5 +87,6 @@
 
 ## 入队进度与 Get 表情（bridge  primitives）
 
-- bridge 提供飞书 Get 表情、微信 typing 等**原子能力**；何时启动/停止由 daemon `confirmEnqueueAndStartProgress` / `stopSessionProgress` 编排。
+- bridge 提供飞书 Get 表情、微信 typing、飞书 CardKit 续期等**原子能力**；何时启动/停止由 daemon `confirmEnqueueAndStartProgress` / `stopSessionProgress` 编排。
+- **飞书心跳原语**：`lark-cardkit-renewal.ts` 仅管 timer/静默钟；CardKit PATCH 在 `lark-sender-stream.renewStreamingCardSettings`；装配与里程碑降级在 daemon `daemon-presentation-feishu-heartbeat.ts`。
 - `idsNeedingPollGetReaction` 等去重状态在 daemon 内存维护；bridge 层无状态重复记录。

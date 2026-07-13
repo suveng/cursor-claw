@@ -38,6 +38,7 @@ import {
   isRedundantTaskEventAfterToolCall,
   mapTaskMilestoneText,
 } from "../shared/tool-presentation-dedup.js"
+import { armToolStuckHint, clearToolStuckTimer } from "./sdk-tool-stuck-hint"
 
 const LOG_FLUSH_LEN = 400
 
@@ -127,6 +128,11 @@ export function handleSdkEvent(
       const canonicalName = normalizePresentationToolName(event.name)
       session.lastTool = { name: canonicalName, status: event.status }
       session.runPhase = event.status === "running" ? "tool_running" : "executing"
+      if (event.status === "running") {
+        armToolStuckHint(session, canonicalName)
+      } else {
+        clearToolStuckTimer(session)
+      }
       if (event.status !== "running") {
         clearToolCallRunningDedup(session)
       }

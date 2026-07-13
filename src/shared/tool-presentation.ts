@@ -210,12 +210,12 @@ export function formatToolCallLogSuffix(
 function toolMilestoneStatusLabel(status: "started" | "completed" | "failed"): string {
   if (status === "completed") return "已完成";
   if (status === "failed") return "失败";
-  return "已开始";
+  return "正在执行";
 }
 
 /**
  * notify 级工具飞书里程碑单行文案 SSOT（含 shell 命令 / task 描述摘要）
- * shell started 优先展示具体命令；task started 优先展示 description；禁止裸 `` tool：已开始 ``
+ * started 统一「正在执行」前缀；shell/task 优先带命令/描述；禁止裸 `` tool：已开始 ``
  */
 export function formatToolMilestoneText(
   toolName: string,
@@ -229,9 +229,9 @@ export function formatToolMilestoneText(
   if (toolName === "shell") {
     if (status === "started") {
       if (command) {
-        return `shell执行：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}`;
+        return `正在执行：${truncateText(command, TOOL_MILESTONE_TEXT_MAX)}`;
       }
-      return "命令执行已开始（具体命令暂不可展示）";
+      return "正在执行：shell（具体命令暂不可展示）";
     }
     // completed/failed：仍保留命令摘要，便于与 started 里程碑对照
     if (command) {
@@ -246,9 +246,9 @@ export function formatToolMilestoneText(
   if (toolName === "task") {
     if (status === "started") {
       if (taskDesc) {
-        return `task开始：${truncateText(taskDesc, TOOL_MILESTONE_TEXT_MAX)}`;
+        return `正在执行：${truncateText(taskDesc, TOOL_MILESTONE_TEXT_MAX)}`;
       }
-      return "子任务已开始（描述暂不可展示）";
+      return "正在执行：子任务（描述暂不可展示）";
     }
     if (taskDesc) {
       if (status === "completed") {
@@ -267,7 +267,17 @@ export function formatToolMilestoneText(
   );
   if (fileEditText) return fileEditText;
 
+  if (status === "started") return `正在执行：${toolName}`;
   return `${toolName}：${statusLabel}`;
+}
+
+/**
+ * 同一 tool 卡住超 N 分钟的可操作提示（每 tool 至多一次由调用方保证）。
+ */
+export function formatToolStuckHintText(toolName: string, stuckMinutes: number): string {
+  const name = toolName.trim() || "工具";
+  const mins = Math.max(1, Math.round(stuckMinutes));
+  return `工具 ${name} 已运行超过 ${mins} 分钟，可用 /stop 取消或 /status 查看状态`;
 }
 
 /** 合并 event 与已缓存卡片的 shell 详情，供 PATCH 时使用 */

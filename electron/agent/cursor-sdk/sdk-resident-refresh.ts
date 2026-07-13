@@ -22,8 +22,11 @@ import type { SdkSessionAgent } from "./sdk-session-types"
 import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
 import { pushUiLog } from "../../app/ui-logger"
 
-/** 长驻空闲超过该阈值则 dispatch 前重建（防 Connect/gRPC 僵死） */
+/** 长驻空闲超过该阈值则 dispatch 前 / 后台预热重建（防 Connect/gRPC 僵死） */
 export const RESIDENT_STALE_IDLE_MS = 15 * 60 * 1000
+
+/** 同 session 并发 recreate 合并为一趟（后台预热 ↔ 发前 refresh 双保险） */
+const recreateInFlightByKey = new Map<string, Promise<boolean>>()
 
 /** 从 session 组装 Agent.create 的 model 参数 */
 function buildModelSelection(session: SdkSessionAgent): {
@@ -44,10 +47,10 @@ function buildModelSelection(session: SdkSessionAgent): {
 }
 
 /**
- * 安全重建 session.agent：先 Agent.create 成功 → 再替换 → best-effort close 旧实例。
- * 创建失败保留旧实例，返回 false。
+ * 实际执行重建（无闩）；仅由 recreateSessionAgent 调用。
+ * 先 Agent.create 成功 → 再替换 → best-effort close 旧实例；失败保留旧实例。
  */
-export async function recreateSessionAgent(
+async function recreateSessionAgentUnlocked(
   session: SdkSessionAgent,
   reason: string,
 ): Promise<boolean> {
@@ -93,6 +96,26 @@ export async function recreateSessionAgent(
   session.contextUsage = { ...ZERO_CONTEXT_USAGE }
   session.contextUsagePeakTokens = undefined
   return true
+}
+
+/**
+ * 安全重建 session.agent；同 sessionKey 并发调用 join 同一 Promise（inFlight 闩）。
+ */
+export async function recreateSessionAgent(
+  session: SdkSessionAgent,
+  reason: string,
+): Promise<boolean> {
+  const key = session.sessionKey
+  const existing = recreateInFlightByKey.get(key)
+  if (existing) {
+    pushUiLog("SDK", "INFO", `[${key}] ${reason} join inFlight recreate`)
+    return existing
+  }
+  const work = recreateSessionAgentUnlocked(session, reason).finally(() => {
+    recreateInFlightByKey.delete(key)
+  })
+  recreateInFlightByKey.set(key, work)
+  return work
 }
 
 /**

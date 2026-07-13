@@ -186,6 +186,8 @@ export function getAgentSdkApiPort(): number {
 export function ensureAgentSdkHttpServer(): void {
   if (agentApiServer) return
   registerCursorEnginePort()
+  // 长驻空闲后台预热：与 HTTP 网关同生命周期启动（timer.unref）
+  void import("./sdk-resident-bg-warmup").then((m) => m.startResidentBgWarmup())
   agentApiServer = http.createServer(async (req, res) => {
     if (req.method !== "POST") {
       jsonAgentApi(res, { ok: false, error: "method not allowed" }, 405)

@@ -73,6 +73,7 @@ export function createProcessPresentationHandlers(ctx: PresentationHandlerCtx) {
           state.activeToolNames.delete(toolName);
         }
       }
+      if (sent) ctx.notePresentationOutbound?.(sessionKey);
       // Rev2 end-only：过程 idle 不再 mid-run release assistant，仅更新闩锁
       return { ok: true };
     }
@@ -153,6 +154,7 @@ export function createProcessPresentationHandlers(ctx: PresentationHandlerCtx) {
         state.toolCards.delete(toolName);
       }
       ctx.trackMessageSession(result.cardMessageId, sessionKey);
+      ctx.notePresentationOutbound?.(sessionKey);
       // Rev2 end-only：过程 idle 不再 mid-run release assistant
       return { ok: true, outbound_message_id: result.cardMessageId };
     } catch (e: unknown) {
@@ -265,6 +267,7 @@ export function createProcessPresentationHandlers(ctx: PresentationHandlerCtx) {
       state.thinkingCardSequence = result.cardSequence;
       state.thinkingLastPushAt = now;
       ctx.trackMessageSession(result.cardMessageId, sessionKey);
+      ctx.notePresentationOutbound?.(sessionKey);
       // Rev2 end-only：过程 idle 不再 mid-run release assistant
       return { ok: true, outbound_message_id: result.cardMessageId };
     } catch (e: unknown) {

@@ -1,0 +1,288 @@
+{
+  "name": "长任务多会话体验优化",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "workflow_version": "v2.6",
+  "updated_at": "2026-07-13T23:40:53+08:00",
+  "archived_at": "2026-07-13T23:39:57+08:00",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "飞书长任务进度心跳/CardKit 续期（禁止假 SDK turn）",
+      "status": "done",
+      "files": [
+        "src/bridge/lark-cardkit-renewal.ts",
+        "src/bridge/lark-sender-stream.ts",
+        "src/bridge/lark-core.ts",
+        "src/daemon/daemon-presentation-feishu-heartbeat.ts",
+        "src/daemon/daemon-presentation-handlers.ts",
+        "src/daemon/daemon-presentation-enqueue.ts",
+        "src/daemon/daemon-presentation-stream.ts",
+        "src/daemon/daemon-presentation-process-events.ts",
+        "src/daemon/daemon-presentation-types.ts",
+        "src/daemon/AGENTS.md",
+        "src/bridge/AGENTS.md"
+      ]
+    },
+    {
+      "id": "LITE-02",
+      "title": "空闲 ≥15min 后台预热 recreate + 多会话节流",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-resident-bg-warmup.ts",
+        "electron/agent/cursor-sdk/sdk-resident-refresh.ts",
+        "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+        "electron/agent/cursor-sdk/agent-sdk-http.ts",
+        "electron/agent/cursor-sdk/agent-sdk.ts",
+        "electron/agent/cursor-sdk/sdk-run-recover.ts",
+        "electron/agent/cursor-sdk/sdk-binary-paths.ts",
+        "electron/agent/cursor-sdk/AGENTS.md"
+      ]
+    },
+    {
+      "id": "LITE-03",
+      "title": "同 workspaceDir 第二会话通道可见提示（不默认硬阻断）",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-session-registry.ts",
+        "electron/agent/cursor-sdk/AGENTS.md"
+      ]
+    },
+    {
+      "id": "LITE-04",
+      "title": "tool_running「正在执行」+ 卡住超 N 分钟可操作提示",
+      "status": "done",
+      "files": [
+        "electron/agent/cursor-sdk/sdk-tool-stuck-hint.ts",
+        "electron/agent/cursor-sdk/sdk-run-stream.ts",
+        "electron/agent/cursor-sdk/sdk-session-types.ts",
+        "electron/agent/cursor-sdk/sdk-session-registry.ts",
+        "src/shared/tool-presentation.ts",
+        "src/bridge/lark-sender-progress.ts",
+        "src/daemon/daemon-presentation-process-events.ts",
+        "electron/agent/cursor-sdk/AGENTS.md",
+        "src/shared/AGENTS.md"
+      ]
+    },
+    {
+      "id": "LITE-05",
+      "title": "同会话入队明确「已排队」体感文案",
+      "status": "done",
+      "files": [
+        "src/daemon/daemon-presentation-enqueue.ts",
+        "src/daemon/daemon-queue-merge-card.ts",
+        "src/daemon/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "src/bridge/lark-cardkit-renewal.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/bridge/lark-sender-stream.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/bridge/lark-core.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/bridge/lark-sender-progress.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-feishu-heartbeat.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-handlers.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-enqueue.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-stream.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-process-events.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon-presentation-types.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/daemon-queue-merge-card.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-resident-bg-warmup.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-resident-refresh.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-lifecycle.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-sdk-http.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/agent-sdk.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-binary-paths.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-recover.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-session-registry.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-tool-stuck-hint.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-run-stream.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/sdk-session-types.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/shared/tool-presentation.ts",
+      "kind": "code"
+    },
+    {
+      "path": "src/daemon/AGENTS.md",
+      "kind": "other"
+    },
+    {
+      "path": "src/bridge/AGENTS.md",
+      "kind": "other"
+    },
+    {
+      "path": "electron/agent/cursor-sdk/AGENTS.md",
+      "kind": "other"
+    },
+    {
+      "path": "src/shared/AGENTS.md",
+      "kind": "other"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/00-README.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "阅读路径/源码锚点：空闲预热与长任务体感"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/01-概览.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "关键约束：同目录提示、空闲双保险"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/02-多会话模型.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "同 workspaceDir 通道提示"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "空闲后台预热 + 发前 refresh"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/06-CursorSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "预热/同目录/tool stuck 现状"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/00-README.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "心跳/入队锚点与阅读路径"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/02-飞书通道.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "CardKit 续期/仍在处理中"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/04-消息队列与路由.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "已排队三态文案"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/log.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "结构性同步日志"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/log.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "结构性同步日志"
+    },
+    {
+      "path": "package.json",
+      "kind": "config"
+    },
+    {
+      "path": "changelog/1.15.0.json",
+      "kind": "config"
+    },
+    {
+      "path": "knowledge/变更/归档/20260713220111-长任务多会话体验优化/00-manifest.json",
+      "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/变更/归档/20260713220111-长任务多会话体验优化/01-proposal.md",
+      "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/变更/归档/20260713220111-长任务多会话体验优化/05-summary.md",
+      "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/业务域/消息桥接/01-概览.md",
+      "kind": "knowledge",
+      "source": "lite",
+      "status": "changed",
+      "note": "心跳与入队约束"
+    }
+  ]
+}

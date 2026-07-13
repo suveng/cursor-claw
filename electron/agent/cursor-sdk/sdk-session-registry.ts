@@ -7,7 +7,13 @@ import { parseChatKey } from "../../../src/shared/channel-types"
 import { ZERO_CONTEXT_USAGE } from "./context-usage"
 import { type ChatType, resolveSessionChatName } from "../shared/agent-launcher"
 import { pushUiLog, broadcastSessionStatus } from "../../app/ui-logger"
+import { notifySessionChat } from "../shared/run-notify"
+import { resetToolStuckState } from "./sdk-tool-stuck-hint"
 import type { SdkSessionAgent } from "./sdk-session-types"
+
+/** 同 workspaceDir 多会话通道提示文案（与 UI WARN 共用 dedup，不硬阻断） */
+export const SHARED_WORKSPACE_DIR_HINT =
+  "检测到多个会话共用同一工作区目录。多会话同目录可能互相干扰（文件写入/锁冲突等），建议为各会话隔离工作区目录，或错开长任务。本次不会阻断执行。"
 
 /** 活跃 SDK 会话 Map（内部模块共享） */
 export const sdkSessions = new Map<string, SdkSessionAgent>()
@@ -54,6 +60,7 @@ export function resetSdkRunPresentationState(session: SdkSessionAgent): void {
   session.abortController = new AbortController()
   // 新 turn 呈现复位时清零 opaque 闩；lastSendText 由下次 send 覆盖
   session.opaqueRetryDone = undefined
+  resetToolStuckState(session)
 }
 
 export function setWatchdogState(
@@ -196,7 +203,7 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** 多 session 共用 workspaceDir 时 WARN（每目录每进程至多 1 条） */
+/** 多 session 共用 workspaceDir：UI WARN + 通道提示各至多 1 次/目录/进程（不硬阻断） */
 const warnedWorkspaceDirs = new Set<string>()
 
 /** 停止全部 SDK 会话后清理 dispatch 冷却与 pending launch 状态 */
@@ -205,6 +212,10 @@ export function clearSdkDispatchState(): void {
   pendingLaunches.clear()
 }
 
+/**
+ * 同 workspaceDir 出现第二活跃会话时：UI WARN + 对当前会话 notifySessionChat。
+ * 与 warnedWorkspaceDirs 共用 dedup；默认不阻断多群/多会话。
+ */
 export function warnIfSharedWorkspaceDir(workspaceDir: string | undefined, sessionKey: string): void {
   if (!workspaceDir?.trim()) return
   let count = 0
@@ -219,4 +230,12 @@ export function warnIfSharedWorkspaceDir(workspaceDir: string | undefined, sessi
     "WARN",
     `[shared-workspace] ${count} 个活跃 session 共用 workspaceDir=${workspaceDir} sample=${sessionKey}`,
   )
+  // 通道可见提示：fire-and-forget，失败仅打 WARN，不阻断 launch/dispatch
+  void notifySessionChat(sessionKey, SHARED_WORKSPACE_DIR_HINT).catch((e: unknown) => {
+    pushUiLog(
+      "SDK",
+      "WARN",
+      `[shared-workspace] IM 提示发送失败 sample=${sessionKey}: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  })
 }

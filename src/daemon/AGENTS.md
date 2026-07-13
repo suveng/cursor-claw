@@ -33,10 +33,11 @@
 | `daemon-presentation-process-events.ts` | tool/thinking presentation-event |
 | `daemon-presentation-assistant-events.ts` | assistant/task/merge_batch presentation-event |
 | `daemon-presentation-handlers.ts` | `createPresentationHandlers` |
-| `daemon-presentation-enqueue.ts` | 入队确认、F1/Get、排队文案 |
+| `daemon-presentation-enqueue.ts` | 入队确认、F1/Get、排队文案；飞书路径调 `startFeishuHeartbeat` |
+| `daemon-presentation-feishu-heartbeat.ts` | 飞书长静默心跳装配（CardKit settings 续期 → 里程碑降级） |
 | `daemon-presentation-merge-preview.ts` | 合并预览卡回复编辑 |
 | `daemon-presentation-types.ts` | presentation 共享类型 |
-| `daemon-presentation-milestone.ts` | 里程碑 send-text 降级 |
+| `daemon-presentation-milestone.ts` | 里程碑 send-text 降级（≥3s 节流、同文案 ≤4/Run） |
 | `daemon-http-routes.ts` | `createAdminApiHandler` |
 | `daemon-http-routes-types.ts` | `HttpRoutesDeps` |
 | `daemon-http-routes-orchestrator.ts` | orchestrator / merge / agent 路由簇 |
@@ -117,8 +118,10 @@
 
 ## 会话进行中指示（sessionProgressMap）
 
-- **启动**：入队确认后 `confirmEnqueueAndStartProgress` — 微信 `startProgressTyping`（4s 续期），飞书原消息 `Get` 表情。
-- **停止**：统一经 `stopSessionProgress(sessionKey)` — 微信 `stopProgressTyping`（清续期 timer），并 `delete` Map 条目防泄漏。
+- **启动**：入队确认后 `confirmEnqueueAndStartProgress` — 微信 `startProgressTyping`（4s 续期）；飞书 `Get` 表情 + `createFeishuHeartbeat.start`（对标微信 typing，**禁止**假 SDK turn）。
+- **飞书心跳**：`daemon-presentation-feishu-heartbeat.ts` 经 bridge `LarkCardkitRenewal`（默认 60s，`LARK_CARDKIT_RENEWAL_MS`≥15s）；仅无 tool/thinking/assistant/里程碑出站静默时 renew；优先 CardKit `renewStreamingCardSettings`，否则 `sendMilestoneText(kind=heartbeat)`（仍受 ≥3s/≤4 次约束）。真实出站经 `notePresentationOutbound` 刷新静默钟。
+- **与 tool 文案分工**：心跳=静默续期；tool「正在执行」= process-event 出站；二者勿双写刷屏。
+- **停止**：统一经 `stopSessionProgress(sessionKey)` — 先 `feishuHeartbeat.stop`，微信 `stopProgressTyping`（清续期 timer），并 `delete` Map 条目防泄漏。
 - **微信群聊 gate**：`initWeChatChannel` 群聊入队前调用 `wechat-group-enqueue-gate.ts`；跳过打 `wechat_group_skip` INFO；私聊/斜杠/首条绑定不经 gate。
 - **微信出站 track**：`POST /api/send-text` 微信成功须 `trackMessageSession`，`message_id` 以 `wxc_` 开头；调用方判 `sendText` 返回 `.ok` 而非 boolean。
 - **完成路径须 stop**：带 `message_id` 的最终回复经 `ackOnReply`（acked 非空时含 stop）；**但** `ackOnReply` 在 `acked.length===0` 早退且不 stop。因此 `/api/stream-text` 与 `ordering-release` 的 `finishFinal("ack-or-stop")` 成功路径须 **ack 后再无条件** `stopSessionProgress`（与 send-image/file 双调对齐；stop 幂等）。异常 notify 经 `/api/send-text` 传 `stop_progress: true`。三态进度文案（「正在启动」「Agent 处理中…」）走 send-text **不带** `message_id`/`stop_progress`，**不** stop。
@@ -159,6 +162,7 @@
 - **Agent 阶段**：`sessionAgentPhaseMap` 由 electron `reportSessionAgentPhase`（`daemon-client.ts`）写入；`idle` 即 delete 条目。与 `sessionProgressMap`（流式/typing）职责分离。
 - **冷启动 claimed 回收**：`initQueue` 调用 `cleanupOrphanClaimedOnColdStart`（`file-queue.ts`）将遗留 `.claimed` 还原为 `.qmsg`；全应用重启后无 live Agent，避免 F1 误报 processing。
 - **F1 排队计数**：`confirmEnqueueAndStartProgress` / `buildEnqueueStatusText` 的排队数基于 `getSessionUnclaimedCount`（仅 `.qmsg`）；`phase` 缺失时默认 `idle`，不用磁盘 `.claimed` 推断 `processing`。
+- **入队文案 SSOT**：仅 `daemon-presentation-enqueue.ts` 的 `buildEnqueueStatusText`；`starting`/`processing` 用「已排队，…结束后处理」，**禁止**复述「正在连接 Agent…」「Agent 处理中…」近义句；合并卡 ready+processing footer 与之同词根。
 - **idle 补偿**：`POST /api/session-agent-phase` 转 `idle` 后刷新合并卡、`flushReadyMergeBatches`，并 **`scheduleAgentDispatch`**（processing 期间入队的 unclaimed 当时无法 claim，idle 后须重跑 dispatch）。
 
 ## 合并批次 CardKit（MergeBatch，daemon 内存）

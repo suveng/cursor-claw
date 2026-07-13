@@ -23,6 +23,7 @@ import {
   sdkSessions,
 } from "./sdk-session-registry"
 import type { SdkSessionAgent } from "./sdk-session-types"
+import { stopResidentBgWarmup } from "./sdk-resident-bg-warmup"
 import { pushUiLog } from "../../app/ui-logger"
 import {
   guardSdkPromise,
@@ -94,6 +95,8 @@ export function stopSdkSession(sessionKey: string): void {
 }
 
 export function stopAllSdkSessions(): void {
+  // 先停后台预热 timer，避免 stop 过程中仍 recreate
+  stopResidentBgWarmup()
   for (const key of [...sdkSessions.keys()]) stopSdkSession(key)
   clearSdkDispatchState()
 }

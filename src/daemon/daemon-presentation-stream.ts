@@ -21,6 +21,8 @@ export interface StreamHandlerDeps {
   trackMessageSession: (messageId: string, sessionKey: string) => void;
   ackOnReply: (messageId?: string, sessionKey?: string) => void;
   stopSessionProgress: (sessionKey: string) => void;
+  /** 飞书心跳：assistant 出站后刷新静默时钟 */
+  notePresentationOutbound?: (sessionKey: string) => void;
 }
 
 export function createStreamTextHandler(deps: StreamHandlerDeps) {
@@ -211,6 +213,7 @@ async function handleStreamText(body: {
   }
 
   sessionLastReplyAt.set(session_key, Date.now());
+  deps.notePresentationOutbound?.(session_key);
   finishFinal("ack-or-stop");
   return { ok: true, stream_id: sid, outbound_message_id: outId };
 }

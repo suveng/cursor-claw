@@ -68,7 +68,7 @@ export interface PresentationHandlerCtx {
     sessionKey: string,
   ) =>
     | { type: "wechat"; rt: { wechat?: { sendText: (chatId: string, text: string, opts: { skipTyping: boolean }) => Promise<{ ok: boolean; outboundId?: string }>; startProgressTyping: (chatId: string) => Promise<void>; stopProgressTyping: (chatId: string) => Promise<void> } }; chatId: string }
-    | { type: "feishu"; rt: { sender?: { sendMessage: (text: string, replyId: string | undefined, chatId: string | undefined, title?: string) => Promise<string | undefined>; renderToolProgressCard: (...args: unknown[]) => Promise<{ cardMessageId: string; cardEntityId: string; cardSequence: number } | null>; renderThinkingCard: (...args: unknown[]) => Promise<{ cardMessageId: string; cardEntityId: string; cardSequence: number } | null> } }; chatId?: string }
+    | { type: "feishu"; rt: { sender?: { sendMessage: (text: string, replyId: string | undefined, chatId: string | undefined, title?: string) => Promise<string | undefined>; renderToolProgressCard: (...args: unknown[]) => Promise<{ cardMessageId: string; cardEntityId: string; cardSequence: number } | null>; renderThinkingCard: (...args: unknown[]) => Promise<{ cardMessageId: string; cardEntityId: string; cardSequence: number } | null>; renewStreamingCardSettings?: (cardId: string, sequence: number) => Promise<boolean> } }; chatId?: string }
     | { type: "error"; message: string };
   extractWorkspaceTitle: (sessionKey?: string) => string | undefined;
   trackMessageSession: (messageId: string, sessionKey: string) => void;
@@ -84,6 +84,8 @@ export interface PresentationHandlerCtx {
     message_id?: string;
     final?: boolean;
   }) => Promise<{ ok: boolean; stream_id?: string; outbound_message_id?: string; deferred?: boolean; error?: string }>;
+  /** 飞书心跳：真实出站后刷新静默时钟（LITE-01） */
+  notePresentationOutbound?: (sessionKey: string) => void;
 }
 
 export const MERGE_EDIT_MAX_CHARS = 30000;

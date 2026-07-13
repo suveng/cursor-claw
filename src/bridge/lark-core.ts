@@ -28,6 +28,7 @@ import {
 import {
   closeStreamingCardMode as streamClose,
   createStreamingCardEntity as streamCreate,
+  renewStreamingCardSettings as streamRenew,
   sendStreamingCardMessage as streamSend,
   updateStreamingCardText as streamUpdate,
 } from "./lark-sender-stream.js";
@@ -215,6 +216,11 @@ export class LarkSender {
 
   async closeStreamingCardMode(cardId: string, sequence: number): Promise<boolean> {
     return streamClose(this.ctx(), cardId, sequence);
+  }
+
+  /** 长静默 CardKit 续期（settings PATCH，不改正文） */
+  async renewStreamingCardSettings(cardId: string, sequence: number): Promise<boolean> {
+    return streamRenew(this.ctx(), cardId, sequence);
   }
 
   async replyMessage(messageId: string, text: string, title?: string): Promise<string | undefined> {

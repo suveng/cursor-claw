@@ -45,8 +45,10 @@
 - **tool-presentation**：`TOOL_LOG_DETAIL_MAX`、`TOOL_CARD_SHELL_OUTPUT_MAX`、`TOOL_MILESTONE_TEXT_MAX` 为截断上限 SSOT；`formatToolMilestoneText` 为飞书 tool 里程碑文案 SSOT；`lark-core`、electron agent 与 daemon 里程碑须引用本模块，不重复定义 magic number。
 - **工具名归一化**：`normalizePresentationToolName(rawName)` 将 CC/SDK 原始名映射为 tier 与里程碑 canonical 名；未命中别名表则 `toLowerCase().trim()` 原样返回（默认 silent）。**CC 别名**（`PRESENTATION_TOOL_NAME_ALIASES`）：`bash`→`shell`、`edit`/`strreplace`→`strreplace`、`write`→`write`、`delete`→`delete`、`task`→`task`；调用 `resolveSdkToolPresentationTier` 前须先归一化。
 - **分级门控**：`resolveSdkToolPresentationTier` 查 notify 白名单（`shell`/`write`/`strreplace`/`delete`/`task`）；notify → `markProcessEventSeen` + `postPresentationEvent`；silent → 跳过出站，UI 日志与 `lastTool` 仍全量。
-- **shell 工具里程碑**：`extractShellPresentationFields` 从 args 解析 `command` → `tool_shell_command`；`formatToolMilestoneText` shell `started` 优先 `shell执行：{截断}`，无命令时 `命令执行已开始（具体命令暂不可展示）`；禁止裸 `shell：已开始`；completed/failed 分别为 `shell完成：{截断}` / `shell失败：{截断}`（有命令字段时）。
-- **task 工具里程碑**：`tool_call` 名 `task` 时，`extractTaskPresentationFields` 从 args 解析 `description` → `tool_task_description`；`formatToolMilestoneText` task `started` 优先 `task开始：{截断描述}`，无描述时 `子任务已开始（描述暂不可展示）` 或引擎侧 `#N` 序号降级；禁止裸 `task：已开始`；completed/failed 分别为 `task完成：{截断}` / `task失败：{截断}`（有描述字段时）。task **事件**路径文案见 `mapTaskMilestoneText`（`electron/agent/shared/tool-presentation-dedup.ts`）。
+- **shell 工具里程碑**：`extractShellPresentationFields` 从 args 解析 `command` → `tool_shell_command`；`formatToolMilestoneText` shell `started` 优先 `正在执行：{截断命令}`，无命令时 `正在执行：shell（具体命令暂不可展示）`；禁止裸 `shell：已开始`；completed/failed 分别为 `shell完成：{截断}` / `shell失败：{截断}`（有命令字段时）。
+- **task 工具里程碑**：`tool_call` 名 `task` 时，`extractTaskPresentationFields` 从 args 解析 `description` → `tool_task_description`；`formatToolMilestoneText` task `started` 优先 `正在执行：{截断描述}`，无描述时 `正在执行：子任务（描述暂不可展示）` 或引擎侧 `#N` 序号降级；禁止裸 `task：已开始`；completed/failed 分别为 `task完成：{截断}` / `task失败：{截断}`（有描述字段时）。task **事件**路径文案见 `mapTaskMilestoneText`（`electron/agent/shared/tool-presentation-dedup.ts`）。
+- **通用 started**：非 shell/task/file-edit 的 notify 工具 `started` → `正在执行：{toolName}`。
+- **卡住提示文案**：`formatToolStuckHintText(toolName, stuckMinutes)` 为 IM 可操作提示 SSOT（建议 `/stop` `/status`）；触发与每 tool 至多 1 次由 electron `sdk-tool-stuck-hint.ts` 保证。
 
 ## 全局异常日志
 

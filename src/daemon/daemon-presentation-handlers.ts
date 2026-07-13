@@ -4,6 +4,10 @@
 
 import type { QueueMessageMeta } from "../bridge/file-queue.js";
 import { clearMilestoneState } from "./daemon-presentation-milestone.js";
+import {
+  createFeishuHeartbeat,
+  type FeishuHeartbeatApi,
+} from "./daemon-presentation-feishu-heartbeat.js";
 import type { AgentPhase } from "./daemon-orchestrator.js";
 import {
   createPresentationOrdering,
@@ -86,6 +90,13 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     return batch.lastInboundMessageId;
   }
 
+  // 占位后赋值，避免 sendMilestonePlainText 闭包 TDZ
+  let feishuHeartbeat: FeishuHeartbeatApi = {
+    start: () => {},
+    stop: () => {},
+    noteOutbound: () => {},
+  };
+
   async function sendMilestonePlainText(sessionKey: string, text: string): Promise<boolean> {
     const ch = deps.resolveChannel(sessionKey);
     if (ch.type === "error") return false;
@@ -96,12 +107,14 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
         deps.trackMessageSession(result.outboundId, sessionKey);
         deps.sessionLastReplyAt.set(sessionKey, Date.now());
       }
+      if (result.ok) feishuHeartbeat.noteOutbound(sessionKey);
       return result.ok;
     }
     const sentMsgId = await ch.rt.sender!.sendMessage(text, undefined, (ch as { chatId?: string }).chatId, title);
     if (sentMsgId) {
       deps.trackMessageSession(sentMsgId, sessionKey);
       deps.sessionLastReplyAt.set(sessionKey, Date.now());
+      feishuHeartbeat.noteOutbound(sessionKey);
     }
     return !!sentMsgId;
   }
@@ -110,7 +123,16 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     deps.log("WARN", message);
   }
 
+  feishuHeartbeat = createFeishuHeartbeat({
+    log: deps.log,
+    sessionProgressMap: deps.sessionProgressMap,
+    resolveChannel: deps.resolveChannel as Parameters<typeof createFeishuHeartbeat>[0]["resolveChannel"],
+    sendMilestonePlainText,
+    milestoneLogFn,
+  });
+
   function stopSessionProgress(sessionKey: string): void {
+    feishuHeartbeat.stop(sessionKey);
     const state = deps.sessionProgressMap.get(sessionKey);
     if (!state) return;
     const ch = deps.resolveChannel(sessionKey);
@@ -133,6 +155,7 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     resolveChannel: deps.resolveChannel as EnqueueHandlerDeps["resolveChannel"],
     replyToMessage: deps.replyToMessage,
     addReactionToMessages: deps.addReactionToMessages,
+    startFeishuHeartbeat: feishuHeartbeat.start,
   });
 
   const { handleStreamText } = createStreamTextHandler({
@@ -146,6 +169,7 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     trackMessageSession: deps.trackMessageSession,
     ackOnReply: deps.ackOnReply,
     stopSessionProgress,
+    notePresentationOutbound: feishuHeartbeat.noteOutbound,
   });
 
   const ctx: PresentationHandlerCtx = {
@@ -174,6 +198,7 @@ export function createPresentationHandlers(deps: PresentationHandlerDeps): Prese
     getPresentationReplyAnchor,
     logPresentationFailed,
     handleStreamText,
+    notePresentationOutbound: feishuHeartbeat.noteOutbound,
   };
 
   const processHandlers = createProcessPresentationHandlers(ctx);

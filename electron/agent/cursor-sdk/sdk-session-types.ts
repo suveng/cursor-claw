@@ -107,6 +107,12 @@ export interface SdkSessionAgent {
   lastSendText?: string
   /** 本 turn 是否已做过一次静默早期 ERROR 重建重试（仅 resetSdkRunPresentationState 清零） */
   opaqueRetryDone?: boolean
+  /** 当前 tool_running 起始时刻（ms），供卡住提示 */
+  toolRunningSince?: number
+  /** 本 Run 已发送卡住提示的 tool 名（每 tool 至多 1 次） */
+  toolStuckHintSent?: Set<string>
+  /** 卡住提示 timer（clear on tool 结束 / reset） */
+  toolStuckTimer?: ReturnType<typeof setTimeout>
 }
 
 export type PresentationKind = "assistant" | "thinking" | "tool" | "diff" | "merge_batch" | "task"

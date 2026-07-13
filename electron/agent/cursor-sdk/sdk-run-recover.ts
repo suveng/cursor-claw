@@ -20,6 +20,7 @@ import {
 } from "./sdk-session-registry"
 import type { RecoverSummary, SdkSessionAgent } from "./sdk-session-types"
 import { SDK_SETTING_SOURCES } from "./sdk-setting-sources"
+import { ensureSdkBinaryPaths } from "./sdk-binary-paths"
 import { pushUiLog } from "../../app/ui-logger"
 
 function parseRecordChatType(raw: string): ChatType {
@@ -29,7 +30,6 @@ function parseRecordChatType(raw: string): ChatType {
 
 /** 主进程启动后批量续接活跃 Run（T6 在 initDaemonManager 挂接） */
 export async function recoverSdkActiveRuns(): Promise<RecoverSummary> {
-  const { ensureSdkBinaryPaths } = await import("./agent-sdk")
   ensureSdkBinaryPaths()
 
   const records = listRecoverableSdkRuns()
@@ -110,6 +110,8 @@ export async function recoverSdkActiveRuns(): Promise<RecoverSummary> {
       }
 
       sdkSessions.set(sessionKey, session)
+      // stopAll 会停预热 timer；续接恢复 session 后幂等重启
+      void import("./sdk-resident-bg-warmup").then((m) => m.startResidentBgWarmup())
       broadcastSdkSessionStatus()
 
       // S7：续接前重置 Lifecycle 闩与阶段，与 launch/dispatch 对称走 enterGuardWithLifecycle

@@ -28,7 +28,7 @@ const PATCHABLE_CARD_CONFIG = {
 function formatToolStatusLabel(status: "started" | "completed" | "failed"): string {
   if (status === "completed") return "已完成";
   if (status === "failed") return "失败";
-  return "执行中…";
+  return "正在执行";
 }
 
 /** 工具 CardKit markdown：shell 用 ```shell 展示命令与输出 */
@@ -41,6 +41,9 @@ export function formatToolProgressCardMarkdown(
     return buildShellToolCardMarkdown(status, shellDetail);
   }
   const escapedName = toolName.replace(/\\/g, "\\\\");
+  if (status === "started") {
+    return `🔧 **正在执行：${escapedName}**`;
+  }
   const statusLabel = formatToolStatusLabel(status);
   return `🔧 **${escapedName}**\n状态：${statusLabel}`;
 }
