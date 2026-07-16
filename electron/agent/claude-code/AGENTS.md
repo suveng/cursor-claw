@@ -2,7 +2,7 @@
 
 ## Claude Agent SDK 模块边界
 
-- **执行引擎**：`agent-claude-sdk.ts` 使用 `@anthropic-ai/claude-agent-sdk` 的 `query()` API（非 spawn CLI）；HTTP 契约由 `agent-cc-http.ts` 暴露，handler 经依赖注入注册。
+- **执行引擎**：`agent-claude-sdk.ts` 使用 `@anthropic-ai/claude-agent-sdk` 的 `query()` 作消息桥；默认经 `buildQueryOptions` 注入 `spawnClaudeCodeProcess`（`cc-spawn-process.ts` 显式 spawn CLI）；`CC_LEGACY_QUERY=1` 时不注入 spawn。HTTP 契约由 `agent-cc-http.ts` 暴露，handler 经依赖注入注册。
 - **Session 注册表**：`agent-cc-session-registry.ts` 维护 `CC_SESSIONS` Map 与 `getClaudeCodeSessionList`/`getCcSession`/`getCcActiveQuery` 查询导出；`agent-claude-sdk.ts` re-export 三函数以保持 `daemon/daemon-manager`/`session/session-dispatcher` import 路径不变。
 - **MCP 内联**：`mcp/loaders/cc-mcp-loader.ts` 读取 global/project `.cursor/mcp.json` 合并 OAuth（对称 `mcp/loaders/mcp-sdk-loader.ts`）；每次 `query()` 经 `appendInlineCcMcpToCcOptions` 重传 `mcpServers`（SDK 不持久化 inline 配置）。
 - **事件映射**：`agent-cc-events.ts` 遍历 `SDKMessage` async iterator（含 `includePartialMessages` stream_event）；Presentation 出站复用 `agent-cc-stream.ts`。f41 流式下 `stream_event`/`text_delta` 与 `assistant`/`text` block 经 `ccTextFromPartialStream` 去重，仅一路 append 正文。
@@ -11,9 +11,18 @@
 - **Presentation 时序**：CC 路径对称 SDK 的 `PRESENTATION_ORDERING`（`presentationOrderingEligible` = 开关 + f41Stream）；tool/thinking 不抢 stream-text 首包。
 - **Presentation 出站（tool/thinking）**：`agent-cc-events.ts` + `agent-cc-presentation-tool.ts` 对称 `sdk-run-stream.ts`。**`postPresentationEvent` 不因飞书抑制早退**——CardKit/里程碑降级由 daemon 处理。**thinking**：始终 `markProcessEventSeen(session, "thinking")` + POST；飞书 thinking 零里程碑由 daemon。**tool 分级门控**（SSOT：`src/shared/sdk-tool-presentation-tier.ts` → `resolveSdkToolPresentationTier` + `normalizePresentationToolName`）：`notify`（shell/write/strreplace/delete/task）→ `markProcessEventSeen(session, "tool")` + POST（含 `extractShellPresentationFields` / `extractTaskPresentationFields`）；`silent`（read/glob 等）→ **跳过** presentation 与 `markProcessEventSeen`，但 `pushUiLog` `[tool]` 与 `lastTool` **仍全量**。**去重**（`electron/agent/shared/tool-presentation-dedup.ts`）：相邻同参 running 跳过日志与 IM；Task 无描述时 `taskSeq` 序号降级。**Codex/OpenCode** 仍保留 Electron 飞书早退，非本引擎范围。
 - **SDK hooks（CC）**：hook 逻辑放 `cc-sdk-hooks.ts`（`buildCcSdkHooks` / `formatCcHookUiLog`）；`buildQueryOptions` 合并 `hooks` + `includeHookEvents: true`；回调与 `hook_*` 流事件经 `markSessionActivity` 刷新时钟，UI 日志含 `hook_event=`，**禁止** hook 原文 IM notify。
-- **watchdog 超时（CC）**：**idle 与 absolute 解耦** — idle 默认 `CC_IDLE_TIMEOUT_MS`/`SDK_IDLE_TIMEOUT_MS`（300s）；absolute 默认 `CC_ABSOLUTE_TIMEOUT_MS`/`CC_RUN_WATCHDOG_MS`/`SDK_RUN_WATCHDOG_MS`/`PLATFORM_RUN_LIMIT_MS`（7min），**不得**再等于 idle 默认。与 SDK 共用 `NEVER_CANCEL_ON_DURATION`（默认 true）：`watchRunGuard.timeoutMs` 传 `Number.MAX_SAFE_INTEGER`，idle 仍走 `onTick`+`lastActivityAt`；关闭 never-cancel 时 absolute 硬 cap **仅**在 `onTick` 分支（`runStartedAt`），不经 guard L73 单一 timeout。`armCcWatchdog.onTimeout` 先置 `watchdogTimedOut` 再 close Query；`completeCcRun` 超时分支走 `finalizeCcRunOnWatchdogTimeout` → `completeCcViaLifecycle`，**跳过** `failedCooldowns`；主动 `stopClaudeCodeSession` 不得置 `watchdogTimedOut`。
+- **watchdog 超时（CC）**：**idle 与 absolute 解耦** — idle 默认 `CC_IDLE_TIMEOUT_MS`/`SDK_IDLE_TIMEOUT_MS`（300s）；absolute 默认 `CC_ABSOLUTE_TIMEOUT_MS`/`CC_RUN_WATCHDOG_MS`/`SDK_RUN_WATCHDOG_MS`/`PLATFORM_RUN_LIMIT_MS`（7min），**不得**再等于 idle 默认。与 SDK 共用 `NEVER_CANCEL_ON_DURATION`（默认 true）：`watchRunGuard.timeoutMs` 传 `Number.MAX_SAFE_INTEGER`，idle 仍走 `onTick`+`lastActivityAt`；关闭 never-cancel 时 absolute 硬 cap **仅**在 `onTick` 分支（`runStartedAt`），不经 guard L73 单一 timeout。`armCcWatchdog.onTimeout` 先置 `watchdogTimedOut` 再 close Query，并 best-effort 调 `killCcSpawnedProcess`（`cc-spawn-process.ts`）；`completeCcRun` 超时分支走 `finalizeCcRunOnWatchdogTimeout` → `completeCcViaLifecycle`，**跳过** `failedCooldowns`；主动 `stopClaudeCodeSession` 不得置 `watchdogTimedOut`。
 - **Engine Port**：`engine-port-adapter.ts` — `AgentEnginePort` 六方法；`registerCcEnginePort()` 于 `agent-sdk-http` 注册；`mapCcSdkMessageToRunEvent` / `emitCcQueryTerminalRunEvent` 供 `agent-cc-events.ts` 流式路由。终态 IM：`completeCcViaLifecycle` / `notifyCcRunFailure` / `notifyCcWatchdogTimeout` → `createRunLifecycle` → `enterNotifying` → `completeRunFromTemplate`。**禁止**在 adapter 外平行实现完整终态 lifecycle；`agent-cc-notify.ts` **仅** re-export `run-notify`。
-- **活跃 Run 持久化/续接**：`cc-run-persistence.ts` + `cc-run-persist.ts`（3s 节流）；`completeCcRun` 终态 `clearCcActiveRun`；`cc-run-recover.ts` — `recoverCcActiveRuns`（guard 前 `cc-run-probe.probeCcRecoverTarget` + `startCcQuery`）；init 经 `agent-run-recover-orchestrator`，**禁止**在 `daemon-manager` 直接调用。
+- **活跃 Run 持久化/续接**：`cc-run-persistence.ts` + `cc-run-persist.ts`（3s 节流）；`completeCcRun` 终态 `clearCcActiveRun`；`cc-run-recover.ts` — `recoverCcActiveRuns`（guard 前 `cc-run-probe.probeCcRecoverTarget` + `startCcSpawn`）；init 经 `agent-run-recover-orchestrator`，**禁止**在 `daemon-manager` 直接调用。
+
+## CC spawn 适配器（cc-spawn-process.ts）
+
+- **职责**：`createCcSpawnClaudeCodeProcess` 供 `buildQueryOptions` 注入 `spawnClaudeCodeProcess`；`killCcSpawnedProcess` 供 stop/watchdog 复用。
+- **buildQueryOptions 门控**：默认注入 `spawnClaudeCodeProcess` + `abortController`；`CC_LEGACY_QUERY=1/true/yes`（trim、大小写不敏感）时不注入 spawn，须 `pushUiLog` 含 `legacy_query`。
+- **二进制校验**：spawn 前 `existsSync`（含 asar 解包路径）；复用 `resolveCcAgentBinaryPath`，不重写搜索逻辑；缺失抛 `cc_spawn_enoent`，不静默回退。
+- **句柄**：成功写入 `session.childPid` / `session.spawnedProcess`（内存 only）；错误路径须 `clearSpawnHandles`。
+- **禁止**：预热 API（`startup`/`WarmQuery`）；多引擎通用 spawn 框架；内联大段 spawn 逻辑到 `agent-cc-events.ts` / `agent-claude-sdk.ts`（T4/T6 只 import kill 辅助）。
+- **启动入口**：`startCcSpawn` 为 launch/dispatch/recover 共用入口；同步 spawn/query 失败向上抛出，由调用方返回 `{ ok:false, error }` 并清理 guard/pendingDispatch；`startCcQuery` 已弃用转发。
 
 ## Recover hardening
 

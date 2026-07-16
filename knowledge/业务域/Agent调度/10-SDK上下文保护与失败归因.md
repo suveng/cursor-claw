@@ -1,43 +1,39 @@
+---
+type: DomainModule
+title: SDK 上下文保护与失败归因
+description: Run 终态契约、续接失败分类；Claude spawn 可检索错误码
+timestamp: 2026-07-16T18:35:00+08:00
+related:
+  - 业务域/Agent调度/03-启动与自动重连
+  - 业务域/Agent调度/07-ClaudeCodeSDK执行引擎
+depends_on:
+  - 业务域/Agent调度/01-概览
+---
+
 # SDK 上下文保护与失败归因
 
 ## 一、能力范围
 
-四引擎共享 Run 终态契约：`RunFailureReason`、闩字段、`formatRunFailureMessage`、`completeRunFromTemplate`、`notifySessionChat`。SDK pre-send 保护为本文件特有。
+四引擎共享 Run 终态契约：`RunFailureReason`、闩字段、`formatRunFailureMessage`、`completeRunFromTemplate`、`notifySessionChat`。SDK pre-send 为本文件特有。Claude spawn 同步失败文案见 §七（非新 `ResumeFailureCategory`）。
 
 ## 二、设计决策与取舍
 
-- **类型 SSOT**：`run-lifecycle-types.ts` — `RunPhase`、`RunEvent`、`RunFailureReason`、`AgentEnginePort`。
-- **终态 IM 唯一出站**：`run-notify.notifySessionChat`；SDK/CC re-export，Codex/OpenCode 直接 import。
-- **失败文案**：`formatRunFailureMessage` 引擎 SSOT；Daemon dispatch SSOT `orchestrator-failure-formatter.ts`。
-- **收尾模板**：`completeRunFromTemplate` — 幂等闩、f41 禁双写、失败归档。
-- **guard busy（S8）**：四引擎 `enterGuardWithLifecycle`；busy→`notifyGuardBusy` 一次 IM；`stale_aborted` 不二次 notify。
-- **续接（S7）**：`resume()` 前调用；失败 `notifyResumeFailure(..., category?)`+`classifyResumeFailure`（`run-resume-notify.ts`，`stop_progress`）；`ResumeFailureCategory` 驱动尾句；默认 `unrecoverable`；契约见 shared AGENTS「续接失败分类」。
-- **pre-send（SDK）**：`lastPreSend*`；ratio≥100% 未轮转→`context_blocked`。
+- **类型 SSOT**：`run-lifecycle-types.ts`（`RunPhase`/`RunEvent`/`RunFailureReason`/`AgentEnginePort`）。
+- **终态 IM**：仅 `run-notify.notifySessionChat`；失败文案 `formatRunFailureMessage`；Daemon 侧 `orchestrator-failure-formatter.ts`。
+- **收尾模板**：`completeRunFromTemplate`（幂等闩、f41 禁双写、失败归档）。
+- **guard busy（S8）**：`enterGuardWithLifecycle`→`notifyGuardBusy` 一次 IM。
+- **续接（S7）**：`notifyResumeFailure`+`classifyResumeFailure`；`ResumeFailureCategory` 驱动尾句；默认 `unrecoverable`。
+- **pre-send（SDK）**：ratio≥100% 未轮转→`context_blocked`。
 
 ## 三、服务端规则
 
-**RunFailureReason**（对齐 `crash-log-archiver`）：
+**RunFailureReason**：`dispatch_failed` / `run_error` / `timeout` / `user_cancelled`（静默）/ `context_exhausted` / `stale_aborted` / `session_abnormal`。
 
-| 枚举 | 典型场景 |
-|------|----------|
-| `dispatch_failed` | 调度失败 |
-| `run_error` | 引擎出错 |
-| `timeout` | 看门狗/长时 |
-| `user_cancelled` | 用户 stop（静默） |
-| `context_exhausted` | 上下文满 |
-| `stale_aborted` | 会话过期 |
-| `session_abnormal` | busy/异常 |
+**errorNotified**：`notifying` 入口检查；失败/超时/取消仅一次 IM；S7 `resume()` 重置闩。
 
-**errorNotified 契约**：`notifying` 入口检查；失败/超时/取消仅一次 IM；`aborted` 静默；S7 `resume()` 重置闩。
+**Daemon dispatch**：`handleLaunchFailure`（有限重试+耗尽 ack）。
 
-**Daemon dispatch**：`POST /api/agent/dispatch` 失败经 `handleLaunchFailure`（有限重试+`notifySessionUser`；耗尽 ack）；见 `daemon-orchestrator-retry.ts`。
-
-**续接失败分类**（`run-resume-notify.ts`）：
-
-| category | 尾句 | 典型 reason |
-|----------|------|-------------|
-| `retryable` | 稍后重试 | 网络/服务瞬时 |
-| `unrecoverable` | 开始新任务 | 已结束/CLI 缺失/失效 |
+**续接分类**：`retryable`→稍后重试；`unrecoverable`→开始新任务（含 CLI 缺失/失效）。
 
 ## 四、客户端流程
 
@@ -48,10 +44,10 @@ flowchart TD
   lc --> tpl["completeRunFromTemplate"]
   tpl --> chk{"errorNotified?"}
   chk -->|否| im["notifySessionChat"]
-  chk -->|是| skip["跳过重复 IM"]
+  chk -->|是| skip["跳过"]
 ```
 
-SDK pre-send 分支见 §二；`context_blocked` 走 `notifyPreSendContextFailure`。
+`context_blocked` 走 `notifyPreSendContextFailure`。
 
 ## 五、接口
 
@@ -64,11 +60,20 @@ SDK pre-send 分支见 §二；`context_blocked` 走 `notifyPreSendContextFailur
 
 ## 六、数据
 
-各引擎 session：`errorNotified`、`watchdogTimedOut`、`runFinalizing` 等；SDK 另含 `lastPreSend*`。
+各引擎闩字段；SDK `lastPreSend*`；CC 内存 `childPid`/`spawnedProcess`。
 
 ## 七、非功能与可观测
 
-日志：`dispatch_failed`、`agent_failed`、`[compression]`；`npm run test:run-notify-contract`。
+`dispatch_failed`/`agent_failed`/`[compression]`；`npm run test:run-notify-contract`。
+
+**Claude spawn 可检索错误**（`cc-spawn-process.ts`；launch/dispatch `error` 含前缀；**非**新 `ResumeFailureCategory`）：
+
+| 码 | 含义 |
+|----|------|
+| `cc_spawn_enoent` | CLI 可执行文件不存在 |
+| `cc_spawn_failed` | spawn 同步失败；或子进程 `error`（日志） |
+
+续接 detail 含上述串时仍走 `classifyResumeFailure("cc", detail)`。
 
 ## 八、推送
 
@@ -76,10 +81,10 @@ SDK pre-send 分支见 §二；`context_blocked` 走 `notifyPreSendContextFailur
 
 ## 九、已知限制与 TODO
 
-SDK pre-send 见 §二；CC 审批见 07。
+SDK pre-send 见 §二；CC 审批与 spawn 见 [[07-ClaudeCodeSDK执行引擎]]。
 
-## 十、变更记录
+## 十、相关
 
-- 2026-07-12：续接 `ResumeFailureCategory`+`classifyResumeFailure`（20260712145449）。
-- 2026-07-12：dispatch `handleLaunchFailure` 对齐（20260712144755）；`notifyResumeFailure` shared（20260712113332）。
-- 2026-07-12：终态契约 D1～D3（20260711232258）；2026-07-05：pre-send（20260705230806）。
+- [[01-概览]]
+- [[03-启动与自动重连]]
+- [[07-ClaudeCodeSDK执行引擎]]

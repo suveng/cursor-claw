@@ -175,7 +175,7 @@ export function markProcessEventSeen(
 export function broadcastCcSessionStatus(sessions: CcSessionAgent[]): void {
   const list = sessions.map((s) => ({
     sessionKey: s.sessionKey,
-    pid: 0,
+    pid: s.childPid ?? 0,
     startedAt: s.startedAt,
     lastActivityAt: s.lastActivityAt,
     chatType: s.chatType as string,
@@ -240,6 +240,8 @@ export async function completeCcRun(
     session.runGuardToken = undefined
   }
   session.activeQuery = null
+  session.childPid = undefined
+  session.spawnedProcess = undefined
   session.pendingDispatch = false
   clearCcActiveRun(sessionKey)
   clearCcPersistThrottle(sessionKey)

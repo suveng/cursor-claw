@@ -23,7 +23,7 @@ export function getClaudeCodeSessionList(): Array<{
     chatType: s.chatType as string,
     startedAt: s.startedAt,
     chatName: resolveSessionChatName(s.sessionKey, s.chatName, s.senderOpenId),
-    pid: 0,
+    pid: s.childPid ?? 0,
     // CC 会话工作区：供 Dashboard MCP 面板绑定 project mcp.json
     workspaceDir: s.workspaceDir,
   }))

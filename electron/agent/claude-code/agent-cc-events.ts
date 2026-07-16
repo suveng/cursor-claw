@@ -22,6 +22,7 @@ import { formatCcHookUiLog } from "./cc-sdk-hooks"
 import { emitCcQueryTerminalRunEvent, mapCcSdkMessageToRunEvent } from "./engine-port-adapter"
 import { createRunLifecycle } from "../shared/run-lifecycle"
 import { persistCcActiveRunSnapshot } from "./cc-run-persist"
+import { killCcSpawnedProcess } from "./cc-spawn-process"
 
 /** content block 最小结构（含 tool_use.input） */
 type CcContentBlock = {
@@ -240,6 +241,7 @@ export function armCcWatchdog(session: CcSessionAgent, token: string, opts: ArmW
       s.watchdogTimedOut = true
       pushUiLog("CC", "WARN", `[${session.sessionKey}] watchdog 超时，中止 Query`)
       try { s.activeQuery.close() } catch { /* best-effort */ }
+      killCcSpawnedProcess(s) // spawn 路径下 close 未必回收 CLI 子进程
     },
   }).then((result) => {
     pushUiLog("CC", "INFO", `[${session.sessionKey}] watchdog 结束: ${result}`)

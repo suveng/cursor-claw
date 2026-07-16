@@ -88,6 +88,13 @@ export interface CcSessionAgent {
   watchdogStateAt: number
   /** watchdog 空闲/绝对超时触发时为 true；由 armCcWatchdog.onTimeout 置位，completeCcRun 消费 */
   watchdogTimedOut?: boolean
+  /** spawn 路径 CLI 子进程 PID，供会话列表与进程级中断（T4 写入） */
+  childPid?: number
+  /**
+   * spawn 路径子进程句柄，供 stop/watchdog `kill`；内存 only，勿序列化进 cc-active-runs.json。
+   * 形状与 SDK `SpawnedProcess` 最小 kill 子集对齐。
+   */
+  spawnedProcess?: { kill: (signal?: NodeJS.Signals | number) => boolean; pid?: number }
   /**
    * system/init 上报的 MCP server 状态快照；只在 init 时覆写，idle/complete 不清空，
    * 供 Dashboard idle 会话展示 MCP 列表（与 SDK 路径 lastInjectedMcpServers 对称）。

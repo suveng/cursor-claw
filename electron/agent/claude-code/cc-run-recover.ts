@@ -12,7 +12,8 @@ import { pushUiLog } from "../../app/ui-logger"
 import { CC_SESSIONS } from "./agent-cc-session-registry"
 import { broadcastCcSessionStatus, clearStreamPostTimer } from "./agent-cc-stream"
 import { ensureCcAgentBinaryPaths, f41Eligible, ccResidentModeEnabled } from "./agent-cc-utils"
-import { isClaudeCodeSessionRunning, startCcQuery } from "./agent-claude-sdk"
+import { isClaudeCodeSessionRunning, startCcSpawn } from "./agent-claude-sdk"
+import { killCcSpawnedProcess } from "./cc-spawn-process"
 import type { CcSessionAgent } from "./agent-cc-types"
 import { clearCcActiveRun, listRecoverableCcRuns, type CcActiveRunRecord } from "./cc-run-persistence"
 
@@ -60,6 +61,7 @@ function cleanupFailedCcSession(sessionKey: string): void {
   if (orphan.activeQuery) {
     try { orphan.activeQuery.close() } catch { /* best-effort */ }
   }
+  killCcSpawnedProcess(orphan)
   if (orphan.runGuardToken) {
     completeRunGuard(sessionKey, orphan.runGuardToken)
     releaseRunGuard(sessionKey, orphan.runGuardToken)
@@ -110,7 +112,7 @@ export async function recoverCcActiveRuns(): Promise<RecoverSummary> {
       session.runGuardToken = guard.token
       session.runStartedAt = record.runStartedAt
       const prompt = record.lastTaskMessage?.trim() ? record.lastTaskMessage : ""
-      startCcQuery(session, prompt, guard.token)
+      startCcSpawn(session, prompt, guard.token)
 
       pushUiLog("CC", "INFO", `[recover] sessionKey=${sessionKey} result=resumed ccSessionId=${record.ccSessionId ?? "new"}`)
       summary.resumed += 1

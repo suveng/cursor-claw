@@ -23,6 +23,7 @@ import {
   resetCcRunPresentationState, setWatchdogState, markSessionActivity,
 } from "./agent-cc-utils"
 import { buildQueryOptions } from "./cc-query-options"
+import { killCcSpawnedProcess } from "./cc-spawn-process"
 import { notifySessionChat, clearStreamPostTimer, broadcastCcSessionStatus, completeCcRun } from "./agent-cc-stream"
 import { stopSessionChatProgress } from "../shared/run-notify"
 import { armCcWatchdog, streamCcSdkMessages } from "./agent-cc-events"
@@ -69,14 +70,24 @@ const completeCcRunOpts = {
   resetPresentationState: resetCcRunPresentationState,
 }
 
-/** 启动 Query 并挂载事件流（recover 续接复用） */
-export function startCcQuery(session: CcSessionAgent, prompt: string, guardToken: string): void {
+/** spawn 主路径 + query 消息桥（launch/dispatch/recover 共用；同步失败向上抛出） */
+export function startCcSpawn(session: CcSessionAgent, prompt: string, guardToken: string): void {
   session.lastTaskMessage = prompt
+  pushUiLog(
+    "CC",
+    "INFO",
+    `[${session.sessionKey}] startCcSpawn: spawn 主路径 + query 桥 (resume=${session.ccSessionId ?? "new"})`,
+  )
   const q = query({ prompt, options: buildQueryOptions(session) })
   session.activeQuery = q
   armCcWatchdog(session, guardToken, makeWatchdogOpts())
   streamCcSdkMessages(session, q, makeStreamOpts())
   persistCcActiveRunSnapshot(session, true)
+}
+
+/** @deprecated 已弃用，请使用 startCcSpawn */
+export function startCcQuery(session: CcSessionAgent, prompt: string, guardToken: string): void {
+  startCcSpawn(session, prompt, guardToken)
 }
 
 export async function launchClaudeCodeAgent(opts: import("./agent-cc-types").ClaudeCodeLaunchOptions): Promise<{ ok: boolean; error?: string }> {
@@ -159,10 +170,19 @@ export async function launchClaudeCodeAgent(opts: import("./agent-cc-types").Cla
     }
 
     const prompt = buildPrompt(meta, taskMessage, sessionKey, useMainWorkspace)
-    pushUiLog("CC", "INFO", `[${sessionKey}] 启动 Claude Agent (model=${session.model || "claude-sonnet-4-6"} resident=${residentMode} resume=${session.ccSessionId ?? "new"})`)
+    pushUiLog("CC", "INFO", `[${sessionKey}] 启动 Claude Agent spawn (model=${session.model || "claude-sonnet-4-6"} resident=${residentMode} resume=${session.ccSessionId ?? "new"})`)
 
     session.pendingDispatch = true
-    startCcQuery(session, prompt, guard.token)
+    try {
+      startCcSpawn(session, prompt, guard.token)
+    } catch (e: unknown) {
+      session.pendingDispatch = false
+      killCcSpawnedProcess(session)
+      const errMsg = e instanceof Error ? e.message : String(e)
+      pushUiLog("CC", "ERROR", `[${sessionKey}] cc_spawn 启动失败: ${errMsg}`)
+      CC_FAILED_COOLDOWNS.set(sessionKey, Date.now() + FAIL_COOLDOWN_MS)
+      return { ok: false, error: errMsg }
+    }
 
     broadcastCcSessionStatus([...CC_SESSIONS.values()])
     await notifySessionChat(sessionKey, NOTIFY_PROCESSING)
@@ -197,8 +217,8 @@ export async function dispatchToClaudeCodeAgent(
     session.runStartedAt = Date.now()
 
     const prompt = buildPrompt(session.meta, taskText, sessionKey, session.useMainWorkspace)
-    pushUiLog("CC", "INFO", `[${sessionKey}] dispatch Claude Agent (resume=${session.ccSessionId ?? "new"})`)
-    startCcQuery(session, prompt, guard.token)
+    pushUiLog("CC", "INFO", `[${sessionKey}] dispatch Claude Agent spawn (resume=${session.ccSessionId ?? "new"})`)
+    startCcSpawn(session, prompt, guard.token)
 
     broadcastCcSessionStatus([...CC_SESSIONS.values()])
     await notifySessionChat(sessionKey, NOTIFY_PROCESSING)
@@ -206,7 +226,17 @@ export async function dispatchToClaudeCodeAgent(
     return { ok: true }
   } catch (e: unknown) {
     session.pendingDispatch = false
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    killCcSpawnedProcess(session)
+    session.activeQuery = null
+    if (session.runGuardToken) {
+      completeRunGuard(sessionKey, session.runGuardToken)
+      releaseRunGuard(sessionKey, session.runGuardToken)
+      session.runGuardToken = undefined
+    }
+    const errMsg = e instanceof Error ? e.message : String(e)
+    pushUiLog("CC", "ERROR", `[${sessionKey}] cc_spawn dispatch 失败: ${errMsg}`)
+    CC_FAILED_COOLDOWNS.set(sessionKey, Date.now() + FAIL_COOLDOWN_MS)
+    return { ok: false, error: errMsg }
   }
 }
 
@@ -222,6 +252,7 @@ export function stopClaudeCodeSession(sessionKey: string): void {
   s.abortController.abort()
   clearStreamPostTimer(s)
   if (s.activeQuery) { try { s.activeQuery.close() } catch { /* best-effort */ } }
+  killCcSpawnedProcess(s)
   if (s.runGuardToken) {
     completeRunGuard(sessionKey, s.runGuardToken)
     releaseRunGuard(sessionKey, s.runGuardToken)

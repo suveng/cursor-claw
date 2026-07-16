@@ -1,0 +1,253 @@
+{
+  "change_id": "20260716163001-Claude引擎改走spawn",
+  "id": "20260716163001-Claude引擎改走spawn",
+  "name": "Claude引擎改走spawn",
+  "flow": "standard",
+  "stage": "archived",
+  "source": "kb-propose",
+  "workflow_version": "v2.6",
+  "created_at": "2026-07-16T16:30:01+0800",
+  "updated_at": "2026-07-16T18:37:05+0800",
+  "archived_at": "2026-07-16T18:37:05+0800",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "扩展 CcSessionAgent 子进程可观测字段",
+      "status": "done",
+      "files": [
+        "electron/agent/claude-code/agent-cc-types.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "T2",
+      "title": "实现 spawnClaudeCodeProcess 适配器",
+      "status": "done",
+      "files": [
+        "electron/agent/claude-code/cc-spawn-process.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "buildQueryOptions 注入 spawn hook 与 CC_LEGACY_QUERY",
+      "status": "done",
+      "files": [
+        "electron/agent/claude-code/cc-query-options.ts"
+      ],
+      "depends_on": [
+        "T2"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "startCcSpawn 主路径、失败诊断、stop kill 与 recover 对齐",
+      "status": "done",
+      "files": [
+        "electron/agent/claude-code/agent-claude-sdk.ts",
+        "electron/agent/claude-code/cc-run-recover.ts"
+      ],
+      "depends_on": [
+        "T3"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "会话列表与广播输出真实 childPid",
+      "status": "done",
+      "files": [
+        "electron/agent/claude-code/agent-cc-stream.ts",
+        "electron/agent/claude-code/agent-cc-session-registry.ts"
+      ],
+      "depends_on": [
+        "T1"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "watchdog 超时挂接子进程 kill",
+      "status": "done",
+      "files": [
+        "electron/agent/claude-code/agent-cc-events.ts"
+      ],
+      "depends_on": [
+        "T2"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260716163001-Claude引擎改走spawn/00-manifest.json",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "changed",
+      "role": "manifest"
+    },
+    {
+      "path": "knowledge/变更/归档/20260716163001-Claude引擎改走spawn/01-proposal.md",
+      "kind": "change_doc",
+      "source": "propose",
+      "status": "changed",
+      "role": "proposal"
+    },
+    {
+      "path": "knowledge/变更/归档/20260716163001-Claude引擎改走spawn/02-design.md",
+      "kind": "change_doc",
+      "source": "design",
+      "status": "changed",
+      "role": "design"
+    },
+    {
+      "path": "knowledge/变更/归档/20260716163001-Claude引擎改走spawn/03-tasks.md",
+      "kind": "change_doc",
+      "source": "plan",
+      "status": "changed",
+      "role": "tasks"
+    },
+    {
+      "path": "knowledge/变更/归档/20260716163001-Claude引擎改走spawn/04-review.md",
+      "kind": "change_doc",
+      "source": "review",
+      "status": "added",
+      "role": "review"
+    },
+    {
+      "path": "knowledge/变更/归档/20260716163001-Claude引擎改走spawn/05-summary.md",
+      "kind": "change_doc",
+      "source": "archive",
+      "status": "added",
+      "role": "summary"
+    },
+    {
+      "path": "knowledge/变更/归档/20260716163001-Claude引擎改走spawn/06-automation-test.md",
+      "kind": "change_doc",
+      "source": "test",
+      "status": "added",
+      "role": "automation_test"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-types.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed",
+      "role": "implementation",
+      "task_id": "T1"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-stream.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed",
+      "role": "implementation",
+      "task_id": "T5"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-session-registry.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed",
+      "role": "implementation",
+      "task_id": "T5"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-spawn-process.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "added",
+      "role": "implementation",
+      "task_id": "T2"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-query-options.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed",
+      "role": "implementation",
+      "task_id": "T3"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-claude-sdk.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed",
+      "role": "implementation",
+      "task_id": "T4"
+    },
+    {
+      "path": "electron/agent/claude-code/cc-run-recover.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed",
+      "role": "implementation",
+      "task_id": "T4"
+    },
+    {
+      "path": "electron/agent/claude-code/AGENTS.md",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed",
+      "role": "agents",
+      "task_id": "T4"
+    },
+    {
+      "path": "electron/agent/claude-code/agent-cc-events.ts",
+      "kind": "code",
+      "source": "apply",
+      "status": "changed",
+      "role": "implementation",
+      "task_id": "T6"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/07-ClaudeCodeSDK执行引擎.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed",
+      "role": "domain_module"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/03-启动与自动重连.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed",
+      "role": "domain_module"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/10-SDK上下文保护与失败归因.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed",
+      "role": "domain_module"
+    },
+    {
+      "path": "knowledge/业务域/Agent调度/log.md",
+      "kind": "knowledge",
+      "source": "archive",
+      "status": "changed",
+      "role": "domain_log"
+    },
+    {
+      "path": "package.json",
+      "kind": "config",
+      "source": "archive",
+      "status": "changed",
+      "role": "version"
+    },
+    {
+      "path": "changelog/1.16.0.json",
+      "kind": "other",
+      "source": "archive",
+      "status": "added",
+      "role": "changelog"
+    }
+  ],
+  "external": {
+    "figma_confirmed": true,
+    "figma_decision": "auto-none",
+    "task_type": "需求",
+    "priority": "P1"
+  }
+}
