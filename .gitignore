@@ -39,3 +39,4 @@ crash_log
 daemon/daemon.log
 log/daemon.log
 log/daemon.log.old
+.mcp.json
