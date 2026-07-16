@@ -1,0 +1,52 @@
+{
+  "name": "Daemon日志双写修复",
+  "flow": "lite",
+  "stage": "archived",
+  "source": "kb-lite",
+  "tasks": [
+    {
+      "id": "LITE-01",
+      "title": "Electron pushDaemonStderrLine 遇 UNIFIED_DAEMON_PREFIX 时跳过 appendToLogFile，避免与 Daemon 落盘双写",
+      "status": "done",
+      "files": [
+        "electron/daemon/daemon-manager.ts",
+        "electron/app/ui-logger.ts",
+        "electron/daemon/AGENTS.md",
+        "electron/app/AGENTS.md"
+      ]
+    }
+  ],
+  "reviews": [],
+  "revisions": [],
+  "files": [
+    {
+      "path": "knowledge/变更/归档/20260716184553-Daemon日志双写修复/00-manifest.json",
+      "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/变更/归档/20260716184553-Daemon日志双写修复/01-proposal.md",
+      "kind": "change_doc"
+    },
+    {
+      "path": "knowledge/变更/归档/20260716184553-Daemon日志双写修复/05-summary.md",
+      "kind": "change_doc"
+    },
+    {
+      "path": "electron/daemon/daemon-manager.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/app/ui-logger.ts",
+      "kind": "code"
+    },
+    {
+      "path": "electron/daemon/AGENTS.md",
+      "kind": "agents"
+    },
+    {
+      "path": "electron/app/AGENTS.md",
+      "kind": "agents"
+    }
+  ],
+  "updated_at": "2026-07-16T18:50:53+08:00"
+}

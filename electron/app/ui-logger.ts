@@ -59,10 +59,12 @@ function formatUnifiedUiLog(processName: string, level: string, content: string)
   return `${uiTimestamp()} [${processName}] ${level} ${escapeLogContentSingleLine(content)}`
 }
 
-export function pushLog(line: string): void {
+/** @param skipFile 为 true 时只推内存 buffer / UI，不落盘（供 Daemon 已自行写文件的统一前缀行） */
+export function pushLog(line: string, opts?: { skipFile?: boolean }): void {
   logBuffer.push(line)
   if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.splice(0, logBuffer.length - LOG_BUFFER_MAX)
-  appendToLogFile(line)
+  // Daemon 统一格式行已由子进程落盘，Electron 侧跳过避免与同一 daemon.log 双写
+  if (!opts?.skipFile) appendToLogFile(line)
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send("daemon:log", line)
   }

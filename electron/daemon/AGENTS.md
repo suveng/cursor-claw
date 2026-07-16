@@ -23,3 +23,4 @@
 
 - re-export 须指向新子目录路径（如 `../agent/cursor-sdk/agent-sdk`）；**禁止**旧扁平 `./agent-sdk` shim。
 - 动态 import 项目 `src/` 时使用 `../../src/...`（本目录深度 +1）。
+- `pushDaemonStderrLine` 命中 `UNIFIED_DAEMON_PREFIX`（`[Daemon]` 统一行）时须 `pushLog(..., { skipFile: true })`；**禁止**再落盘（Daemon `daemon-logging` 已 stderr+文件双写，且禁止改其双写策略）。非统一前缀（如 `[TEMP_CONN]`/`[SDK]`）仍走 `pushUiLog` 落盘。

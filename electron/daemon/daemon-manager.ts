@@ -119,10 +119,12 @@ const UNIFIED_DAEMON_PREFIX = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}\.\d{3} \[
 function pushDaemonStderrLine(rawLine: string): void {
   const t = rawLine.trim()
   if (!t) return
+  // 命中 Daemon 统一前缀：子进程已 stderr+文件双写，此处只推 UI/内存，勿再 appendToLogFile
   if (UNIFIED_DAEMON_PREFIX.test(t)) {
-    pushLog(t.replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}:)/, "$1 $2"))
+    pushLog(t.replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}:)/, "$1 $2"), { skipFile: true })
     return
   }
+  // [TEMP_CONN]/[SDK] 等非统一前缀：仍走 pushUiLog（落盘 + UI）
   pushUiLog("Daemon", "WARN", t)
 }
 
@@ -1101,13 +1103,17 @@ export async function applyWorkspaceSwitch(workspaceDir: string, stopOldSessions
 /**
  * 保存配置；若工作目录变更且旧目录有活跃会话，返回会话列表供渲染进程展示确认弹窗。
  */
-/** 通道中影响 Daemon 连接的字段子集（变更后才需要重启 Daemon） */
-function daemonRelevantChannelView(channels: MessageChannel[]): string {
+  /** 通道中影响 Daemon 运行的字段子集（变更后才需要重启 Daemon） */
+  function daemonRelevantChannelView(channels: MessageChannel[]): string {
   return JSON.stringify(channels.map((c) => ({
     id: c.id, type: c.type, enabled: c.enabled,
     appId: c.larkAppId, appSecret: c.larkAppSecret,
     token: c.wechatToken, account: c.wechatAccountId,
     ws: c.workspaceDir,
+    // 主用户绑定/其他人权限影响 Daemon isSessionMainUser，须纳入变更检测
+    mainUserEnabled: c.mainUserEnabled ?? false,
+    mainUserChatId: c.mainUserChatId ?? "",
+    allowOthers: c.allowOthers ?? false,
   })))
 }
 

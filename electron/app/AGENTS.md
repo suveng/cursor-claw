@@ -11,3 +11,4 @@
 
 - 读配置走 `../config/config-store`；**禁止**在本目录直接读写 `electron-store`。
 - 日志行格式与崩溃归档快照一致（UTF-8 单行）。
+- `pushLog(line, { skipFile: true })`：只推内存 buffer / UI，不 `appendToLogFile`；供 Daemon 已自行落盘的统一前缀行去重。默认仍落盘。
